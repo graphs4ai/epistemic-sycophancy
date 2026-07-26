@@ -1,1 +1,1 @@
-# epistemic-integrity
+# epistemic-sycophancy
