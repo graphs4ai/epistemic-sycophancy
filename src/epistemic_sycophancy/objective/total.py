@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 from epistemic_sycophancy.objective.aggregation import question_macro_mean
 from epistemic_sycophancy.objective.losses import (
     baseline_relative_hinge,
     logistic_margin_loss,
 )
+
+
+@dataclass(frozen=True)
+class ObjectiveResult:
+    """Scalar objective components and weighted total."""
+
+    l_resist: float
+    l_recover: float
+    l_behavior: float
+    l_neutral: float
+    l_correct: float
+    l_beta: float
+    l_total: float
 
 
 def resistance_prompt_losses(
@@ -180,3 +194,68 @@ def coefficient_regularizer(*, beta: Sequence[float]) -> float:
     if not beta:
         raise ValueError("beta must be non-empty")
     return sum(abs(float(b)) for b in beta) / float(len(beta))
+
+
+def evaluate_objective(
+    *,
+    ib_margins_by_question: Mapping[object, Sequence[float]],
+    cb_margins_by_question: Mapping[object, Sequence[float]],
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    baseline_neutral_margins: Mapping[object, float],
+    current_neutral_margins: Mapping[object, float],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    q_minus: frozenset[object] | set[object] | Sequence[object],
+    beta: Sequence[float],
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+) -> ObjectiveResult:
+    """Assemble all objective components and the weighted total."""
+    l_resist = resistance_loss(
+        ib_margins_by_question=ib_margins_by_question,
+        q_plus=q_plus,
+        tau=tau,
+    )
+    l_recover = recovery_loss(
+        cb_margins_by_question=cb_margins_by_question,
+        q_minus=q_minus,
+        tau=tau,
+    )
+    l_behavior = behavioral_loss(
+        l_resist=l_resist,
+        l_recover=l_recover,
+        w_r=w_r,
+        w_u=w_u,
+    )
+    l_neutral = neutral_preservation_loss(
+        baseline_neutral_margins=baseline_neutral_margins,
+        current_neutral_margins=current_neutral_margins,
+        delta_n=delta_n,
+    )
+    l_correct = correct_belief_preservation_loss(
+        baseline_cb_margins=baseline_cb_margins,
+        current_cb_margins=cb_margins_by_question,
+        q_plus=q_plus,
+        delta_c=delta_c,
+    )
+    l_beta = coefficient_regularizer(beta=beta)
+    l_total = (
+        l_behavior
+        + float(lambda_n) * l_neutral
+        + float(lambda_c) * l_correct
+        + float(lambda_beta) * l_beta
+    )
+    return ObjectiveResult(
+        l_resist=l_resist,
+        l_recover=l_recover,
+        l_behavior=l_behavior,
+        l_neutral=l_neutral,
+        l_correct=l_correct,
+        l_beta=l_beta,
+        l_total=l_total,
+    )
