@@ -94,6 +94,10 @@ Phase D gate: `pixi run --environment test pytest tests/unit/test_aggregation.py
 
 Phase E gate: `pixi run --environment test pytest tests/unit/test_sae_delta.py tests/property/test_sae_intervention.py tests/integration/test_sae_hooks.py tests/integration/test_sae_identity.py -q` → `13 passed`. Identity at residual/logits/margins/decisions; beta-only grads; DEC-015…018. REPRO-004 optimizer gate deferred until OPT exists.
 
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| FEAT-001 | `test_feature_selection__t_star__uses_last_nonpadding_token_of_each_rendered_prompt` | green | `pixi run --environment test pytest tests/unit/test_feature_indexing.py::test_feature_selection__t_star__uses_last_nonpadding_token_of_each_rendered_prompt -q` → `ImportError: cannot import name 'final_prompt_token_index' from 'epistemic_sycophancy.feature_selection'` | same command → `1 passed`; module suite `pixi run --environment test pytest tests/unit/test_feature_indexing.py -q` → `1 passed` | `src/epistemic_sycophancy/feature_selection/indexing.py`, `src/epistemic_sycophancy/feature_selection/__init__.py`, `tests/fixtures/feature_selection/toy_gradients.py` | t* is each prompt's own last non-padding position; left and right padding select identical states. |
+
 ## Status definitions
 
 - `not_started`: no test written.
