@@ -60,3 +60,34 @@ def test_cmaes__suggested_coefficients__respect_configured_bounds() -> None:
         # feed tell so ask continues exploring
         values = [float(sum(v * v for v in beta)) for beta in candidates]
         optimizer.tell(candidates, values)
+
+
+@pytest.mark.unit
+def test_cmaes__repeated_trials__reuse_same_random_order_manifest() -> None:
+    """OPT-004: repeated CMA-ES trials reuse the same frozen RO manifest."""
+    from epistemic_sycophancy.optimization.cmaes import CMAESOptimizer
+    from epistemic_sycophancy.prompts.ordering import build_ro_manifest, hash_ro_manifest
+
+    question_ids = ["q1", "q2", "q3"]
+    ro_manifest = build_ro_manifest(ro_seed=42, question_ids=question_ids)
+    expected_hash = hash_ro_manifest(ro_manifest)
+
+    optimizer = CMAESOptimizer(
+        x0=[0.0, 0.0, 0.0],
+        sigma0=0.5,
+        cma_seed=3,
+        beta_lower=-2.0,
+        beta_upper=0.0,
+        eligible_question_ids=question_ids,
+        ro_manifest=ro_manifest,
+    )
+
+    hashes: list[str] = []
+    for _ in range(3):
+        candidates = optimizer.ask()
+        hashes.append(optimizer.ro_manifest_hash)
+        values = [float(sum(abs(v) for v in beta)) for beta in candidates]
+        optimizer.tell(candidates, values)
+
+    assert hashes == [expected_hash, expected_hash, expected_hash]
+    assert optimizer.ro_manifest is ro_manifest

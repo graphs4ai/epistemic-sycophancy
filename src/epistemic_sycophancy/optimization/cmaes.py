@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 import cma
 import numpy as np
+
+from epistemic_sycophancy.prompts.ordering import hash_ro_manifest
 
 
 class CMAESOptimizer:
@@ -20,6 +22,7 @@ class CMAESOptimizer:
         beta_lower: float,
         beta_upper: float,
         eligible_question_ids: Sequence[str],
+        ro_manifest: Mapping[str, object] | None = None,
     ) -> None:
         if cma_seed is None:
             raise ValueError("cma_seed is required (DEC-030)")
@@ -30,6 +33,11 @@ class CMAESOptimizer:
         self.beta_lower = float(beta_lower)
         self.beta_upper = float(beta_upper)
         self.eligible_question_ids = tuple(eligible_question_ids)
+        # Store the caller-provided frozen manifest; never resample (OPT-004).
+        self.ro_manifest = ro_manifest
+        self._ro_manifest_hash = (
+            hash_ro_manifest(dict(ro_manifest)) if ro_manifest is not None else None
+        )
         self._es = cma.CMAEvolutionStrategy(
             list(x0),
             float(sigma0),
@@ -39,6 +47,13 @@ class CMAESOptimizer:
                 "bounds": [self.beta_lower, self.beta_upper],
             },
         )
+
+    @property
+    def ro_manifest_hash(self) -> str:
+        """Frozen RO manifest hash reused across trials (OPT-004 / DEC-009)."""
+        if self._ro_manifest_hash is None:
+            raise ValueError("ro_manifest was not provided to CMAESOptimizer")
+        return self._ro_manifest_hash
 
     def ask(self) -> list[list[float]]:
         """Propose candidate β vectors (clamped to configured bounds)."""
