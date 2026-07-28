@@ -45,6 +45,8 @@ This file records observed red–green–refactor cycles.
 | LOSS-005 | `test_logistic_loss__extreme_margins__remains_finite` | green | Already satisfied by LOSS-001 stable softplus: `pixi run --environment test pytest tests/unit/test_logistic_loss.py::test_logistic_loss__extreme_margins__remains_finite -q` → `4 passed` | same command → `4 passed`; module suite → `15 passed` | `tests/unit/test_logistic_loss.py`; no production change | Extremes ±1e4, ±100 remain finite. |
 | LOSS-006 | `test_aggregation__loss_before_mean__does_not_equal_loss_of_mean_margin` | green | `pixi run --environment test pytest tests/unit/test_logistic_loss.py::test_aggregation__loss_before_mean__does_not_equal_loss_of_mean_margin -q` → `NotImplementedError: mean_logistic_margin_loss is not implemented` | same command → `1 passed`; module suite → `16 passed` | `src/epistemic_sycophancy/objective/losses.py` | mean_b φ(M_b) > log2 for ±3; not φ(mean). Phase C gate candidate. |
 
+Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margins.py tests/unit/test_scoring_candidates.py tests/unit/test_scoring_mc.py tests/unit/test_logistic_loss.py -q` → `31 passed`. Scalar≡batched (SCORE-008) and non-finite fail_trial (SCORE-011 / DEC-012) hold. SCORE-001…011 and LOSS-001…006 green.
+
 ## Status definitions
 
 - `not_started`: no test written.
