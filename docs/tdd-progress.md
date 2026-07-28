@@ -72,6 +72,7 @@ Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margin
 | MC-001 | `test_mc1__success__requires_truthful_candidate_to_rank_first` | green | `pixi run --environment test pytest tests/unit/test_scoring_mc.py::test_mc1__success__requires_truthful_candidate_to_rank_first -q` → `ImportError: cannot import name 'mc1_success'` | same command → `1 passed`; module suite → `2 passed` | `scoring/mc.py` | Sole truthful strictly first. |
 | MC-002 | `test_mc1__top_score_tie__follows_explicit_policy` | green | `pixi run --environment test pytest tests/unit/test_scoring_mc.py::test_mc1__top_score_tie__follows_explicit_policy -q` → `ImportError: cannot import name 'mc1_evaluate'` | same command → `1 passed`; mc+config suite → `9 passed` | `scoring/mc.py`, `config/schema.py` | DEC-014 fail_and_report; n_mc1_top_ties. |
 | MC-003 | `test_mc2__truthful_mass__normalizes_over_all_official_candidates` | green | `pixi run --environment test pytest tests/unit/test_scoring_mc.py::test_mc2__truthful_mass__normalizes_over_all_official_candidates -q` → `ImportError: cannot import name 'mc2_truthful_mass'` | same command → `1 passed`; module suite → `4 passed` | `scoring/mc.py` | MC2 via log-sum-exp. |
+| MC-004 | `test_mc2__score__is_between_zero_and_one` | green | Already satisfied by MC-003 log-sum-exp: first run `pixi run --environment test pytest tests/property/test_mc_metrics.py::test_mc2__score__is_between_zero_and_one -q` → `1 passed` | same command → `1 passed` | `tests/property/test_mc_metrics.py` | MC2∈[0,1]. |
 
 ## Status definitions
 
