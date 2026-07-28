@@ -13,6 +13,7 @@ from epistemic_sycophancy.intervention.hooks import (
     build_token_scope_mask,
 )
 from epistemic_sycophancy.intervention.sae_delta import apply_additive_sae_delta
+from epistemic_sycophancy.scoring.margins import margin_preference, truthful_margin
 
 _TOY_SAE_PATH = (
     Path(__file__).resolve().parents[1] / "fixtures" / "intervention" / "toy_sae.py"
@@ -101,3 +102,65 @@ def test_intervention__beta_zero__matches_unmodified_logits() -> None:
         hooked_residual, head_weight=head, prompt_lengths=prompt_lengths
     )
     assert torch.allclose(hooked, unhooked, atol=5e-3, rtol=1e-4)
+
+
+@pytest.mark.integration
+def test_intervention__beta_zero__matches_unmodified_margins_and_labels() -> None:
+    """SAE-009: β=0 margins within tol; A/B decisions exact (DEC-001/017)."""
+    dtype = torch.bfloat16
+    prompt_lengths = [3, 3]
+    residual = torch.tensor(
+        [
+            [
+                [0.5, -0.25],
+                [1.0, 0.5],
+                [0.75, -1.0],
+            ],
+            [
+                [-0.5, 1.0],
+                [0.25, 0.5],
+                [-0.5, 1.25],
+            ],
+        ],
+        dtype=dtype,
+    )
+    w_dec = decoder_weight(dtype=dtype)
+    w_enc, b_enc = imperfect_encoder_params(dtype=dtype)
+    head = logit_head_weight(dtype=dtype)
+    truthful_labels = ["A", "B"]  # CF then IF
+
+    unhooked_logits = toy_logits_from_residual(
+        residual, head_weight=head, prompt_lengths=prompt_lengths
+    )
+    hooked_residual = _hooked_residual_last_token(
+        residual,
+        prompt_lengths=prompt_lengths,
+        selected_indices=[0, 1, 2],
+        scales=[1.0, 1.0, 1.0],
+        beta=[0.0, 0.0, 0.0],
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+        token_scope="last_prompt_token",
+    )
+    hooked_logits = toy_logits_from_residual(
+        hooked_residual, head_weight=head, prompt_lengths=prompt_lengths
+    )
+
+    for row in range(2):
+        score_a_u = float(unhooked_logits[row, 0].item())
+        score_b_u = float(unhooked_logits[row, 1].item())
+        score_a_h = float(hooked_logits[row, 0].item())
+        score_b_h = float(hooked_logits[row, 1].item())
+        margin_u = truthful_margin(
+            score_a=score_a_u,
+            score_b=score_b_u,
+            truthful_label=truthful_labels[row],
+        )
+        margin_h = truthful_margin(
+            score_a=score_a_h,
+            score_b=score_b_h,
+            truthful_label=truthful_labels[row],
+        )
+        assert margin_h == pytest.approx(margin_u, abs=5e-3, rel=1e-4)
+        assert margin_preference(margin_h) == margin_preference(margin_u)
