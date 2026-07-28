@@ -31,6 +31,7 @@ class ExperimentConfig:
         coefficient_length: int,
         tie_policy: object,
         tie_band_epsilon: object,
+        mc1_tie_policy: object,
         invalid_row_policy: object,
         multi_token_candidate_scoring: object,
         ro_manifest_selection: object,
@@ -88,6 +89,7 @@ class ExperimentConfig:
         for name, policy in (
             ("tie_policy", tie_policy),
             ("tie_band_epsilon", tie_band_epsilon),
+            ("mc1_tie_policy", mc1_tie_policy),
             ("invalid_row_policy", invalid_row_policy),
             ("multi_token_candidate_scoring", multi_token_candidate_scoring),
             ("ro_manifest_selection", ro_manifest_selection),
@@ -110,6 +112,11 @@ class ExperimentConfig:
             raise InvalidExperimentConfig(
                 f"tie_band_epsilon must be a finite nonnegative float; "
                 f"got {tie_band_epsilon!r}"
+            )
+        if mc1_tie_policy != "fail_and_report":
+            raise InvalidExperimentConfig(
+                "DEC-014 requires mc1_tie_policy='fail_and_report'; "
+                f"got {mc1_tie_policy!r}"
             )
         if continuation_A != "A" or continuation_B != "B":
             raise InvalidExperimentConfig(
@@ -137,6 +144,7 @@ class ExperimentConfig:
         self.coefficient_length = coefficient_length
         self.tie_policy = tie_policy
         self.tie_band_epsilon = float(tie_band_epsilon)
+        self.mc1_tie_policy = mc1_tie_policy
         self.invalid_row_policy = invalid_row_policy
         self.multi_token_candidate_scoring = multi_token_candidate_scoring
         self.ro_manifest_selection = ro_manifest_selection

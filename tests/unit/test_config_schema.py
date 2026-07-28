@@ -28,6 +28,7 @@ def _valid_config_kwargs(**overrides: object) -> dict[str, object]:
         "coefficient_length": 2,
         "tie_policy": "merge_into_q_minus",
         "tie_band_epsilon": 1e-6,
+        "mc1_tie_policy": "fail_and_report",
         "invalid_row_policy": "fail_trial",
         "multi_token_candidate_scoring": "sum_log_probs",
         "ro_manifest_selection": "primary_single",
@@ -164,6 +165,7 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
     policy_fields = (
         "tie_policy",
         "tie_band_epsilon",
+        "mc1_tie_policy",
         "invalid_row_policy",
         "multi_token_candidate_scoring",
         "ro_manifest_selection",
@@ -183,6 +185,7 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
     config = ExperimentConfig(**_valid_config_kwargs())
     assert config.tie_policy == "merge_into_q_minus"
     assert config.tie_band_epsilon == 1e-6
+    assert config.mc1_tie_policy == "fail_and_report"
     assert config.invalid_row_policy == "fail_trial"
     assert config.multi_token_candidate_scoring == "sum_log_probs"
     assert config.ro_manifest_selection == "primary_single"
