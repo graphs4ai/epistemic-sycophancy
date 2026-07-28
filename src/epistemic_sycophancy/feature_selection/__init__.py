@@ -1,5 +1,9 @@
 """Gradient-based sparse feature selection (Phase F)."""
 
+from epistemic_sycophancy.feature_selection.artifacts import (
+    FeatureSelectionArtifact,
+    FeatureSelectionRow,
+)
 from epistemic_sycophancy.feature_selection.components import (
     component_question_subset,
     isolate_component_jacobian,
@@ -42,6 +46,8 @@ __all__ = [
     "AnnotatedSuppressionCandidate",
     "AttributionScopeResolution",
     "EligibilityResult",
+    "FeatureSelectionArtifact",
+    "FeatureSelectionRow",
     "LayerMismatchError",
     "ScopeMismatchError",
     "StreamingJacobianAccumulator",
