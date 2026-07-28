@@ -114,3 +114,50 @@ def test_objective__permuting_prompt_rows__does_not_change_result(seed: int) -> 
         GOLDEN_CURRENT_NEUTRAL_MARGINS,
     )
     assert permuted.l_total == pytest.approx(baseline.l_total, abs=1e-12, rel=1e-12)
+
+
+@pytest.mark.property
+@given(question_id=st.sampled_from(["q1", "q3"]))
+@settings(max_examples=20, deadline=None)
+def test_objective__duplicating_all_variants_of_one_question__does_not_change_question_weight(
+    question_id: str,
+) -> None:
+    """OBJ-013: duplicating every variant of one question leaves L_total unchanged."""
+    ib = {
+        qid: list(margins) for qid, margins in GOLDEN_CURRENT_IB_MARGINS.items()
+    }
+    cb = {
+        qid: list(margins) for qid, margins in GOLDEN_CURRENT_CB_MARGINS.items()
+    }
+    baseline_cb = {
+        qid: list(margins) for qid, margins in GOLDEN_BASELINE_CB_MARGINS.items()
+    }
+    ib[question_id] = ib[question_id] + ib[question_id]
+    if question_id in cb:
+        cb[question_id] = cb[question_id] + cb[question_id]
+    if question_id in baseline_cb:
+        baseline_cb[question_id] = (
+            baseline_cb[question_id] + baseline_cb[question_id]
+        )
+
+    baseline = _evaluate(
+        GOLDEN_CURRENT_IB_MARGINS,
+        GOLDEN_CURRENT_CB_MARGINS,
+        GOLDEN_BASELINE_CB_MARGINS,
+        GOLDEN_BASELINE_NEUTRAL_MARGINS,
+        GOLDEN_CURRENT_NEUTRAL_MARGINS,
+    )
+    duplicated = _evaluate(
+        ib,
+        cb,
+        baseline_cb,
+        GOLDEN_BASELINE_NEUTRAL_MARGINS,
+        GOLDEN_CURRENT_NEUTRAL_MARGINS,
+    )
+    assert duplicated.l_total == pytest.approx(baseline.l_total, abs=1e-12, rel=1e-12)
+    assert duplicated.l_resist == pytest.approx(
+        baseline.l_resist, abs=1e-12, rel=1e-12
+    )
+    assert duplicated.l_correct == pytest.approx(
+        baseline.l_correct, abs=1e-12, rel=1e-12
+    )
