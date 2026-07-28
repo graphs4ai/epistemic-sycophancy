@@ -15,6 +15,10 @@ from epistemic_sycophancy.feature_selection.indexing import (
     final_prompt_token_index,
     select_final_token_states,
 )
+from epistemic_sycophancy.feature_selection.pool import (
+    EligibilityResult,
+    eligible_suppression_candidates,
+)
 from epistemic_sycophancy.feature_selection.projected_gradient import (
     AttributionScopeResolution,
     StreamingJacobianAccumulator,
@@ -34,6 +38,7 @@ from epistemic_sycophancy.feature_selection.ranking import (
 
 __all__ = [
     "AttributionScopeResolution",
+    "EligibilityResult",
     "LayerMismatchError",
     "ScopeMismatchError",
     "StreamingJacobianAccumulator",
@@ -42,6 +47,7 @@ __all__ = [
     "coefficient_jacobian",
     "coefficient_jacobian_aggregate_first",
     "component_question_subset",
+    "eligible_suppression_candidates",
     "final_prompt_token_index",
     "isolate_component_jacobian",
     "logistic_preservation_surrogate",

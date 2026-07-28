@@ -39,6 +39,7 @@ class ExperimentConfig:
         continuation_B: object,
         continuation_include_eos: object,
         attribution_scope: object,
+        pool_eligibility_override: object,
     ) -> None:
         if tau <= 0:
             raise InvalidExperimentConfig(
@@ -98,6 +99,7 @@ class ExperimentConfig:
             ("continuation_B", continuation_B),
             ("continuation_include_eos", continuation_include_eos),
             ("attribution_scope", attribution_scope),
+            ("pool_eligibility_override", pool_eligibility_override),
         ):
             if policy is None:
                 raise InvalidExperimentConfig(
@@ -130,6 +132,11 @@ class ExperimentConfig:
                 "DEC-010 requires continuation_include_eos=False; "
                 f"got {continuation_include_eos!r}"
             )
+        if not isinstance(pool_eligibility_override, bool):
+            raise InvalidExperimentConfig(
+                "pool_eligibility_override must be an explicit bool; "
+                f"got {pool_eligibility_override!r}"
+            )
 
         self.tau = tau
         self.lambda_n = lambda_n
@@ -154,3 +161,4 @@ class ExperimentConfig:
         self.continuation_B = continuation_B
         self.continuation_include_eos = continuation_include_eos
         self.attribution_scope = attribution_scope
+        self.pool_eligibility_override = pool_eligibility_override
