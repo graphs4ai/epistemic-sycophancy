@@ -34,3 +34,29 @@ def test_optimizer_objective__cmaes_trial__evaluates_every_eligible_optimization
     assert seen_calls, "expected at least one corpus evaluation"
     for seen in seen_calls:
         assert seen == frozenset(eligible)
+
+
+@pytest.mark.unit
+def test_cmaes__suggested_coefficients__respect_configured_bounds() -> None:
+    """OPT-003: CMA-ES proposals stay within CFG-004 suppression-only bounds."""
+    from epistemic_sycophancy.optimization.cmaes import CMAESOptimizer
+
+    beta_lower = -2.0
+    beta_upper = 0.0
+    optimizer = CMAESOptimizer(
+        x0=[0.0, 0.0, 0.0],
+        sigma0=2.0,
+        cma_seed=11,
+        beta_lower=beta_lower,
+        beta_upper=beta_upper,
+        eligible_question_ids=("q1",),
+    )
+    for _ in range(5):
+        candidates = optimizer.ask()
+        for beta in candidates:
+            assert len(beta) == 3
+            for value in beta:
+                assert beta_lower <= value <= beta_upper
+        # feed tell so ask continues exploring
+        values = [float(sum(v * v for v in beta)) for beta in candidates]
+        optimizer.tell(candidates, values)
