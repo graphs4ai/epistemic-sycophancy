@@ -164,3 +164,26 @@ def test_margin__sigmoid__equals_two_candidate_normalized_truth_probability(
     assert 0.0 <= from_sigmoid <= 1.0
 
 
+# Spec SCORE-005 golden table (transcribed; not produced from production code).
+_SCORE_005_GOLDENS = [
+    (3.0, 0.9525741268224334),
+    (1.0, 0.7310585786300049),
+    (0.0, 0.5),
+    (-1.0, 0.2689414213699951),
+    (-3.0, 0.04742587317756678),
+]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(("margin", "expected"), _SCORE_005_GOLDENS)
+def test_margin__reference_values__match_expected_probability(
+    margin: float,
+    expected: float,
+) -> None:
+    """SCORE-005: σ(M) matches transcribed reference probabilities."""
+    assert two_candidate_truth_probability(margin) == pytest.approx(
+        expected, abs=1e-12, rel=1e-12
+    )
+
+
+
