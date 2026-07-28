@@ -283,3 +283,54 @@ def test_feature_jacobian__streamed_batches__match_single_batch_reference() -> N
         for order in ([0, 1, 2], [2, 0, 1], [1, 2, 0]):
             streamed = _stream(order, batch_size)
             assert torch.allclose(streamed, reference, atol=1e-10, rtol=1e-9)
+
+
+@pytest.mark.unit
+def test_feature_jacobian__multi_token_scope__equals_sum_of_token_level_contributions() -> (
+    None
+):
+    """FEAT-022: J_j = sum_{t in S_p} s_j 1[z_{j,t}>0] <g_t, d_j>."""
+    from epistemic_sycophancy.feature_selection import (
+        multi_token_coefficient_jacobian,
+        project_residual_gradient,
+    )
+
+    decoder = torch.tensor(
+        [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]], dtype=torch.float64
+    )
+    scales = torch.tensor([2.0, 3.0, 0.5], dtype=torch.float64)
+    # One prompt, two intervened tokens.
+    token_gradients = torch.tensor(
+        [
+            [2.0, -1.0],  # t0: h=[2,-1,1]
+            [0.0, 4.0],  # t1: h=[0,4,4]
+        ],
+        dtype=torch.float64,
+    )
+    token_latents = torch.tensor(
+        [
+            [1.0, 0.0, 2.0],  # mask [1,0,1] → contrib [4, 0, 0.5]
+            [0.0, 1.0, 1.0],  # mask [0,1,1] → contrib [0, 12, 2]
+        ],
+        dtype=torch.float64,
+    )
+
+    summed = multi_token_coefficient_jacobian(
+        token_gradients=token_gradients,
+        token_latents=token_latents,
+        decoder=decoder,
+        feature_scales=scales,
+    )
+    # Hand-derived sum: [4, 0, 0.5] + [0, 12, 2] = [4, 12, 2.5]
+    assert summed.tolist() == pytest.approx([4.0, 12.0, 2.5])
+
+    # Final-token-only would miss the first token's contribution.
+    final_only = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=token_gradients[-1], decoder=decoder
+        ),
+        latents=token_latents[-1],
+        feature_scales=scales,
+    )
+    assert final_only.tolist() == pytest.approx([0.0, 12.0, 2.0])
+    assert not torch.allclose(summed, final_only)

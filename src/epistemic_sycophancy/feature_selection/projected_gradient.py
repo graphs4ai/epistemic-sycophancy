@@ -260,3 +260,23 @@ def resolve_attribution_scope(
         f"got attribution_scope={attribution_scope!r}, "
         f"intervention_token_scope={intervention_token_scope!r}"
     )
+
+
+def multi_token_coefficient_jacobian(
+    *,
+    token_gradients: torch.Tensor,  # [n_tokens, d_model]
+    token_latents: torch.Tensor,  # [n_tokens, n_features]
+    decoder: torch.Tensor,  # [n_features, d_model]
+    feature_scales: torch.Tensor,  # [n_features]
+) -> torch.Tensor:  # [n_features]
+    """Sum token-level coefficient Jacobians over intervention positions S_p.
+
+    J_j = sum_{t in S_p} s_j 1[z_{j,t}>0] <g_t, d_j> (FEAT-022).
+    """
+    raw = project_residual_gradient(gradient=token_gradients, decoder=decoder)
+    per_token = coefficient_jacobian(
+        raw_projection=raw,
+        latents=token_latents,
+        feature_scales=feature_scales,
+    )
+    return per_token.sum(dim=0)
