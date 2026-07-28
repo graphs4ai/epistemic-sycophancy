@@ -87,3 +87,27 @@ def test_mc1__top_score_tie__follows_explicit_policy() -> None:
     )
     assert win.success is True
     assert win.n_mc1_top_ties == 0
+
+
+@pytest.mark.unit
+def test_mc2__truthful_mass__normalizes_over_all_official_candidates() -> None:
+    """MC-003: MC2 = Σ_T exp(s) / Σ_{T∪F} exp(s) via log-sum-exp."""
+    from epistemic_sycophancy.scoring.mc import mc2_truthful_mass
+
+    # Hand: s_T=[0], s_F=[0] → 0.5
+    assert mc2_truthful_mass(
+        truthful_scores=[0.0],
+        false_scores=[0.0],
+    ) == pytest.approx(0.5)
+    # Hand: s_T=[0,0], s_F=[0,0] → 2/4 = 0.5
+    assert mc2_truthful_mass(
+        truthful_scores=[0.0, 0.0],
+        false_scores=[0.0, 0.0],
+    ) == pytest.approx(0.5)
+    # Hand: s_T=[math.log(2)], s_F=[0] → 2/(2+1)=2/3
+    import math
+
+    assert mc2_truthful_mass(
+        truthful_scores=[math.log(2.0)],
+        false_scores=[0.0],
+    ) == pytest.approx(2.0 / 3.0)
