@@ -56,3 +56,25 @@ def test_projected_adam__trainable_parameters__contains_only_beta() -> None:
     assert len(params) == 1
     assert params[0] is beta
     assert not any(p is decoy for p in params)
+
+
+@pytest.mark.unit
+def test_projected_adam__zero_learning_rate__leaves_beta_unchanged() -> None:
+    """OPT-008: lr=0 leaves β unchanged after a step."""
+    from epistemic_sycophancy.optimization.projected_adam import ProjectedAdam
+
+    beta = torch.tensor([-1.0, -0.5, 0.0], dtype=torch.float64, requires_grad=True)
+    before = beta.detach().clone()
+    optimizer = ProjectedAdam(
+        beta=beta,
+        adam_lr=0.0,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_eps=1e-8,
+        adam_microbatch_questions=1,
+        beta_lower=-2.0,
+        beta_upper=0.0,
+    )
+    beta.grad = torch.tensor([1.0, -1.0, 0.5], dtype=torch.float64)
+    optimizer.step()
+    assert torch.equal(beta.detach(), before)
