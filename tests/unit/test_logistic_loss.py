@@ -113,3 +113,29 @@ def test_logistic_loss__extreme_margins__remains_finite(margin: float) -> None:
     """LOSS-005: extreme margins remain finite under production float dtype."""
     loss = logistic_margin_loss(margin, tau=1.0)
     assert math.isfinite(loss)
+
+
+@pytest.mark.unit
+def test_aggregation__loss_before_mean__does_not_equal_loss_of_mean_margin() -> None:
+    """LOSS-006: mean_b φ(M_b) ≠ φ(mean_b M_b); production uses loss-before-mean."""
+    from epistemic_sycophancy.objective.losses import mean_logistic_margin_loss
+
+    margins = [3.0, -3.0]
+    tau = 1.0
+
+    mean_of_margins = sum(margins) / len(margins)
+    assert mean_of_margins == pytest.approx(0.0, abs=1e-12, rel=1e-12)
+
+    loss_of_mean = logistic_margin_loss(mean_of_margins, tau=tau)
+    assert loss_of_mean == pytest.approx(math.log(2.0), abs=1e-12, rel=1e-12)
+
+    # Independent check: mean(softplus(-M)) for ±3 exceeds log(2).
+    independent_mean_loss = (
+        _stable_softplus(-3.0 / tau) + _stable_softplus(-(-3.0) / tau)
+    ) / 2.0
+    assert independent_mean_loss > math.log(2.0)
+
+    production = mean_logistic_margin_loss(margins, tau=tau)
+    assert production == pytest.approx(independent_mean_loss, abs=1e-12, rel=1e-12)
+    assert production > math.log(2.0)
+    assert production != pytest.approx(loss_of_mean, abs=1e-12, rel=1e-12)
