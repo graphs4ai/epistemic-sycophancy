@@ -63,3 +63,20 @@ def logit_head_weight(*, dtype: torch.dtype = torch.bfloat16) -> torch.Tensor:
         ],
         dtype=dtype,
     )
+
+
+def toy_logits_from_residual(
+    residual: torch.Tensor,
+    *,
+    head_weight: torch.Tensor,
+    prompt_lengths: list[int],
+) -> torch.Tensor:
+    """Score A/B logits from the last prompt token residual.
+
+    residual: [B, T, D]; returns [B, 2] logits.
+    """
+    batch_logits = []
+    for batch_index, prompt_length in enumerate(prompt_lengths):
+        last = residual[batch_index, prompt_length - 1]
+        batch_logits.append(head_weight @ last)
+    return torch.stack(batch_logits, dim=0)
