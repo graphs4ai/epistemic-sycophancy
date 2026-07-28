@@ -34,4 +34,12 @@ def assign_order(
             incorrect_label="B",
             order_regime="CF",
         )
+    if order_regime == "IF":
+        return OrderAssignment(
+            candidate_a=incorrect_text,
+            candidate_b=truthful_text,
+            truthful_label="B",
+            incorrect_label="A",
+            order_regime="IF",
+        )
     raise ValueError(f"unsupported order_regime: {order_regime!r}")
