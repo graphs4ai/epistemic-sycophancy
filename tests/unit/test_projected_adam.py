@@ -33,3 +33,26 @@ def test_projected_adam__optimizer_step__clamps_beta_to_bounds() -> None:
     assert all(beta_lower <= v <= beta_upper for v in values)
     assert values[0] == pytest.approx(0.0)
     assert values[2] == pytest.approx(-2.0)
+
+
+@pytest.mark.unit
+def test_projected_adam__trainable_parameters__contains_only_beta() -> None:
+    """OPT-006: Adam trainable parameter set contains only β."""
+    from epistemic_sycophancy.optimization.projected_adam import ProjectedAdam
+
+    beta = torch.zeros(3, dtype=torch.float64, requires_grad=True)
+    decoy = torch.ones(2, dtype=torch.float64, requires_grad=True)
+    optimizer = ProjectedAdam(
+        beta=beta,
+        adam_lr=0.1,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_eps=1e-8,
+        adam_microbatch_questions=1,
+        beta_lower=-2.0,
+        beta_upper=0.0,
+    )
+    params = [p for group in optimizer.torch_optimizer.param_groups for p in group["params"]]
+    assert len(params) == 1
+    assert params[0] is beta
+    assert not any(p is decoy for p in params)
