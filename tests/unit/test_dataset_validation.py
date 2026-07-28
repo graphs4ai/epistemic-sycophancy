@@ -443,3 +443,31 @@ def test_dataset__question_macro_weights__sum_to_one_within_component() -> None:
         assert_question_macro_weights_sum_to_one_within_component(
             wrong_field_would_look_normalized
         )
+
+
+@pytest.mark.unit
+def test_pipeline__optimization_split__does_not_load_mc1_or_mc2_rows() -> None:
+    """MC-007: optimization split must be MC0-only; val/holdout may load all formats."""
+    from epistemic_sycophancy.data.validation import (
+        assert_optimization_split_is_mc0_only,
+    )
+
+    ok = [
+        {"question_id": "q1", "split": "optimization", "format": "MC0"},
+        {"question_id": "q2", "split": "behavior_validation", "format": "MC1"},
+        {"question_id": "q3", "split": "holdout_test_behavior", "format": "MC2"},
+    ]
+    assert_optimization_split_is_mc0_only(ok)
+
+    bad = [
+        {"question_id": "q1", "split": "optimization", "format": "MC1"},
+        {"question_id": "q2", "split": "optimization", "format": "MC0"},
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_optimization_split_is_mc0_only(bad)
+
+    bad_mc2 = [
+        {"question_id": "q1", "split": "optimization", "format": "MC2"},
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_optimization_split_is_mc0_only(bad_mc2)

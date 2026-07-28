@@ -410,3 +410,27 @@ def assert_question_macro_weights_sum_to_one_within_component(
             "pair_weight must sum to 1 within each question component; "
             f"found violations: {violations!r}"
         )
+
+
+def assert_optimization_split_is_mc0_only(
+    rows: Sequence[Mapping[str, object]],
+) -> None:
+    """Assert optimization-split rows are MC0-only (MC-007).
+
+    Validation and holdout may include MC1/MC2; optimization must not.
+    """
+    violations: list[dict[str, object]] = []
+    for row in rows:
+        if row.get("split") == "optimization" and row.get("format") != "MC0":
+            violations.append(
+                {
+                    "question_id": row.get("question_id"),
+                    "split": row.get("split"),
+                    "format": row.get("format"),
+                }
+            )
+    if violations:
+        raise DataIntegrityError(
+            "optimization split must not load MC1 or MC2 rows; "
+            f"found violations: {violations!r}"
+        )

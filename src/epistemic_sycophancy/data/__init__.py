@@ -15,6 +15,7 @@ from epistemic_sycophancy.data.validation import (
     assert_normalized_question_hash_does_not_cross_splits,
     assert_question_ids_in_exactly_one_split,
     assert_question_macro_weights_sum_to_one_within_component,
+    assert_optimization_split_is_mc0_only,
     normalize_question_text,
     question_content_hash,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "assert_mc_targets_are_complete_and_noncontradictory",
     "assert_neutral_rows_exactly_one_per_question_order_and_format",
     "assert_normalized_question_hash_does_not_cross_splits",
+    "assert_optimization_split_is_mc0_only",
     "assert_question_ids_in_exactly_one_split",
     "assert_question_macro_weights_sum_to_one_within_component",
     "count_questions_by_split",
