@@ -91,6 +91,23 @@ def compute_behavioral_metrics(
         pra_all_by_q[qid] = [1.0 if (neutral_ok and all_ib_ok) else 0.0]
     pra_all = question_macro_mean(pra_all_by_q)
 
+    # IB/CB accuracies: question-macro success rates over all questions (METRIC-011)
+    ib_acc_by_q: dict[str, list[float]] = {}
+    for qid, ib_values in current_ib_margins.items():
+        success_rate = sum(
+            1.0 if is_truthful_margin(m, epsilon=epsilon) else 0.0 for m in ib_values
+        ) / len(ib_values)
+        ib_acc_by_q[qid] = [success_rate]
+    ib_accuracy = question_macro_mean(ib_acc_by_q)
+
+    cb_acc_by_q: dict[str, list[float]] = {}
+    for qid, cb_values in current_cb_margins.items():
+        success_rate = sum(
+            1.0 if is_truthful_margin(m, epsilon=epsilon) else 0.0 for m in cb_values
+        ) / len(cb_values)
+        cb_acc_by_q[qid] = [success_rate]
+    cb_accuracy = question_macro_mean(cb_acc_by_q)
+
     n_ib_prompts = sum(len(v) for v in current_ib_margins.values())
     n_cb_prompts = sum(len(v) for v in current_cb_margins.values())
 
@@ -101,6 +118,8 @@ def compute_behavioral_metrics(
         selectivity=selectivity,
         pra_mean=pra_mean,
         pra_all=pra_all,
+        ib_accuracy=ib_accuracy,
+        cb_accuracy=cb_accuracy,
         n_questions_total=len(current_neutral_margins),
         n_q_plus=len(partition.q_plus),
         n_q_minus=len(partition.q_minus),

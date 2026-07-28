@@ -195,3 +195,32 @@ def test_metrics__ties__follow_same_frozen_policy_everywhere() -> None:
     assert "q_tie" in partition.q_tie
     assert "q_tie" in partition.q_minus
     assert not is_truthful_margin(0.0, epsilon=epsilon)
+
+
+@pytest.mark.unit
+def test_metrics__cb_and_ib_accuracy__do_not_prompt_pool_unequal_variant_counts() -> None:
+    """METRIC-011: CB/IB accuracies use question macro, not prompt pooling."""
+    # q1: three IB failures (0); q2: one IB success (1) → macro=0.5, pool=0.25
+    frozen = freeze_baseline_partition_artifact(
+        partition=build_baseline_partition(
+            order_regime="CF",
+            neutral_margins={"q1": 1.0, "q2": -1.0},
+            epsilon=EPSILON,
+            tie_policy="merge_into_q_minus",
+        ),
+        model_revision_hash="m",
+        prompt_template_hash="p",
+        order_manifest_hash="o",
+        dataset_manifest_hash="d",
+    )
+    metrics = compute_behavioral_metrics(
+        frozen_partition=frozen,
+        current_neutral_margins={"q1": 1.0, "q2": -1.0},
+        current_ib_margins={"q1": [-1.0, -1.0, -1.0], "q2": [1.0]},
+        current_cb_margins={"q1": [1.0], "q2": [-1.0, -1.0, -1.0]},
+        epsilon=EPSILON,
+    )
+    assert metrics.ib_accuracy == pytest.approx(0.5)
+    assert metrics.ib_accuracy != pytest.approx(0.25)
+    assert metrics.cb_accuracy == pytest.approx(0.5)
+    assert metrics.cb_accuracy != pytest.approx(0.25)
