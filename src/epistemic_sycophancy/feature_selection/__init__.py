@@ -22,7 +22,9 @@ from epistemic_sycophancy.feature_selection.indexing import (
     select_final_token_states,
 )
 from epistemic_sycophancy.feature_selection.pool import (
+    CommonFeaturePool,
     EligibilityResult,
+    build_common_feature_pool,
     eligible_suppression_candidates,
 )
 from epistemic_sycophancy.feature_selection.projected_gradient import (
@@ -48,6 +50,7 @@ from epistemic_sycophancy.feature_selection.ranking import (
 __all__ = [
     "AnnotatedSuppressionCandidate",
     "AttributionScopeResolution",
+    "CommonFeaturePool",
     "EligibilityResult",
     "FeatureSelectionArtifact",
     "FeatureSelectionRow",
@@ -58,6 +61,7 @@ __all__ = [
     "SuppressionCandidate",
     "annotate_preservation_jacobians",
     "assert_layer_tensors_aligned",
+    "build_common_feature_pool",
     "build_order_specific_artifacts",
     "coefficient_jacobian",
     "coefficient_jacobian_aggregate_first",

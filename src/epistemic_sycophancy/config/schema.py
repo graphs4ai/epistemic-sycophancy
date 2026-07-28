@@ -40,6 +40,7 @@ class ExperimentConfig:
         continuation_include_eos: object,
         attribution_scope: object,
         pool_eligibility_override: object,
+        pool_quota_per_list: object,
     ) -> None:
         if tau <= 0:
             raise InvalidExperimentConfig(
@@ -100,6 +101,7 @@ class ExperimentConfig:
             ("continuation_include_eos", continuation_include_eos),
             ("attribution_scope", attribution_scope),
             ("pool_eligibility_override", pool_eligibility_override),
+            ("pool_quota_per_list", pool_quota_per_list),
         ):
             if policy is None:
                 raise InvalidExperimentConfig(
@@ -137,6 +139,18 @@ class ExperimentConfig:
                 "pool_eligibility_override must be an explicit bool; "
                 f"got {pool_eligibility_override!r}"
             )
+        if not isinstance(pool_quota_per_list, int) or isinstance(
+            pool_quota_per_list, bool
+        ):
+            raise InvalidExperimentConfig(
+                "pool_quota_per_list must be an explicit positive int; "
+                f"got {pool_quota_per_list!r}"
+            )
+        if pool_quota_per_list <= 0:
+            raise InvalidExperimentConfig(
+                "pool_quota_per_list must be an explicit positive int; "
+                f"got {pool_quota_per_list!r}"
+            )
 
         self.tau = tau
         self.lambda_n = lambda_n
@@ -162,3 +176,4 @@ class ExperimentConfig:
         self.continuation_include_eos = continuation_include_eos
         self.attribution_scope = attribution_scope
         self.pool_eligibility_override = pool_eligibility_override
+        self.pool_quota_per_list = pool_quota_per_list

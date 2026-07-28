@@ -19,6 +19,14 @@ class EligibilityResult:
     pool_eligibility_override: bool
 
 
+@dataclass(frozen=True)
+class CommonFeaturePool:
+    """Shared candidate pool for CF/IF/RO optimizers (DEC-019 / FEAT-032)."""
+
+    feature_ids: tuple[tuple[int, int], ...]
+    scales: tuple[float, ...]
+
+
 def eligible_suppression_candidates(
     *,
     signed_jacobians: Mapping[tuple[int, int], float],
@@ -40,3 +48,46 @@ def eligible_suppression_candidates(
         candidates=tuple(c for c in ranked if c.signed_jacobian > 0.0),
         pool_eligibility_override=False,
     )
+
+
+def build_common_feature_pool(
+    *,
+    lists_by_order_and_component: Mapping[
+        tuple[str, str], Mapping[tuple[int, int], float]
+    ],
+    feature_scales: Mapping[tuple[int, int], float],
+    pool_quota_per_list: int,
+) -> CommonFeaturePool:
+    """Build the DEC-019 quota-union pool shared by all order optimizers.
+
+    For each of the six (order, component) lists: keep ``signed_jacobian > 0``,
+    rank descending signed Jacobian (ties ascending ``(layer, feature_id)``),
+    take the top ``pool_quota_per_list`` (or all if fewer). Union, dedupe by
+    ``(layer, feature_id)``, and order the result ascending
+    ``(layer, feature_id)``. Fill is a no-op; size equals ``|union|``.
+    """
+    if not isinstance(pool_quota_per_list, int) or isinstance(
+        pool_quota_per_list, bool
+    ):
+        raise TypeError(
+            "pool_quota_per_list must be an explicit positive int; "
+            f"got {pool_quota_per_list!r}"
+        )
+    if pool_quota_per_list <= 0:
+        raise ValueError(
+            "pool_quota_per_list must be a positive int; "
+            f"got {pool_quota_per_list!r}"
+        )
+
+    selected: set[tuple[int, int]] = set()
+    for scores in lists_by_order_and_component.values():
+        eligible = eligible_suppression_candidates(
+            signed_jacobians=scores,
+            pool_eligibility_override=False,
+        )
+        for candidate in eligible.candidates[:pool_quota_per_list]:
+            selected.add((candidate.layer, candidate.feature_id))
+
+    feature_ids = tuple(sorted(selected, key=lambda key: (key[0], key[1])))
+    scales = tuple(float(feature_scales[key]) for key in feature_ids)
+    return CommonFeaturePool(feature_ids=feature_ids, scales=scales)

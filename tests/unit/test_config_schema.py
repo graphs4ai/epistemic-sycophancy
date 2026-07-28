@@ -37,6 +37,7 @@ def _valid_config_kwargs(**overrides: object) -> dict[str, object]:
         "continuation_include_eos": False,
         "attribution_scope": "last_prompt_token",
         "pool_eligibility_override": False,
+        "pool_quota_per_list": 8,
     }
     kwargs.update(overrides)
     return kwargs
@@ -176,6 +177,7 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
         "continuation_include_eos",
         "attribution_scope",
         "pool_eligibility_override",
+        "pool_quota_per_list",
     )
     signature = inspect.signature(ExperimentConfig.__init__)
     for field in policy_fields:

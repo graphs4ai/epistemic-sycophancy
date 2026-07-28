@@ -105,3 +105,64 @@ def test_feature_pool__selected_behavior_features__retain_signed_preservation_ja
         (c.layer, c.feature_id) for c in behavior_rank
     ]
     assert (0, 2) not in {(c.layer, c.feature_id) for c in annotated}
+
+
+@pytest.mark.unit
+def test_feature_pool__all_order_optimizers__receive_identical_feature_ids_scales_and_ordering() -> (
+    None
+):
+    """FEAT-032: CF/IF/RO optimizers share one DEC-019 quota-union pool."""
+    from epistemic_sycophancy.feature_selection import build_common_feature_pool
+
+    # Six lists: (CF/IF/RO) × (resistance/recovery). Distinct order-specific
+    # positives; union must be identical for every optimizer study.
+    lists = {
+        ("CF", "resistance"): {(0, 2): 5.0, (1, 0): 3.0, (0, 1): -1.0},
+        ("CF", "recovery"): {(0, 3): 4.0, (1, 1): 2.0},
+        ("IF", "resistance"): {(0, 2): 1.0, (2, 0): 6.0},
+        ("IF", "recovery"): {(1, 0): 2.5, (0, 4): 0.5},
+        ("RO", "resistance"): {(0, 3): 1.0, (2, 1): 7.0},
+        ("RO", "recovery"): {(1, 1): 3.0, (2, 0): 0.1},
+    }
+    scales = {
+        (0, 1): 1.0,
+        (0, 2): 2.0,
+        (0, 3): 3.0,
+        (0, 4): 4.0,
+        (1, 0): 1.5,
+        (1, 1): 2.5,
+        (2, 0): 0.5,
+        (2, 1): 1.25,
+    }
+    pool_cf = build_common_feature_pool(
+        lists_by_order_and_component=lists,
+        feature_scales=scales,
+        pool_quota_per_list=8,
+    )
+    pool_if = build_common_feature_pool(
+        lists_by_order_and_component=lists,
+        feature_scales=scales,
+        pool_quota_per_list=8,
+    )
+    pool_ro = build_common_feature_pool(
+        lists_by_order_and_component=lists,
+        feature_scales=scales,
+        pool_quota_per_list=8,
+    )
+    assert pool_cf.feature_ids == pool_if.feature_ids == pool_ro.feature_ids
+    assert pool_cf.scales == pool_if.scales == pool_ro.scales
+    assert pool_cf.feature_ids == tuple(
+        sorted(pool_cf.feature_ids, key=lambda k: (k[0], k[1]))
+    )
+    # All positive keys across the six lists (quota=8 takes all positives).
+    expected = (
+        (0, 2),
+        (0, 3),
+        (0, 4),
+        (1, 0),
+        (1, 1),
+        (2, 0),
+        (2, 1),
+    )
+    assert pool_cf.feature_ids == expected
+    assert pool_cf.scales == tuple(scales[k] for k in expected)
