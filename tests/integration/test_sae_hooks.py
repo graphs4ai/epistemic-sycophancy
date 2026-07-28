@@ -133,3 +133,23 @@ def test_hook__same_prompt_scored_alone_or_in_batch__receives_same_intervention(
     )
 
     assert torch.equal(out_alone[0], out_batch[1])
+
+
+@pytest.mark.integration
+def test_hook__fixed_input_and_beta__produces_identical_outputs() -> None:
+    """SAE-012: eval-mode fixed input/β → bit-identical bf16 outputs."""
+    dtype = torch.bfloat16
+    residual = torch.tensor(
+        [[[0.25, -0.5], [1.0, 0.0], [0.5, 0.75]]],
+        dtype=dtype,
+    )
+    delta = torch.tensor([[[0.0, 0.0], [0.0, 0.0], [0.1, -0.2]]], dtype=dtype)
+    mask = build_token_scope_mask(
+        batch_size=1,
+        seq_len=3,
+        prompt_lengths=[3],
+        token_scope="last_prompt_token",
+    )
+    out_a = apply_delta_with_token_scope(residual=residual, delta=delta, mask=mask)
+    out_b = apply_delta_with_token_scope(residual=residual, delta=delta, mask=mask)
+    assert torch.equal(out_a, out_b)
