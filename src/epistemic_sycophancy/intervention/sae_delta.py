@@ -52,3 +52,40 @@ def latent_delta_to_residual(
       returns: [..., d_model]
     """
     return (latents_prime - latents) @ decoder_weight
+
+
+def apply_additive_sae_delta(
+    *,
+    residual: torch.Tensor,
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+    beta: Sequence[float],
+    encoder_weight: torch.Tensor,
+    encoder_bias: torch.Tensor,
+    decoder_weight: torch.Tensor,
+) -> torch.Tensor:
+    """Return x' = x + (decode(z') - decode(z)); at β=0 return original x.
+
+    At β=0 the hook must return the original residual, never the SAE
+    reconstruction decode(encode(x)).
+    """
+    if all(float(b) == 0.0 for b in beta):
+        return residual
+
+    latents = torch.relu(residual @ encoder_weight.T + encoder_bias)
+    latent_list = [float(v) for v in latents.reshape(-1).tolist()]
+    updated_list = apply_selected_latent_update(
+        latents=latent_list,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+    )
+    latents_prime = torch.tensor(
+        updated_list, dtype=residual.dtype, device=residual.device
+    ).reshape(latents.shape)
+    delta = latent_delta_to_residual(
+        latents_prime=latents_prime,
+        latents=latents,
+        decoder_weight=decoder_weight,
+    )
+    return residual + delta

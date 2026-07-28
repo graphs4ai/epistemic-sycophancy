@@ -9,6 +9,7 @@ import pytest
 import torch
 
 from epistemic_sycophancy.intervention.sae_delta import (
+    apply_additive_sae_delta,
     apply_selected_latent_update,
     latent_delta_to_residual,
     normalized_coefficients,
@@ -23,6 +24,8 @@ _toy_sae = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_toy_sae)
 decode = _toy_sae.decode
 decoder_weight = _toy_sae.decoder_weight
+encode = _toy_sae.encode
+imperfect_encoder_params = _toy_sae.imperfect_encoder_params
 
 
 @pytest.mark.unit
@@ -100,3 +103,32 @@ def test_intervention__linear_decoder__delta_decode_equals_latent_delta_times_de
         atol=5e-3,
         rtol=1e-4,
     )
+
+
+@pytest.mark.unit
+def test_intervention__zero_delta__returns_original_residual_not_sae_reconstruction() -> None:
+    """SAE-007: β=0 returns original x, not imperfect SAE reconstruction (DEC-017)."""
+    dtype = torch.bfloat16
+    residual = torch.tensor([1.5, -0.75], dtype=dtype)
+    w_dec = decoder_weight(dtype=dtype)
+    w_enc, b_enc = imperfect_encoder_params(dtype=dtype)
+    reconstruction = decode(
+        encode(residual, encoder_weight=w_enc, encoder_bias=b_enc),
+        decoder_weight=w_dec,
+    )
+    assert not torch.equal(reconstruction, residual)
+
+    selected_indices = [0, 1, 2]
+    scales = [1.0, 1.0, 1.0]
+    beta = [0.0, 0.0, 0.0]
+    output = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+    )
+    assert torch.equal(output, residual)
+    assert not torch.equal(output, reconstruction)
