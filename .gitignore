@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+._*
+.DS_Store
+artifacts/
+.env
+.cursor/
+# pixi environments
+.pixi/*
+!.pixi/config.toml
