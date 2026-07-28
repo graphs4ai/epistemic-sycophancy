@@ -43,3 +43,19 @@ def score_multi_token_candidate(
     if not conditional_log_probs:
         raise ValueError("conditional_log_probs must be non-empty")
     return float(sum(float(lp) for lp in conditional_log_probs))
+
+
+def score_masked_conditional_log_probs(
+    *,
+    log_probs: list[float],
+    is_pad: list[bool],
+) -> float:
+    """Sum conditional log-probs excluding pad positions (SCORE-009 / DEC-011)."""
+    if len(log_probs) != len(is_pad):
+        raise ValueError(
+            f"log_probs length {len(log_probs)} != is_pad length {len(is_pad)}"
+        )
+    kept = [float(lp) for lp, pad in zip(log_probs, is_pad) if not pad]
+    if not kept:
+        raise ValueError("no non-pad log-probs to score")
+    return float(sum(kept))

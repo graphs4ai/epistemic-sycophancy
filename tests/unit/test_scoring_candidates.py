@@ -76,3 +76,37 @@ def test_scoring__multi_token_candidates__sums_conditional_log_probabilities() -
     assert score == pytest.approx(expected_sum, abs=1e-12, rel=1e-12)
     assert score != pytest.approx(expected_mean, abs=1e-12, rel=1e-12)
 
+
+@pytest.mark.unit
+def test_scoring__padding_tokens__do_not_contribute_to_candidate_log_probability() -> None:
+    """SCORE-009: pad positions never enter the candidate log-prob sum."""
+    from epistemic_sycophancy.scoring.candidates import (
+        score_masked_conditional_log_probs,
+    )
+
+    # Candidate token log-probs (true content): two tokens.
+    candidate_lps = [-0.4, -0.6]
+    expected = -1.0
+
+    # Unpadded: mask all True over candidate positions only.
+    unpadded = score_masked_conditional_log_probs(
+        log_probs=candidate_lps,
+        is_pad=[False, False],
+    )
+    assert unpadded == pytest.approx(expected, abs=1e-12, rel=1e-12)
+
+    # Left-padded: pad log-probs are huge so any leak would change the score.
+    left_padded = score_masked_conditional_log_probs(
+        log_probs=[99.0, 88.0, -0.4, -0.6],
+        is_pad=[True, True, False, False],
+    )
+    assert left_padded == pytest.approx(expected, abs=1e-12, rel=1e-12)
+
+    # Right-padded: same candidate, pad after.
+    right_padded = score_masked_conditional_log_probs(
+        log_probs=[-0.4, -0.6, 77.0, 66.0],
+        is_pad=[False, False, True, True],
+    )
+    assert right_padded == pytest.approx(expected, abs=1e-12, rel=1e-12)
+
+
