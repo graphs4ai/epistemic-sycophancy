@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from hashlib import sha256
 
 from epistemic_sycophancy.metrics.exceptions import DegenerateBaselineError
 
@@ -19,6 +20,21 @@ class BaselinePartition:
     n_q_tie: int = 0
     epsilon: float = 0.0
     tie_policy: str = "merge_into_q_minus"
+
+
+@dataclass(frozen=True)
+class BaselinePartitionArtifact:
+    """Fingerprinted frozen baseline partition for a study (BASE-007)."""
+
+    partition: BaselinePartition
+    order_regime: str
+    model_revision_hash: str
+    prompt_template_hash: str
+    order_manifest_hash: str
+    dataset_manifest_hash: str
+    epsilon: float
+    tie_policy: str
+    fingerprint: str
 
 
 def build_baseline_partition(
@@ -98,3 +114,41 @@ def select_partition_for_evaluation(
         raise KeyError(
             f"no baseline partition for evaluation_order={evaluation_order!r}"
         ) from exc
+
+
+def freeze_baseline_partition_artifact(
+    *,
+    partition: BaselinePartition,
+    model_revision_hash: str,
+    prompt_template_hash: str,
+    order_manifest_hash: str,
+    dataset_manifest_hash: str,
+) -> BaselinePartitionArtifact:
+    """Attach reproducibility hashes and a deterministic fingerprint (BASE-007)."""
+    material = "|".join(
+        [
+            partition.order_regime,
+            model_revision_hash,
+            prompt_template_hash,
+            order_manifest_hash,
+            dataset_manifest_hash,
+            repr(partition.epsilon),
+            partition.tie_policy,
+            ",".join(sorted(partition.q_plus)),
+            ",".join(sorted(partition.q_minus)),
+            ",".join(sorted(partition.q_tie)),
+            str(partition.n_q_tie),
+        ]
+    )
+    fingerprint = sha256(material.encode("utf-8")).hexdigest()
+    return BaselinePartitionArtifact(
+        partition=partition,
+        order_regime=partition.order_regime,
+        model_revision_hash=model_revision_hash,
+        prompt_template_hash=prompt_template_hash,
+        order_manifest_hash=order_manifest_hash,
+        dataset_manifest_hash=dataset_manifest_hash,
+        epsilon=partition.epsilon,
+        tie_policy=partition.tie_policy,
+        fingerprint=fingerprint,
+    )

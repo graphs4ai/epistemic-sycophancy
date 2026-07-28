@@ -202,3 +202,36 @@ def test_baseline_partition__empty_required_subset__raises_degenerate_baseline_e
             epsilon=1e-6,
             tie_policy="merge_into_q_minus",
         )
+
+
+@pytest.mark.unit
+def test_baseline_partition__artifact__records_model_prompt_order_and_dataset_hashes() -> None:
+    """BASE-007: frozen artifact fingerprints model/prompt/order/dataset hashes."""
+    from epistemic_sycophancy.metrics.baseline_partition import (
+        BaselinePartitionArtifact,
+        freeze_baseline_partition_artifact,
+    )
+
+    partition = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins={"q1": 2.0, "q2": -1.0, "q3": 0.5},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    artifact = freeze_baseline_partition_artifact(
+        partition=partition,
+        model_revision_hash="model_rev_abc",
+        prompt_template_hash="prompt_tmpl_def",
+        order_manifest_hash="order_cf_ghi",
+        dataset_manifest_hash="dataset_jkl",
+    )
+    assert isinstance(artifact, BaselinePartitionArtifact)
+    assert artifact.partition is partition
+    assert artifact.order_regime == "CF"
+    assert artifact.model_revision_hash == "model_rev_abc"
+    assert artifact.prompt_template_hash == "prompt_tmpl_def"
+    assert artifact.order_manifest_hash == "order_cf_ghi"
+    assert artifact.dataset_manifest_hash == "dataset_jkl"
+    assert artifact.epsilon == 1e-6
+    assert artifact.tie_policy == "merge_into_q_minus"
+    assert artifact.fingerprint  # non-empty deterministic fingerprint
