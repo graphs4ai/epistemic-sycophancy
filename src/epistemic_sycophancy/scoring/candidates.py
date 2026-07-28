@@ -23,3 +23,23 @@ def score_single_token_candidate(
         )
     scoring_position = prompt_length - 1
     return float(logits[scoring_position][token_id])
+
+
+def score_multi_token_candidate(
+    conditional_log_probs: list[float],
+    *,
+    aggregation: str,
+) -> float:
+    """Aggregate per-token conditional log-probs into a candidate score (DEC-011).
+
+    For ``aggregation="sum_log_probs"``:
+    s = sum_i log p(t_i | prompt, t_<i).
+    """
+    if aggregation != "sum_log_probs":
+        raise ValueError(
+            f"unsupported multi_token_candidate_scoring: {aggregation!r}; "
+            "DEC-011 requires 'sum_log_probs'"
+        )
+    if not conditional_log_probs:
+        raise ValueError("conditional_log_probs must be non-empty")
+    return float(sum(float(lp) for lp in conditional_log_probs))

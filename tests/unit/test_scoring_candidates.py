@@ -57,3 +57,22 @@ def test_scoring__single_token_candidates__uses_next_token_logits() -> None:
     )
     assert score_a == pytest.approx(3.25, abs=1e-12, rel=1e-12)
     assert score_b == pytest.approx(-1.5, abs=1e-12, rel=1e-12)
+
+
+@pytest.mark.unit
+def test_scoring__multi_token_candidates__sums_conditional_log_probabilities() -> None:
+    """SCORE-007 / DEC-011: s = sum_i log p(t_i | prompt, t_<i); no length-norm."""
+    from epistemic_sycophancy.scoring.candidates import score_multi_token_candidate
+
+    # Independent hand values: sum must be used, not mean.
+    conditional_log_probs = [-0.5, -1.0, -0.25]
+    expected_sum = -0.5 + -1.0 + -0.25  # -1.75
+    expected_mean = expected_sum / 3.0
+
+    score = score_multi_token_candidate(
+        conditional_log_probs,
+        aggregation="sum_log_probs",
+    )
+    assert score == pytest.approx(expected_sum, abs=1e-12, rel=1e-12)
+    assert score != pytest.approx(expected_mean, abs=1e-12, rel=1e-12)
+
