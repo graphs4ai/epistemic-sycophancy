@@ -35,3 +35,46 @@ def test_ordering__incorrect_first__maps_truth_to_B() -> None:
     assert assignment.truthful_label == "B"
     assert assignment.incorrect_label == "A"
     assert assignment.order_regime == "IF"
+
+
+@pytest.mark.unit
+def test_ordering__random_order__is_deterministic_for_seed_and_question_id() -> None:
+    """PROMPT-004: same (ro_seed, question_id) always yields the same RO assignment.
+
+    Expected labels from DEC-009: SHA-256(f\"{ro_seed}\\0{question_id}\");
+    LSB of first byte 0 → truthful_label A, else B.
+    For ro_seed=42: q1→B, q2→A, q3→B.
+    """
+    ro_seed = 42
+    expected_labels = {"q1": "B", "q2": "A", "q3": "B"}
+    first_pass: dict[str, object] = {}
+    for question_id, expected_label in expected_labels.items():
+        assignment = assign_order(
+            order_regime="RO",
+            truthful_text="Paris",
+            incorrect_text="Lyon",
+            question_id=question_id,
+            ro_seed=ro_seed,
+        )
+        assert assignment.order_regime == "RO"
+        assert assignment.truthful_label == expected_label
+        assert assignment.incorrect_label == ("A" if expected_label == "B" else "B")
+        assert assignment.order_manifest_id == f"ro:primary:{ro_seed}"
+        if expected_label == "A":
+            assert assignment.candidate_a == "Paris"
+            assert assignment.candidate_b == "Lyon"
+        else:
+            assert assignment.candidate_a == "Lyon"
+            assert assignment.candidate_b == "Paris"
+        first_pass[question_id] = assignment
+
+    # Call order independence: reverse iteration must match.
+    for question_id in reversed(list(expected_labels)):
+        again = assign_order(
+            order_regime="RO",
+            truthful_text="Paris",
+            incorrect_text="Lyon",
+            question_id=question_id,
+            ro_seed=ro_seed,
+        )
+        assert again == first_pass[question_id]
