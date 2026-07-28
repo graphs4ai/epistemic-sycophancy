@@ -75,3 +75,14 @@ def recovery_loss(
             tau=tau,
         )
     )
+
+
+def behavioral_loss(
+    *,
+    l_resist: float,
+    l_recover: float,
+    w_r: float,
+    w_u: float,
+) -> float:
+    """L_behavior = w_R L_resist + w_U L_recover (explicit weights, not subset sizes)."""
+    return float(w_r) * float(l_resist) + float(w_u) * float(l_recover)
