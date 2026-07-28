@@ -50,6 +50,22 @@ def spec_gradient(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
     return torch.tensor([2.0, -1.0], dtype=dtype)
 
 
+def asymmetric_head(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
+    """Residual → [A, B] logit head, shape [2, d_model].
+
+    Deliberately not the identity head used in Phase E: an identity head makes
+    the truthful-margin gradient orthogonal to the DEC-016 decoder row
+    ``f2=[1,1]``, which would hide that feature's contribution.
+    """
+    return torch.tensor(
+        [
+            [1.0, 0.5],
+            [0.0, 1.0],
+        ],
+        dtype=dtype,
+    )
+
+
 def spec_latents(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
     """Spec §11 example latents z = [0.5, 0.0, 2.0]; f1 is inactive."""
     return torch.tensor([0.5, 0.0, 2.0], dtype=dtype)

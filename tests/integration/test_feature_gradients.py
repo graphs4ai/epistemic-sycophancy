@@ -1,0 +1,110 @@
+"""Toy-model gradient equivalence for feature selection (Phase F)."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+import torch
+
+from epistemic_sycophancy.feature_selection import (
+    coefficient_jacobian,
+    project_residual_gradient,
+)
+from epistemic_sycophancy.intervention.sae_delta import apply_additive_sae_delta
+
+_FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+def _load(module_name: str, relative_path: str):
+    path = _FIXTURE_ROOT / relative_path
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_toy_sae = _load("toy_sae_feature_gradients", "intervention/toy_sae.py")
+_toy_gradients = _load(
+    "toy_gradients_feature_gradients", "feature_selection/toy_gradients.py"
+)
+decoder_weight = _toy_sae.decoder_weight
+imperfect_encoder_params = _toy_sae.imperfect_encoder_params
+asymmetric_head = _toy_gradients.asymmetric_head
+
+DTYPE = torch.float64
+TAU = 1.0
+# CF prompt: truthful candidate is A, so M = s_A - s_B.
+TRUTHFUL_LABEL = "A"
+
+
+def _frozen_toy_parameters() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    w_dec = decoder_weight(dtype=DTYPE).detach().clone()
+    w_enc, b_enc = imperfect_encoder_params(dtype=DTYPE)
+    w_enc = w_enc.detach().clone()
+    b_enc = b_enc.detach().clone()
+    head = asymmetric_head(dtype=DTYPE).detach().clone()
+    for param in (w_dec, w_enc, b_enc, head):
+        param.requires_grad_(False)
+    return w_dec, w_enc, b_enc, head
+
+
+def _truthful_margin_from_residual(
+    residual: torch.Tensor, *, head: torch.Tensor
+) -> torch.Tensor:
+    logits = head @ residual
+    if TRUTHFUL_LABEL == "A":
+        return logits[0] - logits[1]
+    return logits[1] - logits[0]
+
+
+def _logistic_margin_loss(margin: torch.Tensor) -> torch.Tensor:
+    return torch.nn.functional.softplus(-margin / TAU)
+
+
+@pytest.mark.integration
+def test_feature_jacobian__active_linear_region__matches_autograd_beta_gradient() -> None:
+    """FEAT-005: s_j 1[z_j>0] <g, d_j> equals autograd d(loss)/d(beta_j)."""
+    w_dec, w_enc, b_enc, head = _frozen_toy_parameters()
+    residual = torch.tensor([2.0, 3.0], dtype=DTYPE)
+    selected_indices = [0, 1, 2]
+    scales = torch.tensor([2.0, 4.0, 0.5], dtype=DTYPE)
+
+    # All latents are strictly positive, so beta=0 sits in a linear region.
+    latents = torch.relu(residual @ w_enc.T + b_enc)
+    assert bool((latents > 0).all())
+
+    beta = torch.zeros(len(selected_indices), dtype=DTYPE, requires_grad=True)
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+    )
+    autograd_jacobian = torch.autograd.grad(
+        _logistic_margin_loss(_truthful_margin_from_residual(intervened, head=head)),
+        beta,
+    )[0]
+
+    residual_leaf = residual.clone().requires_grad_(True)
+    residual_gradient = torch.autograd.grad(
+        _logistic_margin_loss(
+            _truthful_margin_from_residual(residual_leaf, head=head)
+        ),
+        residual_leaf,
+    )[0]
+    projected_jacobian = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=residual_gradient, decoder=w_dec
+        ),
+        latents=latents,
+        feature_scales=scales,
+    )
+
+    assert torch.allclose(projected_jacobian, autograd_jacobian, atol=1e-8, rtol=1e-6)
+    assert bool((projected_jacobian != 0).all())
