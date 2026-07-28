@@ -38,6 +38,10 @@ DTYPE = torch.float64
 TAU = 1.0
 # CF prompt: truthful candidate is A, so M = s_A - s_B.
 TRUTHFUL_LABEL = "A"
+# DEC-021: one-sided suppression step and comparison tolerance.
+FD_STEP = 1e-8
+FD_ATOL = 1e-6
+FD_RTOL = 1e-6
 
 
 def _frozen_toy_parameters() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -108,3 +112,58 @@ def test_feature_jacobian__active_linear_region__matches_autograd_beta_gradient(
 
     assert torch.allclose(projected_jacobian, autograd_jacobian, atol=1e-8, rtol=1e-6)
     assert bool((projected_jacobian != 0).all())
+
+
+@pytest.mark.integration
+def test_feature_jacobian__suppression_one_sided_difference__matches_local_prediction() -> (
+    None
+):
+    """FEAT-006: (L(-eps e_j) - L(0)) / (-eps) matches J_j (DEC-021)."""
+    w_dec, w_enc, b_enc, head = _frozen_toy_parameters()
+    residual = torch.tensor([2.0, 3.0], dtype=DTYPE)
+    selected_indices = [0, 1, 2]
+    scales = torch.tensor([2.0, 4.0, 0.5], dtype=DTYPE)
+    latents = torch.relu(residual @ w_enc.T + b_enc)
+
+    # DEC-021 feasibility guard: the step may not cross an active ReLU boundary.
+    assert bool((FD_STEP * scales < latents).all())
+
+    def component_loss(beta: torch.Tensor) -> torch.Tensor:
+        intervened = apply_additive_sae_delta(
+            residual=residual,
+            selected_indices=selected_indices,
+            scales=scales,
+            beta=beta,
+            encoder_weight=w_enc,
+            encoder_bias=b_enc,
+            decoder_weight=w_dec,
+        )
+        return _logistic_margin_loss(
+            _truthful_margin_from_residual(intervened, head=head)
+        )
+
+    residual_leaf = residual.clone().requires_grad_(True)
+    residual_gradient = torch.autograd.grad(
+        _logistic_margin_loss(
+            _truthful_margin_from_residual(residual_leaf, head=head)
+        ),
+        residual_leaf,
+    )[0]
+    projected_jacobian = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=residual_gradient, decoder=w_dec
+        ),
+        latents=latents,
+        feature_scales=scales,
+    )
+
+    baseline_loss = component_loss(torch.zeros(len(selected_indices), dtype=DTYPE))
+    for feature in selected_indices:
+        suppressed_beta = torch.zeros(len(selected_indices), dtype=DTYPE)
+        suppressed_beta[feature] = -FD_STEP
+        one_sided_derivative = (
+            component_loss(suppressed_beta) - baseline_loss
+        ) / -FD_STEP
+        assert one_sided_derivative.item() == pytest.approx(
+            projected_jacobian[feature].item(), abs=FD_ATOL, rel=FD_RTOL
+        )
