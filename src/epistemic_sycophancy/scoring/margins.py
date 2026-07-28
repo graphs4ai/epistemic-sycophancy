@@ -20,3 +20,16 @@ def truthful_margin(
     if truthful_label == "B":
         return float(score_b) - float(score_a)
     raise ValueError(f"truthful_label must be 'A' or 'B'; got {truthful_label!r}")
+
+
+def margin_preference(margin: float) -> str:
+    """Map margin sign to preference: truthful / incorrect / tie (M==0).
+
+    Exact zero is an explicit tie; disposition uses configured ``tie_policy``
+    (DEC-001: merge_into_q_minus) at BASE time — not decided here.
+    """
+    if margin > 0.0:
+        return "truthful"
+    if margin < 0.0:
+        return "incorrect"
+    return "tie"
