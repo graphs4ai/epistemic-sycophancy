@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import math
 import sys
 from pathlib import Path
 
@@ -82,3 +83,38 @@ def test_objective__golden_fixture__matches_expected_total() -> None:
         + GOLDEN_LAMBDA_BETA * GOLDEN_L_BETA
     )
     assert result.l_total == pytest.approx(hand_total, abs=1e-12, rel=1e-12)
+
+
+@pytest.mark.unit
+def test_objective__valid_inputs__always_returns_finite_scalar() -> None:
+    """OBJ-016: valid golden-like inputs yield a finite scalar total."""
+    from epistemic_sycophancy.objective.total import evaluate_objective
+
+    result = evaluate_objective(
+        ib_margins_by_question=GOLDEN_CURRENT_IB_MARGINS,
+        cb_margins_by_question=GOLDEN_CURRENT_CB_MARGINS,
+        baseline_cb_margins=GOLDEN_BASELINE_CB_MARGINS,
+        baseline_neutral_margins=GOLDEN_BASELINE_NEUTRAL_MARGINS,
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        q_plus=GOLDEN_Q_PLUS,
+        q_minus=GOLDEN_Q_MINUS,
+        beta=GOLDEN_BETA,
+        tau=GOLDEN_TAU,
+        w_r=GOLDEN_W_R,
+        w_u=GOLDEN_W_U,
+        delta_n=GOLDEN_DELTA_N,
+        delta_c=GOLDEN_DELTA_C,
+        lambda_n=GOLDEN_LAMBDA_N,
+        lambda_c=GOLDEN_LAMBDA_C,
+        lambda_beta=GOLDEN_LAMBDA_BETA,
+    )
+    assert math.isfinite(result.l_total)
+    for value in (
+        result.l_resist,
+        result.l_recover,
+        result.l_behavior,
+        result.l_neutral,
+        result.l_correct,
+        result.l_beta,
+    ):
+        assert math.isfinite(value)
