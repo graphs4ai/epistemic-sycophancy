@@ -76,3 +76,54 @@ def test_objective__logged_components__sum_to_logged_total() -> None:
     )
     assert reconstructed == pytest.approx(logged.l_total, abs=1e-12, rel=1e-12)
     assert logged.l_total == pytest.approx(result.l_total, abs=1e-12, rel=1e-12)
+
+
+@pytest.mark.unit
+def test_objective__initial_version__logs_but_does_not_add_residual_perturbation() -> None:
+    """OBJ-018 / DEC-029: residual may be logged; v1 does not add it to L_total."""
+    from epistemic_sycophancy.logging.trial_records import (
+        OBJECTIVE_VERSION_V1,
+        build_objective_components,
+    )
+    from epistemic_sycophancy.objective.total import evaluate_objective
+
+    result = evaluate_objective(
+        ib_margins_by_question=GOLDEN_CURRENT_IB_MARGINS,
+        cb_margins_by_question=GOLDEN_CURRENT_CB_MARGINS,
+        baseline_cb_margins=GOLDEN_BASELINE_CB_MARGINS,
+        baseline_neutral_margins=GOLDEN_BASELINE_NEUTRAL_MARGINS,
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        q_plus=GOLDEN_Q_PLUS,
+        q_minus=GOLDEN_Q_MINUS,
+        beta=GOLDEN_BETA,
+        tau=GOLDEN_TAU,
+        w_r=GOLDEN_W_R,
+        w_u=GOLDEN_W_U,
+        delta_n=GOLDEN_DELTA_N,
+        delta_c=GOLDEN_DELTA_C,
+        lambda_n=GOLDEN_LAMBDA_N,
+        lambda_c=GOLDEN_LAMBDA_C,
+        lambda_beta=GOLDEN_LAMBDA_BETA,
+    )
+    residual = 7.5
+    logged = build_objective_components(
+        result,
+        lambda_n=GOLDEN_LAMBDA_N,
+        lambda_c=GOLDEN_LAMBDA_C,
+        lambda_beta=GOLDEN_LAMBDA_BETA,
+        l_residual_perturbation=residual,
+    )
+    assert logged.objective_version == OBJECTIVE_VERSION_V1
+    assert logged.objective_version == "v1_no_residual"
+    assert logged.l_residual_perturbation == pytest.approx(residual, abs=1e-12)
+    # Total equals the hinge-based assembly without residual
+    without_residual = (
+        logged.l_behavior
+        + GOLDEN_LAMBDA_N * logged.l_neutral
+        + GOLDEN_LAMBDA_C * logged.l_correct
+        + GOLDEN_LAMBDA_BETA * logged.l_beta
+    )
+    assert logged.l_total == pytest.approx(without_residual, abs=1e-12, rel=1e-12)
+    assert logged.l_total != pytest.approx(
+        without_residual + residual, abs=1e-12, rel=1e-12
+    )
