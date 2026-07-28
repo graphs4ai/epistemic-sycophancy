@@ -42,8 +42,13 @@ def compute_behavioral_metrics(
     current_ib_margins: Mapping[str, Sequence[float]],
     current_cb_margins: Mapping[str, Sequence[float]],
     epsilon: float,
-) -> BehavioralMetrics:
+    ) -> BehavioralMetrics:
     """Compute behavioral metrics from current margins and a frozen partition."""
+    if not isinstance(frozen_partition, BaselinePartitionArtifact):
+        raise TypeError(
+            "frozen_partition must be a BaselinePartitionArtifact; "
+            "inline Q+/Q- repartitioning is forbidden (METRIC-013)"
+        )
     indicators = {
         qid: [1.0 if is_truthful_margin(m, epsilon=epsilon) else 0.0]
         for qid, m in current_neutral_margins.items()

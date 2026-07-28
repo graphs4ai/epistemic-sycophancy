@@ -243,3 +243,27 @@ def test_metrics__conditional_metrics__return_subset_and_prompt_counts() -> None
     assert metrics.n_ib_prompts == 5  # 2+2+1
     assert metrics.n_cb_prompts == 6  # 2+3+1
     assert metrics.n_invalid == 0
+
+
+@pytest.mark.unit
+def test_metrics__intervention_results__cannot_supply_their_own_q_plus_or_q_minus() -> None:
+    """METRIC-013: require frozen partition artifact; reject inline Q+/Q-."""
+    with pytest.raises(TypeError):
+        compute_behavioral_metrics(
+            frozen_partition=_golden_frozen_artifact(),
+            current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+            current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+            current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+            epsilon=EPSILON,
+            q_plus={"q1"},  # type: ignore[call-arg]
+            q_minus={"q2"},  # type: ignore[call-arg]
+        )
+    # Also reject non-artifact partition objects
+    with pytest.raises(TypeError):
+        compute_behavioral_metrics(
+            frozen_partition=object(),  # type: ignore[arg-type]
+            current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+            current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+            current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+            epsilon=EPSILON,
+        )

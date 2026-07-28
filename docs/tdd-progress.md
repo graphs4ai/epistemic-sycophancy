@@ -68,6 +68,7 @@ Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margin
 | METRIC-010 | `test_metrics__ties__follow_same_frozen_policy_everywhere` | green | Already satisfied by shared is_truthful_margin: first run → `1 passed` | same command → `1 passed`; metrics suite → `10 passed` | `tests/unit/test_metrics_behavioral.py` | One ε predicate for Acc/FTW/CBR/PRA/partitions. |
 | METRIC-011 | `test_metrics__cb_and_ib_accuracy__do_not_prompt_pool_unequal_variant_counts` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__cb_and_ib_accuracy__do_not_prompt_pool_unequal_variant_counts -q` → `assert None == approx(0.5)` | same command → `1 passed`; module suite green | `metrics/behavioral.py` | IB/CB Acc question macro ≠ pool. |
 | METRIC-012 | `test_metrics__conditional_metrics__return_subset_and_prompt_counts` | green | Already satisfied by BehavioralMetrics fields: first run → `1 passed` | same command → `1 passed`; module suite → `11 passed` | `tests/unit/test_metrics_behavioral.py` | Denominator reporting fields. |
+| METRIC-013 | `test_metrics__intervention_results__cannot_supply_their_own_q_plus_or_q_minus` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__intervention_results__cannot_supply_their_own_q_plus_or_q_minus -q` → `AttributeError` then TypeError after isinstance guard | same command → `1 passed`; module suite → `12 passed` | `metrics/behavioral.py` | Require frozen artifact; reject inline Q+/Q-. |
 
 ## Status definitions
 
