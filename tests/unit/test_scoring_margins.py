@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import math
+
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from epistemic_sycophancy.prompts.ordering import assign_order
 from epistemic_sycophancy.scoring.margins import truthful_margin
@@ -56,3 +60,41 @@ def test_margin__all_orders__subtracts_incorrect_score_from_truthful_score() -> 
         score_b=score_b,
         truthful_label=ro.truthful_label,
     ) == pytest.approx(expected_ro, abs=1e-12, rel=1e-12)
+
+
+_finite_scores = st.floats(
+    allow_nan=False,
+    allow_infinity=False,
+    width=64,
+    min_value=-1e6,
+    max_value=1e6,
+)
+
+
+@pytest.mark.property
+@given(score_t=_finite_scores, score_f=_finite_scores)
+@settings(max_examples=100)
+def test_margin__swapping_candidate_positions_and_scores__preserves_semantic_margin(
+    score_t: float,
+    score_f: float,
+) -> None:
+    """SCORE-002: rendering truth as A or B preserves M = s_T - s_F."""
+    # Truth as A (CF-like): score_a = s_T, score_b = s_F
+    margin_truth_as_a = truthful_margin(
+        score_a=score_t,
+        score_b=score_f,
+        truthful_label="A",
+    )
+    # Truth as B (IF-like): score_a = s_F, score_b = s_T
+    margin_truth_as_b = truthful_margin(
+        score_a=score_f,
+        score_b=score_t,
+        truthful_label="B",
+    )
+    assert margin_truth_as_a == pytest.approx(
+        margin_truth_as_b, abs=1e-12, rel=1e-12
+    )
+    assert margin_truth_as_a == pytest.approx(
+        score_t - score_f, abs=1e-12, rel=1e-12
+    )
+    assert math.isfinite(margin_truth_as_a)
