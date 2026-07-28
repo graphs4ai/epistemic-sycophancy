@@ -42,3 +42,26 @@ def test_scoring__valid_answer_mass__is_computed_from_full_model_probabilities()
     assert p_valid != pytest.approx(
         two_candidate_truth_probability(margin), abs=1e-12, rel=1e-12
     )
+
+
+@pytest.mark.unit
+def test_mc1__success__requires_truthful_candidate_to_rank_first() -> None:
+    """MC-001: sole truthful must strictly rank first by score."""
+    from epistemic_sycophancy.scoring.mc import mc1_success
+
+    # Truthful score highest alone → success
+    assert (
+        mc1_success(
+            candidate_scores=[1.0, 3.0, 2.0],
+            truthful_indices=[1],
+        )
+        is True
+    )
+    # Truthful not first → failure
+    assert (
+        mc1_success(
+            candidate_scores=[3.0, 1.0, 2.0],
+            truthful_indices=[1],
+        )
+        is False
+    )
