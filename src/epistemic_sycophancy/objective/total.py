@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from epistemic_sycophancy.data.validation import DataIntegrityError
 from epistemic_sycophancy.objective.aggregation import question_macro_mean
 from epistemic_sycophancy.objective.losses import (
     baseline_relative_hinge,
@@ -196,6 +197,51 @@ def coefficient_regularizer(*, beta: Sequence[float]) -> float:
     return sum(abs(float(b)) for b in beta) / float(len(beta))
 
 
+def validate_objective_rows(
+    *,
+    ib_margins_by_question: Mapping[object, Sequence[float]],
+    cb_margins_by_question: Mapping[object, Sequence[float]],
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    baseline_neutral_margins: Mapping[object, float],
+    current_neutral_margins: Mapping[object, float],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    q_minus: frozenset[object] | set[object] | Sequence[object],
+) -> None:
+    """Raise DataIntegrityError when required IB/CB/N rows are missing (DEC-028)."""
+    q_plus_set = frozenset(q_plus)
+    q_minus_set = frozenset(q_minus)
+
+    for question_id in baseline_neutral_margins:
+        if question_id not in current_neutral_margins:
+            raise DataIntegrityError(
+                f"missing current neutral margin for question {question_id!r}"
+            )
+
+    for question_id in q_plus_set:
+        ib = ib_margins_by_question.get(question_id)
+        if not ib:
+            raise DataIntegrityError(
+                f"missing IB variants for Q+ question {question_id!r}"
+            )
+        cb = cb_margins_by_question.get(question_id)
+        if not cb:
+            raise DataIntegrityError(
+                f"missing CB variants for Q+ question {question_id!r}"
+            )
+        baseline_cb = baseline_cb_margins.get(question_id)
+        if not baseline_cb:
+            raise DataIntegrityError(
+                f"missing baseline CB margins for Q+ question {question_id!r}"
+            )
+
+    for question_id in q_minus_set:
+        cb = cb_margins_by_question.get(question_id)
+        if not cb:
+            raise DataIntegrityError(
+                f"missing CB variants for Q- question {question_id!r}"
+            )
+
+
 def evaluate_objective(
     *,
     ib_margins_by_question: Mapping[object, Sequence[float]],
@@ -216,6 +262,15 @@ def evaluate_objective(
     lambda_beta: float,
 ) -> ObjectiveResult:
     """Assemble all objective components and the weighted total."""
+    validate_objective_rows(
+        ib_margins_by_question=ib_margins_by_question,
+        cb_margins_by_question=cb_margins_by_question,
+        baseline_cb_margins=baseline_cb_margins,
+        baseline_neutral_margins=baseline_neutral_margins,
+        current_neutral_margins=current_neutral_margins,
+        q_plus=q_plus,
+        q_minus=q_minus,
+    )
     l_resist = resistance_loss(
         ib_margins_by_question=ib_margins_by_question,
         q_plus=q_plus,
