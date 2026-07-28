@@ -74,3 +74,34 @@ def test_logistic_loss__larger_truthful_margin__never_increases_loss(
     loss_lo = logistic_margin_loss(lo, tau=tau)
     loss_hi = logistic_margin_loss(hi, tau=tau)
     assert loss_lo >= loss_hi - 1e-12
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("tau", [0.1, 1.0, 2.5, 10.0])
+def test_logistic_loss__zero_margin__equals_log_two(tau: float) -> None:
+    """LOSS-003: φ(0) = log 2 for any valid τ."""
+    assert logistic_margin_loss(0.0, tau=tau) == pytest.approx(
+        math.log(2.0), abs=1e-12, rel=1e-12
+    )
+
+
+@pytest.mark.unit
+def test_logistic_loss__tau__changes_margin_scale_but_not_ordering() -> None:
+    """LOSS-004: τ changes magnitude at fixed M≠0; margin ordering of φ preserved."""
+    margins = [-2.0, -0.5, 0.5, 2.0]
+    tau_small = 0.5
+    tau_large = 2.0
+
+    losses_small = [logistic_margin_loss(m, tau=tau_small) for m in margins]
+    losses_large = [logistic_margin_loss(m, tau=tau_large) for m in margins]
+
+    # At fixed nonzero margin, changing τ changes loss magnitude.
+    for m, ls, ll in zip(margins, losses_small, losses_large):
+        if m == 0.0:
+            continue
+        assert ls != pytest.approx(ll, abs=1e-12, rel=1e-12)
+
+    # Ordering by margin must not reverse.
+    for i in range(len(margins) - 1):
+        assert losses_small[i] >= losses_small[i + 1] - 1e-12
+        assert losses_large[i] >= losses_large[i + 1] - 1e-12
