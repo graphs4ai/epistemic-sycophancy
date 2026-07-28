@@ -43,6 +43,9 @@ typecheck = "mypy src tests"
 test = ["test"]
 dev = ["test", "dev"]
 
+[tool.pixi.target.linux-64.dependencies]
+pytorch = ">=2.13.0,<3"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
