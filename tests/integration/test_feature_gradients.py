@@ -167,3 +167,57 @@ def test_feature_jacobian__suppression_one_sided_difference__matches_local_predi
         assert one_sided_derivative.item() == pytest.approx(
             projected_jacobian[feature].item(), abs=FD_ATOL, rel=FD_RTOL
         )
+
+
+@pytest.mark.integration
+def test_feature_components__logistic_preservation_surrogates__can_have_nonzero_null_gradient() -> (
+    None
+):
+    """FEAT-012: logistic N/CB surrogates have nonzero null gradient matching autograd.
+
+    Unlike baseline-relative hinges (FEAT-011), the logistic preservation
+    surrogates remain informative at β=0 and must not be forced to zero.
+    """
+    from epistemic_sycophancy.feature_selection import logistic_preservation_surrogate
+
+    w_dec, w_enc, b_enc, head = _frozen_toy_parameters()
+    residual = torch.tensor([2.0, 3.0], dtype=DTYPE)
+    selected_indices = [0, 1, 2]
+    scales = torch.tensor([2.0, 4.0, 0.5], dtype=DTYPE)
+    latents = torch.relu(residual @ w_enc.T + b_enc)
+    assert bool((latents > 0).all())
+
+    beta = torch.zeros(len(selected_indices), dtype=DTYPE, requires_grad=True)
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+    )
+    surrogate_loss = logistic_preservation_surrogate(
+        margin=_truthful_margin_from_residual(intervened, head=head),
+        tau=TAU,
+    )
+    autograd_jacobian = torch.autograd.grad(surrogate_loss, beta)[0]
+
+    residual_leaf = residual.clone().requires_grad_(True)
+    residual_gradient = torch.autograd.grad(
+        logistic_preservation_surrogate(
+            margin=_truthful_margin_from_residual(residual_leaf, head=head),
+            tau=TAU,
+        ),
+        residual_leaf,
+    )[0]
+    projected_jacobian = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=residual_gradient, decoder=w_dec
+        ),
+        latents=latents,
+        feature_scales=scales,
+    )
+
+    assert bool((autograd_jacobian != 0).any())
+    assert torch.allclose(projected_jacobian, autograd_jacobian, atol=1e-8, rtol=1e-6)

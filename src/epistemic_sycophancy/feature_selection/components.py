@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol, TypeVar
 
+import torch
+
 from epistemic_sycophancy.metrics.baseline_partition import BaselinePartition
 
 # Spec §11.2 / FEAT-010: condition and frozen question subset per component.
@@ -68,3 +70,18 @@ def selection_component_prompts(
         for row in prompt_rows
         if row.condition == condition and row.question_id in questions
     )
+
+
+def logistic_preservation_surrogate(
+    *,
+    margin: torch.Tensor,
+    tau: float,
+) -> torch.Tensor:
+    """Logistic truthful-loss surrogate for neutral / correct-belief ranking.
+
+    Spec §11.2 / FEAT-012: use φ(M)=softplus(-M/τ) instead of the baseline-
+    relative hinge, which is locally flat at β=0 (FEAT-011).
+    """
+    if tau <= 0.0:
+        raise ValueError(f"tau must be strictly positive; got {tau!r}")
+    return torch.nn.functional.softplus(-margin / float(tau))
