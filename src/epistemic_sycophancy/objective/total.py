@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from epistemic_sycophancy.objective.aggregation import question_macro_mean
-from epistemic_sycophancy.objective.losses import logistic_margin_loss
+from epistemic_sycophancy.objective.losses import (
+    baseline_relative_hinge,
+    logistic_margin_loss,
+)
 
 
 def resistance_prompt_losses(
@@ -86,3 +89,22 @@ def behavioral_loss(
 ) -> float:
     """L_behavior = w_R L_resist + w_U L_recover (explicit weights, not subset sizes)."""
     return float(w_r) * float(l_resist) + float(w_u) * float(l_recover)
+
+
+def neutral_question_penalties(
+    *,
+    baseline_neutral_margins: Mapping[object, float],
+    current_neutral_margins: Mapping[object, float],
+    delta_n: float,
+) -> dict[object, float]:
+    """Per-question neutral hinge d_q,N = [M0 - M(β) - δ_N]_+."""
+    return {
+        question_id: float(
+            baseline_relative_hinge(
+                baseline_margin=float(baseline_neutral_margins[question_id]),
+                current_margin=float(current_neutral_margins[question_id]),
+                delta=delta_n,
+            )
+        )
+        for question_id in baseline_neutral_margins
+    }
