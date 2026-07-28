@@ -77,6 +77,8 @@ Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margin
 | MC-006 | `test_mc_metrics__permuting_candidate_rows__does_not_change_result` | green | Already satisfied by MC1/MC2 formulas: first run `pixi run --environment test pytest tests/property/test_mc_metrics.py::test_mc_metrics__permuting_candidate_rows__does_not_change_result -q` → `1 passed` | same command → `1 passed`; property suite → `3 passed` | `tests/property/test_mc_metrics.py` | Candidate-order invariance. |
 | MC-007 | `test_pipeline__optimization_split__does_not_load_mc1_or_mc2_rows` | green | `pixi run --environment test pytest tests/unit/test_dataset_validation.py::test_pipeline__optimization_split__does_not_load_mc1_or_mc2_rows -q` → `ImportError: cannot import name 'assert_optimization_split_is_mc0_only'` | same command → `1 passed`; data validation suite → `8 passed` | `data/validation.py`, `data/__init__.py` | Opt split MC0-only. |
 
+Phase D gate: `pixi run --environment test pytest tests/unit/test_aggregation.py tests/unit/test_baseline_partition.py tests/unit/test_metrics_behavioral.py tests/unit/test_scoring_mc.py tests/property/test_metrics_bounds.py tests/property/test_mc_metrics.py tests/unit/test_dataset_validation.py::test_pipeline__optimization_split__does_not_load_mc1_or_mc2_rows -q` → `30 passed`. Golden Acc/FTW/CBR/Selectivity/PRA, BASE-004 cross-order, ties/degenerate, denominators, MC1/MC2 green. DEC-013 ε=1e-6; DEC-014 mc1_tie_policy=fail_and_report.
+
 ## Status definitions
 
 - `not_started`: no test written.

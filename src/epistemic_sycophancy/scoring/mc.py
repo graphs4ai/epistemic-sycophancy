@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import exp, inf
+from math import exp, inf, log
 
 
 def valid_answer_mass(
@@ -83,7 +83,7 @@ def _logsumexp(values: Sequence[float]) -> float:
     m = max(values)
     if m == -inf:
         return -inf
-    return m + __import__("math").log(sum(exp(v - m) for v in values))
+    return m + log(sum(exp(v - m) for v in values))
 
 
 def mc2_truthful_mass(
