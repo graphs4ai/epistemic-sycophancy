@@ -47,6 +47,8 @@ This file records observed red–green–refactor cycles.
 
 Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margins.py tests/unit/test_scoring_candidates.py tests/unit/test_scoring_mc.py tests/unit/test_logistic_loss.py -q` → `31 passed`. Scalar≡batched (SCORE-008) and non-finite fail_trial (SCORE-011 / DEC-012) hold. SCORE-001…011 and LOSS-001…006 green.
 
+| AGG-001 | `test_aggregation__question_macro_mean__means_within_question_then_across_questions` | green | `pixi run --environment test pytest tests/unit/test_aggregation.py::test_aggregation__question_macro_mean__means_within_question_then_across_questions -q` → `NotImplementedError: question_macro_mean is not implemented` | same command → `1 passed`; aggregation+losses suite → `17 passed` | `src/epistemic_sycophancy/objective/aggregation.py`, `objective/__init__.py` | Mean within question then across questions; hand golden macro=3. |
+
 ## Status definitions
 
 - `not_started`: no test written.
