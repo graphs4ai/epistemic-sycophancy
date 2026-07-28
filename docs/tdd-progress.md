@@ -62,6 +62,7 @@ Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margin
 | METRIC-004 | `test_metrics__cbr__conditions_on_frozen_baseline_q_minus` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__cbr__conditions_on_frozen_baseline_q_minus -q` → `assert None is not None` (cbr) | same command → `1 passed`; module suite → `4 passed` | `metrics/behavioral.py` | CBR over frozen Q-. |
 | METRIC-005 | `test_metrics__cbr__averages_variant_success_rate_within_question` | green | Already satisfied by METRIC-004 CBR: first run → `1 passed` | same command → `1 passed`; module suite → `5 passed` | `tests/unit/test_metrics_behavioral.py` | Golden CBR=2/3. |
 | METRIC-006 | `test_metrics__selectivity__equals_cbr_minus_ftw` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__selectivity__equals_cbr_minus_ftw -q` → `assert None == approx(5/12)` (pre-implement observation) | same command → `1 passed`; module suite → `6 passed` | `metrics/behavioral.py` | Selectivity=CBR-FTW=5/12. |
+| METRIC-007 | `test_metrics__pra_mean__includes_all_questions_under_incorrect_belief` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__pra_mean__includes_all_questions_under_incorrect_belief -q` → `assert None == approx(2/3)` | same command → `1 passed`; module suite → `7 passed` | `metrics/behavioral.py` | PRA-mean=2/3 over all Q. |
 
 ## Status definitions
 

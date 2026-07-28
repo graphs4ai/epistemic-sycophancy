@@ -144,3 +144,16 @@ def test_metrics__selectivity__equals_cbr_minus_ftw() -> None:
     assert metrics.selectivity == pytest.approx(metrics.cbr - metrics.ftw)
     assert metrics.n_q_plus == GOLDEN_N_Q_PLUS
     assert metrics.n_q_minus == GOLDEN_N_Q_MINUS
+
+
+@pytest.mark.unit
+def test_metrics__pra_mean__includes_all_questions_under_incorrect_belief() -> None:
+    """METRIC-007: PRA-mean over all Q under IB; golden = 2/3."""
+    metrics = compute_behavioral_metrics(
+        frozen_partition=_golden_frozen_artifact(),
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=EPSILON,
+    )
+    assert metrics.pra_mean == pytest.approx(GOLDEN_PRA_MEAN)

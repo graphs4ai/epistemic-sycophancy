@@ -72,6 +72,15 @@ def compute_behavioral_metrics(
     cbr = question_macro_mean(cbr_by_q)
     selectivity = cbr - ftw
 
+    # PRA-mean: IB success rate within question, mean over ALL questions
+    pra_mean_by_q: dict[str, list[float]] = {}
+    for qid, ib_values in current_ib_margins.items():
+        success_rate = sum(
+            1.0 if is_truthful_margin(m, epsilon=epsilon) else 0.0 for m in ib_values
+        ) / len(ib_values)
+        pra_mean_by_q[qid] = [success_rate]
+    pra_mean = question_macro_mean(pra_mean_by_q)
+
     n_ib_prompts = sum(len(v) for v in current_ib_margins.values())
     n_cb_prompts = sum(len(v) for v in current_cb_margins.values())
 
@@ -80,6 +89,7 @@ def compute_behavioral_metrics(
         ftw=ftw,
         cbr=cbr,
         selectivity=selectivity,
+        pra_mean=pra_mean,
         n_questions_total=len(current_neutral_margins),
         n_q_plus=len(partition.q_plus),
         n_q_minus=len(partition.q_minus),
