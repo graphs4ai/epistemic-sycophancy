@@ -111,6 +111,29 @@ def test_scoring__padding_tokens__do_not_contribute_to_candidate_log_probability
 
 
 @pytest.mark.unit
+def test_scoring__nan_or_infinite_candidate_score__follows_invalid_row_policy() -> None:
+    """SCORE-011 / DEC-012: non-finite scores raise InvalidScoreError (fail_trial)."""
+    import math
+
+    from epistemic_sycophancy.scoring.candidates import enforce_finite_candidate_score
+    from epistemic_sycophancy.scoring.exceptions import InvalidScoreError
+
+    # Finite score is accepted and returned unchanged.
+    assert enforce_finite_candidate_score(
+        1.5, invalid_row_policy="fail_trial"
+    ) == pytest.approx(1.5, abs=1e-12, rel=1e-12)
+
+    for bad in (math.nan, math.inf, -math.inf):
+        with pytest.raises(InvalidScoreError):
+            enforce_finite_candidate_score(bad, invalid_row_policy="fail_trial")
+
+    # Silent drop / substitution is forbidden: policy must be fail_trial.
+    with pytest.raises(ValueError, match="fail_trial"):
+        enforce_finite_candidate_score(math.nan, invalid_row_policy="silent_drop")
+
+
+
+@pytest.mark.unit
 def test_scoring__batched_candidates__matches_scalar_reference() -> None:
     """SCORE-008: batched scores match slow scalar for A/B, lengths, padding, multi-token."""
     from epistemic_sycophancy.scoring.candidates import (

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import math
+
+from epistemic_sycophancy.scoring.exceptions import InvalidScoreError
+
 
 def score_single_token_candidate(
     logits: list[list[float]],
@@ -89,3 +93,25 @@ def score_candidates_batched(
             score_masked_conditional_log_probs(log_probs=log_probs, is_pad=is_pad)
         )
     return scores
+
+
+def enforce_finite_candidate_score(
+    score: float,
+    *,
+    invalid_row_policy: str,
+) -> float:
+    """Apply DEC-012 invalid-row policy to a candidate score.
+
+    ``fail_trial``: raise ``InvalidScoreError`` on non-finite scores.
+    """
+    if invalid_row_policy != "fail_trial":
+        raise ValueError(
+            f"unsupported invalid_row_policy: {invalid_row_policy!r}; "
+            "DEC-012 requires 'fail_trial'"
+        )
+    value = float(score)
+    if not math.isfinite(value):
+        raise InvalidScoreError(
+            f"non-finite candidate score {value!r} under invalid_row_policy='fail_trial'"
+        )
+    return value
