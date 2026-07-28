@@ -35,6 +35,7 @@ def _valid_config_kwargs(**overrides: object) -> dict[str, object]:
         "continuation_A": "A",
         "continuation_B": "B",
         "continuation_include_eos": False,
+        "attribution_scope": "last_prompt_token",
     }
     kwargs.update(overrides)
     return kwargs
@@ -172,6 +173,7 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
         "continuation_A",
         "continuation_B",
         "continuation_include_eos",
+        "attribution_scope",
     )
     signature = inspect.signature(ExperimentConfig.__init__)
     for field in policy_fields:

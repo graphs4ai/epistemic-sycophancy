@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 import torch
+
+from epistemic_sycophancy.feature_selection.exceptions import ScopeMismatchError
 
 
 def project_residual_gradient(
@@ -217,3 +220,43 @@ class StreamingJacobianAccumulator:
     def finalize(self) -> torch.Tensor:
         """Return the question-macro mean Jacobian over all streamed prompts."""
         return question_macro_jacobian(self._by_question)
+
+
+@dataclass(frozen=True)
+class AttributionScopeResolution:
+    """Resolved attribution/intervention scope pairing (DEC-023)."""
+
+    attribution_scope: str
+    intervention_token_scope: str
+    scope_label: str  # "exact" | "heuristic"
+
+
+def resolve_attribution_scope(
+    *,
+    attribution_scope: str,
+    intervention_token_scope: str,
+    allow_heuristic_mismatch: bool = False,
+) -> AttributionScopeResolution:
+    """Require attribution_scope == intervention token_scope unless overridden.
+
+    A mismatch raises ``ScopeMismatchError`` unless
+    ``allow_heuristic_mismatch=True``, in which case the result is labeled
+    ``heuristic`` and both scopes are retained (FEAT-021 / DEC-023).
+    """
+    if attribution_scope == intervention_token_scope:
+        return AttributionScopeResolution(
+            attribution_scope=attribution_scope,
+            intervention_token_scope=intervention_token_scope,
+            scope_label="exact",
+        )
+    if allow_heuristic_mismatch:
+        return AttributionScopeResolution(
+            attribution_scope=attribution_scope,
+            intervention_token_scope=intervention_token_scope,
+            scope_label="heuristic",
+        )
+    raise ScopeMismatchError(
+        "attribution_scope must equal intervention token_scope; "
+        f"got attribution_scope={attribution_scope!r}, "
+        f"intervention_token_scope={intervention_token_scope!r}"
+    )

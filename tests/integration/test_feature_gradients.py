@@ -294,3 +294,35 @@ def test_feature_jacobian__weighted_component_backward__matches_explicit_questio
     )
 
     assert torch.allclose(from_weighted, explicit, atol=1e-8, rtol=1e-6)
+
+
+@pytest.mark.integration
+def test_feature_selection__attribution_scope__matches_configured_intervention_scope() -> (
+    None
+):
+    """FEAT-021: attribution_scope must equal intervention token_scope (DEC-023)."""
+    from epistemic_sycophancy.feature_selection import resolve_attribution_scope
+    from epistemic_sycophancy.feature_selection.exceptions import ScopeMismatchError
+
+    matched = resolve_attribution_scope(
+        attribution_scope="last_prompt_token",
+        intervention_token_scope="last_prompt_token",
+    )
+    assert matched.scope_label == "exact"
+    assert matched.attribution_scope == "last_prompt_token"
+    assert matched.intervention_token_scope == "last_prompt_token"
+
+    with pytest.raises(ScopeMismatchError):
+        resolve_attribution_scope(
+            attribution_scope="last_prompt_token",
+            intervention_token_scope="all_prompt_tokens",
+        )
+
+    heuristic = resolve_attribution_scope(
+        attribution_scope="last_prompt_token",
+        intervention_token_scope="all_prompt_tokens",
+        allow_heuristic_mismatch=True,
+    )
+    assert heuristic.scope_label == "heuristic"
+    assert heuristic.attribution_scope == "last_prompt_token"
+    assert heuristic.intervention_token_scope == "all_prompt_tokens"

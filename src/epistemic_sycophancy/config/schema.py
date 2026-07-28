@@ -38,6 +38,7 @@ class ExperimentConfig:
         continuation_A: object,
         continuation_B: object,
         continuation_include_eos: object,
+        attribution_scope: object,
     ) -> None:
         if tau <= 0:
             raise InvalidExperimentConfig(
@@ -96,6 +97,7 @@ class ExperimentConfig:
             ("continuation_A", continuation_A),
             ("continuation_B", continuation_B),
             ("continuation_include_eos", continuation_include_eos),
+            ("attribution_scope", attribution_scope),
         ):
             if policy is None:
                 raise InvalidExperimentConfig(
@@ -151,3 +153,4 @@ class ExperimentConfig:
         self.continuation_A = continuation_A
         self.continuation_B = continuation_B
         self.continuation_include_eos = continuation_include_eos
+        self.attribution_scope = attribution_scope
