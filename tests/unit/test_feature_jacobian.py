@@ -153,3 +153,63 @@ def test_feature_jacobian__varying_activation_masks__break_naive_aggregate_first
     ):
         naive = scales * mask * naive_raw
         assert not torch.allclose(naive, exact, atol=1e-12, rtol=0.0)
+
+
+@pytest.mark.unit
+def test_feature_jacobian__constant_masks_and_scales__permit_aggregate_first_equivalence() -> (
+    None
+):
+    """FEAT-017: aggregate-first is exact only when masks (and scales) are constant."""
+    from epistemic_sycophancy.feature_selection import (
+        coefficient_jacobian_aggregate_first,
+        project_residual_gradient,
+    )
+
+    decoder = torch.tensor(
+        [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]], dtype=torch.float64
+    )
+    scales = torch.tensor([2.0, 3.0, 0.5], dtype=torch.float64)
+    gradients = torch.tensor(
+        [
+            [2.0, -1.0],
+            [0.0, 4.0],
+        ],
+        dtype=torch.float64,
+    )
+    constant_latents = torch.tensor(
+        [
+            [1.0, 0.0, 2.0],
+            [0.5, 0.0, 1.0],  # same activity pattern: [True, False, True]
+        ],
+        dtype=torch.float64,
+    )
+
+    exact = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=gradients, decoder=decoder
+        ),
+        latents=constant_latents,
+        feature_scales=scales,
+    ).mean(dim=0)
+    fast = coefficient_jacobian_aggregate_first(
+        residual_gradients=gradients,
+        latents=constant_latents,
+        decoder=decoder,
+        feature_scales=scales,
+    )
+    assert torch.allclose(fast, exact, atol=1e-12, rtol=0.0)
+
+    varying_latents = torch.tensor(
+        [
+            [1.0, 0.0, 2.0],
+            [0.0, 1.0, 1.0],
+        ],
+        dtype=torch.float64,
+    )
+    with pytest.raises(ValueError, match="constant"):
+        coefficient_jacobian_aggregate_first(
+            residual_gradients=gradients,
+            latents=varying_latents,
+            decoder=decoder,
+            feature_scales=scales,
+        )

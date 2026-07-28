@@ -97,3 +97,31 @@ def sum_coefficient_jacobians(
         feature_scales=feature_scales,
     )
     return per_prompt.sum(dim=0)
+
+
+def coefficient_jacobian_aggregate_first(
+    *,
+    residual_gradients: torch.Tensor,  # [batch, d_model]
+    latents: torch.Tensor,  # [batch, n_features]
+    decoder: torch.Tensor,  # [n_features, d_model]
+    feature_scales: torch.Tensor,  # [n_features]
+) -> torch.Tensor:  # [n_features]
+    """Fast path: project mean(g) then apply a shared activity mask (FEAT-017).
+
+    Exact only when activity masks are identical across the batch. Raises
+    ``ValueError`` when masks vary; use per-prompt ``coefficient_jacobian``
+    then mean in that case (FEAT-016).
+    """
+    activity = latents > 0
+    if activity.ndim != 2:
+        raise ValueError(f"latents must be [batch, n_features]; got {tuple(latents.shape)}")
+    if not bool(torch.all(activity == activity[:1])):
+        raise ValueError(
+            "aggregate-first requires constant activity masks across prompts; "
+            "use per-prompt coefficient_jacobian when masks vary"
+        )
+    shared_mask = activity[0].to(residual_gradients.dtype)
+    mean_raw = project_residual_gradient(
+        gradient=residual_gradients.mean(dim=0), decoder=decoder
+    )
+    return feature_scales * shared_mask * mean_raw
