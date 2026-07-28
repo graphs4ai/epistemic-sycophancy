@@ -99,3 +99,57 @@ def test_feature_jacobian__unequal_variant_counts__mean_within_question_then_acr
     ).mean(dim=0)
     assert pooled.tolist() != pytest.approx([2.0, 3.0])
     assert pooled[0] > pooled[1]
+
+
+@pytest.mark.unit
+def test_feature_jacobian__varying_activation_masks__break_naive_aggregate_first_formula() -> (
+    None
+):
+    """FEAT-016: projecting mean(g) cannot recover exact masked scaled Jacobians.
+
+    Two prompts have different residual gradients and different activity masks.
+    Exact mean of per-prompt Jacobians is not recoverable by projecting the
+    mean residual gradient under any single post-hoc mask.
+    """
+    from epistemic_sycophancy.feature_selection import project_residual_gradient
+
+    decoder = torch.tensor(
+        [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]], dtype=torch.float64
+    )
+    scales = torch.tensor([2.0, 3.0, 0.5], dtype=torch.float64)
+    gradients = torch.tensor(
+        [
+            [2.0, -1.0],  # h = [2, -1, 1]
+            [0.0, 4.0],  # h = [0, 4, 4]
+        ],
+        dtype=torch.float64,
+    )
+    latents = torch.tensor(
+        [
+            [1.0, 0.0, 1.0],  # mask [1, 0, 1] → J = [4, 0, 0.5]
+            [0.0, 1.0, 1.0],  # mask [0, 1, 1] → J = [0, 12, 2]
+        ],
+        dtype=torch.float64,
+    )
+
+    raw = project_residual_gradient(gradient=gradients, decoder=decoder)
+    exact_per_prompt = coefficient_jacobian(
+        raw_projection=raw,
+        latents=latents,
+        feature_scales=scales,
+    )
+    exact = exact_per_prompt.mean(dim=0)
+    # Hand-derived: mean([4, 0, 0.5], [0, 12, 2]) = [2, 6, 1.25]
+    assert exact.tolist() == pytest.approx([2.0, 6.0, 1.25])
+
+    naive_raw = project_residual_gradient(
+        gradient=gradients.mean(dim=0), decoder=decoder
+    )
+    for mask in (
+        torch.tensor([1.0, 1.0, 1.0], dtype=torch.float64),
+        torch.tensor([1.0, 0.0, 1.0], dtype=torch.float64),
+        torch.tensor([0.0, 1.0, 1.0], dtype=torch.float64),
+        (latents > 0).to(torch.float64).mean(dim=0),
+    ):
+        naive = scales * mask * naive_raw
+        assert not torch.allclose(naive, exact, atol=1e-12, rtol=0.0)
