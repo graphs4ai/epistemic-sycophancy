@@ -1,8 +1,9 @@
-"""Objective component logging (Phase G OBJ-011 / DEC-026)."""
+"""Objective component and trial logging (Phase G OBJ-011 / Phase H OPT-012)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
 
 from epistemic_sycophancy.objective.total import ObjectiveResult
 
@@ -22,6 +23,50 @@ class ObjectiveComponents:
     l_total: float
     l_residual_perturbation: float
     objective_version: str
+
+
+@dataclass(frozen=True)
+class TrialRecord:
+    """Complete optimizer trial log (OPT-012 / DEC-035)."""
+
+    l_resist: float
+    l_recover: float
+    l_behavior: float
+    l_neutral: float
+    l_correct: float
+    l_beta: float
+    l_total: float
+    l_residual_perturbation: float
+    objective_version: str
+    beta: tuple[float, ...]
+    neutral_accuracy: float
+    ftw: float
+    cbr: float
+    selectivity: float
+    pra_mean: float
+    pra_all: float
+    n_questions_total: int
+    n_q_plus: int
+    n_q_minus: int
+    n_q_tie: int
+    n_ib_prompts: int
+    n_cb_prompts: int
+    n_invalid: int
+    trial_index: int
+    optimizer_kind: str
+    ro_manifest_hash: str
+    order_regime: str
+    n_objective_evals: int
+    n_forward_equiv: int
+    n_backward_equiv: int
+    n_tokens: int
+    wall_time_s: float | None
+    gpu_time_s: float | None
+
+    def as_dict(self) -> dict[str, object]:
+        payload = asdict(self)
+        payload["beta"] = list(self.beta)
+        return payload
 
 
 def build_objective_components(
@@ -58,3 +103,64 @@ def build_objective_components(
             "logged components do not sum to logged total under DEC-026 identity"
         )
     return components
+
+
+def build_trial_record(
+    *,
+    components: ObjectiveComponents,
+    beta: Sequence[float],
+    trial_index: int,
+    optimizer_kind: str,
+    ro_manifest_hash: str,
+    order_regime: str,
+    neutral_accuracy: float,
+    ftw: float,
+    cbr: float,
+    selectivity: float,
+    pra_mean: float,
+    pra_all: float,
+    n_questions_total: int,
+    n_q_plus: int,
+    n_q_minus: int,
+    n_q_tie: int,
+    n_ib_prompts: int,
+    n_cb_prompts: int,
+    n_invalid: int,
+    budget: object,
+) -> TrialRecord:
+    """Build a complete trial record; missing required kwargs fail at call time."""
+    return TrialRecord(
+        l_resist=components.l_resist,
+        l_recover=components.l_recover,
+        l_behavior=components.l_behavior,
+        l_neutral=components.l_neutral,
+        l_correct=components.l_correct,
+        l_beta=components.l_beta,
+        l_total=components.l_total,
+        l_residual_perturbation=components.l_residual_perturbation,
+        objective_version=components.objective_version,
+        beta=tuple(float(v) for v in beta),
+        neutral_accuracy=float(neutral_accuracy),
+        ftw=float(ftw),
+        cbr=float(cbr),
+        selectivity=float(selectivity),
+        pra_mean=float(pra_mean),
+        pra_all=float(pra_all),
+        n_questions_total=int(n_questions_total),
+        n_q_plus=int(n_q_plus),
+        n_q_minus=int(n_q_minus),
+        n_q_tie=int(n_q_tie),
+        n_ib_prompts=int(n_ib_prompts),
+        n_cb_prompts=int(n_cb_prompts),
+        n_invalid=int(n_invalid),
+        trial_index=int(trial_index),
+        optimizer_kind=str(optimizer_kind),
+        ro_manifest_hash=str(ro_manifest_hash),
+        order_regime=str(order_regime),
+        n_objective_evals=int(budget.n_objective_evals),  # type: ignore[attr-defined]
+        n_forward_equiv=int(budget.n_forward_equiv),  # type: ignore[attr-defined]
+        n_backward_equiv=int(budget.n_backward_equiv),  # type: ignore[attr-defined]
+        n_tokens=int(budget.n_tokens),  # type: ignore[attr-defined]
+        wall_time_s=budget.wall_time_s,  # type: ignore[attr-defined]
+        gpu_time_s=budget.gpu_time_s,  # type: ignore[attr-defined]
+    )
