@@ -6,8 +6,10 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+import torch
 
 from epistemic_sycophancy.feature_selection import coefficient_jacobian
+from epistemic_sycophancy.intervention.sae_delta import apply_selected_latent_update
 
 _TOY_GRADIENTS_PATH = (
     Path(__file__).resolve().parents[1]
@@ -41,3 +43,27 @@ def test_feature_jacobian__scale_and_relu_mask__match_chain_rule() -> None:
     )
 
     assert jacobian.tolist() == [4.0, 0.0, 0.5]
+
+
+@pytest.mark.unit
+def test_feature_jacobian__inactive_feature__has_zero_feasible_derivative() -> None:
+    """FEAT-007: z_j = 0 with beta_j <= 0 keeps the latent and derivative at zero."""
+    inactive_latent = torch.tensor([0.0], dtype=torch.float64)
+    feature_scale = torch.tensor([3.0], dtype=torch.float64)
+
+    for raw_projection in (-5.0, 5.0):
+        jacobian = coefficient_jacobian(
+            raw_projection=torch.tensor([raw_projection], dtype=torch.float64),
+            latents=inactive_latent,
+            feature_scales=feature_scale,
+        )
+        assert jacobian.item() == 0.0
+
+    for beta in (0.0, -1e-8, -2.0):
+        updated = apply_selected_latent_update(
+            latents=[0.0],
+            selected_indices=[0],
+            scales=[3.0],
+            beta=[beta],
+        )
+        assert updated == [0.0]
