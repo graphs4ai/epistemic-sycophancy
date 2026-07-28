@@ -72,3 +72,64 @@ def test_hook__configured_token_scope__modifies_only_intended_positions() -> Non
     assert torch.equal(out_k[1, 2], torch.ones(d_model, dtype=dtype))
     assert torch.equal(out_k[1, 0], torch.zeros(d_model, dtype=dtype))
     assert torch.equal(out_k[1, 3], torch.zeros(d_model, dtype=dtype))
+
+
+@pytest.mark.integration
+def test_hook__same_prompt_scored_alone_or_in_batch__receives_same_intervention() -> None:
+    """SAE-011: alone vs batched → identical post-hook residual for that row."""
+    dtype = torch.bfloat16
+    d_model = 2
+    seq_len = 4
+    # Shared prompt residual row
+    shared = torch.tensor(
+        [
+            [0.1, 0.2],
+            [0.3, 0.4],
+            [0.5, 0.6],
+            [0.0, 0.0],  # pad
+        ],
+        dtype=dtype,
+    )
+    alone = shared.unsqueeze(0)
+    batched = torch.stack(
+        [
+            torch.tensor(
+                [
+                    [9.0, 9.0],
+                    [9.0, 9.0],
+                    [9.0, 9.0],
+                    [9.0, 9.0],
+                ],
+                dtype=dtype,
+            ),
+            shared,
+        ],
+        dim=0,
+    )
+    delta_value = torch.tensor([1.0, -1.0], dtype=dtype)
+
+    mask_alone = build_token_scope_mask(
+        batch_size=1,
+        seq_len=seq_len,
+        prompt_lengths=[3],
+        token_scope="last_prompt_token",
+    )
+    delta_alone = torch.zeros(1, seq_len, d_model, dtype=dtype)
+    delta_alone[0, 2] = delta_value
+    out_alone = apply_delta_with_token_scope(
+        residual=alone, delta=delta_alone, mask=mask_alone
+    )
+
+    mask_batch = build_token_scope_mask(
+        batch_size=2,
+        seq_len=seq_len,
+        prompt_lengths=[3, 3],
+        token_scope="last_prompt_token",
+    )
+    delta_batch = torch.zeros(2, seq_len, d_model, dtype=dtype)
+    delta_batch[1, 2] = delta_value
+    out_batch = apply_delta_with_token_scope(
+        residual=batched, delta=delta_batch, mask=mask_batch
+    )
+
+    assert torch.equal(out_alone[0], out_batch[1])
