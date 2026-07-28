@@ -32,17 +32,21 @@ from epistemic_sycophancy.feature_selection.projected_gradient import (
     sum_coefficient_jacobians,
 )
 from epistemic_sycophancy.feature_selection.ranking import (
+    AnnotatedSuppressionCandidate,
     SuppressionCandidate,
+    annotate_preservation_jacobians,
     rank_suppression_candidates,
 )
 
 __all__ = [
+    "AnnotatedSuppressionCandidate",
     "AttributionScopeResolution",
     "EligibilityResult",
     "LayerMismatchError",
     "ScopeMismatchError",
     "StreamingJacobianAccumulator",
     "SuppressionCandidate",
+    "annotate_preservation_jacobians",
     "assert_layer_tensors_aligned",
     "coefficient_jacobian",
     "coefficient_jacobian_aggregate_first",

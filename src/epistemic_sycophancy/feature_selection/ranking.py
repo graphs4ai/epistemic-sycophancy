@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 
@@ -16,6 +16,20 @@ class SuppressionCandidate:
     absolute_sensitivity: float
     suppression_beneficial: bool
     preferred_bidirectional_sign: float
+
+
+@dataclass(frozen=True)
+class AnnotatedSuppressionCandidate:
+    """Behavior-ranked candidate with preservation-surrogate annotations (FEAT-026)."""
+
+    layer: int
+    feature_id: int
+    signed_jacobian: float
+    absolute_sensitivity: float
+    suppression_beneficial: bool
+    preferred_bidirectional_sign: float
+    neutral_jacobian: float
+    correct_surrogate_jacobian: float
 
 
 def _preferred_bidirectional_sign(signed_jacobian: float) -> float:
@@ -59,3 +73,32 @@ def rank_suppression_candidates(
         )
     )
     return tuple(candidates)
+
+
+def annotate_preservation_jacobians(
+    *,
+    candidates: Sequence[SuppressionCandidate],
+    neutral_jacobians: Mapping[tuple[int, int], float],
+    correct_surrogate_jacobians: Mapping[tuple[int, int], float],
+) -> tuple[AnnotatedSuppressionCandidate, ...]:
+    """Attach signed preservation Jacobians; do not re-rank (FEAT-026 / DEC-019).
+
+    Neutral and correct-surrogate sensitivities are annotations only. They never
+    enter the behavior rank and never veto eligibility.
+    """
+    annotated: list[AnnotatedSuppressionCandidate] = []
+    for candidate in candidates:
+        key = (candidate.layer, candidate.feature_id)
+        annotated.append(
+            AnnotatedSuppressionCandidate(
+                layer=candidate.layer,
+                feature_id=candidate.feature_id,
+                signed_jacobian=candidate.signed_jacobian,
+                absolute_sensitivity=candidate.absolute_sensitivity,
+                suppression_beneficial=candidate.suppression_beneficial,
+                preferred_bidirectional_sign=candidate.preferred_bidirectional_sign,
+                neutral_jacobian=float(neutral_jacobians[key]),
+                correct_surrogate_jacobian=float(correct_surrogate_jacobians[key]),
+            )
+        )
+    return tuple(annotated)
