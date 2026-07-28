@@ -12,6 +12,7 @@ from epistemic_sycophancy.feature_selection.indexing import (
 from epistemic_sycophancy.feature_selection.projected_gradient import (
     coefficient_jacobian,
     project_residual_gradient,
+    question_macro_jacobian,
 )
 from epistemic_sycophancy.feature_selection.ranking import (
     SuppressionCandidate,
@@ -25,6 +26,7 @@ __all__ = [
     "final_prompt_token_index",
     "logistic_preservation_surrogate",
     "project_residual_gradient",
+    "question_macro_jacobian",
     "rank_suppression_candidates",
     "select_final_token_states",
     "selection_component_prompts",

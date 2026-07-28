@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 import torch
 
-from epistemic_sycophancy.feature_selection import coefficient_jacobian
+from epistemic_sycophancy.feature_selection import (
+    coefficient_jacobian,
+    question_macro_jacobian,
+)
 from epistemic_sycophancy.intervention.sae_delta import apply_selected_latent_update
 
 _TOY_GRADIENTS_PATH = (
@@ -67,3 +70,32 @@ def test_feature_jacobian__inactive_feature__has_zero_feasible_derivative() -> N
             beta=[beta],
         )
         assert updated == [0.0]
+
+
+@pytest.mark.unit
+def test_feature_jacobian__unequal_variant_counts__mean_within_question_then_across_questions() -> (
+    None
+):
+    """FEAT-013: question-macro Jacobian, not prompt pooling.
+
+    q1: ten variants with per-prompt Jacobian [4, 0]
+    q2: one variant with per-prompt Jacobian [0, 6]
+    → q1 mean = [4, 0], q2 mean = [0, 6], overall = [2, 3]
+    Feature 1 must outrank feature 0. Prompt pooling would give [40/11, 6/11].
+    """
+    jacobians_by_question = {
+        "q1": [torch.tensor([4.0, 0.0], dtype=torch.float64) for _ in range(10)],
+        "q2": [torch.tensor([0.0, 6.0], dtype=torch.float64)],
+    }
+
+    overall = question_macro_jacobian(jacobians_by_question)
+
+    assert overall.tolist() == [2.0, 3.0]
+    assert overall[1] > overall[0]
+
+    # Prompt pooling would weight q1 ten times more and flip the ranking.
+    pooled = torch.stack(
+        [j for variants in jacobians_by_question.values() for j in variants]
+    ).mean(dim=0)
+    assert pooled.tolist() != pytest.approx([2.0, 3.0])
+    assert pooled[0] > pooled[1]
