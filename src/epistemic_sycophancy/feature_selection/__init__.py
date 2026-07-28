@@ -5,7 +5,9 @@ from epistemic_sycophancy.feature_selection.components import (
     logistic_preservation_surrogate,
     selection_component_prompts,
 )
+from epistemic_sycophancy.feature_selection.exceptions import LayerMismatchError
 from epistemic_sycophancy.feature_selection.indexing import (
+    assert_layer_tensors_aligned,
     final_prompt_token_index,
     select_final_token_states,
 )
@@ -24,8 +26,10 @@ from epistemic_sycophancy.feature_selection.ranking import (
 )
 
 __all__ = [
+    "LayerMismatchError",
     "StreamingJacobianAccumulator",
     "SuppressionCandidate",
+    "assert_layer_tensors_aligned",
     "coefficient_jacobian",
     "coefficient_jacobian_aggregate_first",
     "component_question_subset",

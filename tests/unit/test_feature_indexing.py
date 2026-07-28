@@ -55,3 +55,27 @@ def test_feature_selection__t_star__uses_last_nonpadding_token_of_each_rendered_
 
     assert torch.equal(right_states, expected_states)
     assert torch.equal(left_states, expected_states)
+
+
+@pytest.mark.unit
+def test_feature_selection__layer_specific_decoder_scale_and_activation__cannot_be_mixed() -> (
+    None
+):
+    """FEAT-020: feature IDs are namespaced by layer; tensors must share one layer."""
+    from epistemic_sycophancy.feature_selection import assert_layer_tensors_aligned
+    from epistemic_sycophancy.feature_selection.exceptions import LayerMismatchError
+
+    # Matching layers succeed.
+    assert_layer_tensors_aligned(
+        layer_ids={"decoder": 12, "latents": 12, "scales": 12, "gradient": 12}
+    )
+
+    with pytest.raises(LayerMismatchError):
+        assert_layer_tensors_aligned(
+            layer_ids={"decoder": 12, "latents": 11, "scales": 12, "gradient": 12}
+        )
+
+    with pytest.raises(LayerMismatchError):
+        assert_layer_tensors_aligned(
+            layer_ids={"decoder": 8, "latents": 8, "scales": 8, "gradient": 9}
+        )
