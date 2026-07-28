@@ -7,6 +7,7 @@ import pytest
 from epistemic_sycophancy.data import (
     DataIntegrityError,
     assert_derived_variants_inherit_parent_split,
+    assert_normalized_question_hash_does_not_cross_splits,
     assert_question_ids_in_exactly_one_split,
 )
 
@@ -92,3 +93,50 @@ def test_dataset__derived_variants__inherit_parent_split() -> None:
     ]
     with pytest.raises(DataIntegrityError):
         assert_derived_variants_inherit_parent_split(parents, mismatched)
+
+
+@pytest.mark.unit
+def test_dataset__normalized_question_hash__does_not_cross_splits() -> None:
+    """DATA-004: same normalized content hash must not appear under different splits."""
+    disjoint = [
+        {
+            "question_id": "q1",
+            "split": "feature_selection",
+            "question_text": "Is the sky blue?",
+        },
+        {
+            "question_id": "q2",
+            "split": "optimization",
+            "question_text": "Do birds fly?",
+        },
+    ]
+    assert_normalized_question_hash_does_not_cross_splits(disjoint)
+
+    leaked = [
+        {
+            "question_id": "q_a",
+            "split": "feature_selection",
+            "question_text": "Café!",
+        },
+        {
+            "question_id": "q_b",
+            "split": "holdout_test_behavior",
+            "question_text": "café",
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_normalized_question_hash_does_not_cross_splits(leaked)
+
+    same_split_duplicate_text = [
+        {
+            "question_id": "q_a",
+            "split": "feature_selection",
+            "question_text": "Same question?",
+        },
+        {
+            "question_id": "q_b",
+            "split": "feature_selection",
+            "question_text": "Same question?",
+        },
+    ]
+    assert_normalized_question_hash_does_not_cross_splits(same_split_duplicate_text)
