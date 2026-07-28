@@ -28,6 +28,22 @@ GOLDEN_OPTIMIZATION_QUESTIONS = _golden.GOLDEN_OPTIMIZATION_QUESTIONS
 
 
 @pytest.mark.unit
+def test_objective__neutral_penalty__averages_over_complete_optimization_question_set() -> None:
+    """OBJ-006: L_neutral = (1/|Q|) Σ d_q,N over all optimization questions."""
+    from epistemic_sycophancy.objective.total import neutral_preservation_loss
+
+    l_neutral = neutral_preservation_loss(
+        baseline_neutral_margins=GOLDEN_BASELINE_NEUTRAL_MARGINS,
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        delta_n=GOLDEN_DELTA_N,
+    )
+    assert l_neutral == pytest.approx(GOLDEN_L_NEUTRAL, abs=1e-12, rel=1e-12)
+    # 0.35 / 3, not 0.35 / |Q+| = 0.35/2
+    assert l_neutral == pytest.approx(0.35 / 3.0, abs=1e-12, rel=1e-12)
+    assert len(GOLDEN_OPTIMIZATION_QUESTIONS) == 3
+
+
+@pytest.mark.unit
 def test_objective__neutral_penalty__penalizes_only_excess_margin_decrease() -> None:
     """OBJ-005: d_q,N = [M0 - M - δ_N]_+; improve/within-δ → 0."""
     from epistemic_sycophancy.objective.total import neutral_question_penalties

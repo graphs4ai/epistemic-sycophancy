@@ -108,3 +108,20 @@ def neutral_question_penalties(
         )
         for question_id in baseline_neutral_margins
     }
+
+
+def neutral_preservation_loss(
+    *,
+    baseline_neutral_margins: Mapping[object, float],
+    current_neutral_margins: Mapping[object, float],
+    delta_n: float,
+) -> float:
+    """L_neutral = (1/|Q|) Σ_q d_q,N over the full optimization question set."""
+    penalties = neutral_question_penalties(
+        baseline_neutral_margins=baseline_neutral_margins,
+        current_neutral_margins=current_neutral_margins,
+        delta_n=delta_n,
+    )
+    if not penalties:
+        raise ValueError("neutral_preservation_loss requires at least one question")
+    return sum(penalties.values()) / float(len(penalties))
