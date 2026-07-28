@@ -80,3 +80,32 @@ def assign_order(
             order_manifest_id=f"ro:primary:{ro_seed}",
         )
     raise ValueError(f"unsupported order_regime: {order_regime!r}")
+
+
+def build_ro_manifest(*, ro_seed: int, question_ids: list[str]) -> dict[str, object]:
+    """Build a primary RO assignment manifest for ``question_ids`` (DEC-009)."""
+    assignments = {
+        question_id: _ro_truthful_label(ro_seed=ro_seed, question_id=question_id)
+        for question_id in question_ids
+    }
+    return {
+        "ro_seed": ro_seed,
+        "order_manifest_id": f"ro:primary:{ro_seed}",
+        "ro_manifest_selection": "primary_single",
+        "assignments": assignments,
+    }
+
+
+def hash_ro_manifest(manifest: dict[str, object]) -> str:
+    """Stable SHA-256 hex digest of sorted RO assignments and identity fields."""
+    assignments = manifest["assignments"]
+    assert isinstance(assignments, dict)
+    lines = [
+        f"order_manifest_id={manifest['order_manifest_id']}",
+        f"ro_seed={manifest['ro_seed']}",
+        f"ro_manifest_selection={manifest['ro_manifest_selection']}",
+    ]
+    for question_id in sorted(assignments):
+        lines.append(f"{question_id}={assignments[question_id]}")
+    payload = "\n".join(lines).encode()
+    return hashlib.sha256(payload).hexdigest()

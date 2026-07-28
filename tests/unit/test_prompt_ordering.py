@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from epistemic_sycophancy.prompts.ordering import assign_order
+from epistemic_sycophancy.prompts.ordering import (
+    assign_order,
+    build_ro_manifest,
+    hash_ro_manifest,
+)
 
 
 @pytest.mark.unit
@@ -113,3 +117,21 @@ def test_ordering__random_order_assignment__is_shared_across_conditions_variants
             trial_index=ctx["trial_index"],
         )
         assert assignment == baseline
+
+
+@pytest.mark.unit
+def test_ordering__different_random_order_seeds__produce_distinct_manifest_hashes() -> None:
+    """PROMPT-006: distinct RO seeds → distinct hashes and ≥1 changed assignment."""
+    question_ids = [f"q{i}" for i in range(32)]
+    manifest_a = build_ro_manifest(ro_seed=1, question_ids=question_ids)
+    manifest_b = build_ro_manifest(ro_seed=2, question_ids=question_ids)
+    hash_a = hash_ro_manifest(manifest_a)
+    hash_b = hash_ro_manifest(manifest_b)
+    assert hash_a != hash_b
+    assert manifest_a["order_manifest_id"] != manifest_b["order_manifest_id"]
+    changed = sum(
+        1
+        for qid in question_ids
+        if manifest_a["assignments"][qid] != manifest_b["assignments"][qid]
+    )
+    assert changed >= 1
