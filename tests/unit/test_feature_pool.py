@@ -215,3 +215,45 @@ def test_feature_pool__opposite_order_gradients__remain_eligible_under_quota_uni
         pool_quota_per_list=8,
     )
     assert key not in averaged_pool.feature_ids
+
+
+@pytest.mark.unit
+def test_feature_pool__quota_union_deduplication_and_fill__matches_frozen_policy() -> (
+    None
+):
+    """FEAT-034: DEC-019 dedupe, shortfall, ties, fill=no-op, size=|union|."""
+    from epistemic_sycophancy.feature_selection import build_common_feature_pool
+
+    # Exact ties within a list: ascending (layer, feature_id) decides quota cut.
+    # quota=2 keeps (0,1) and (0,2); (1,0) loses the tie for third place.
+    tied_list = {(0, 2): 1.0, (1, 0): 1.0, (0, 1): 1.0}
+    # Duplicate of (0, 1) across lists collapses to one entry.
+    lists = {
+        ("CF", "resistance"): tied_list,
+        ("CF", "recovery"): {(0, 1): 5.0},  # duplicate of CF-resistance pick
+        ("IF", "resistance"): {(0, 9): 2.0, (0, 8): -3.0},  # only one positive
+        ("IF", "recovery"): {},  # shortfall: zero positives → contributes nothing
+        ("RO", "resistance"): {(2, 0): 0.5},
+        ("RO", "recovery"): {(2, 0): 0.5},  # duplicate across RO components
+    }
+    scales = {
+        (0, 1): 1.0,
+        (0, 2): 2.0,
+        (0, 8): 1.0,
+        (0, 9): 3.0,
+        (1, 0): 1.5,
+        (2, 0): 0.25,
+    }
+    pool = build_common_feature_pool(
+        lists_by_order_and_component=lists,
+        feature_scales=scales,
+        pool_quota_per_list=2,
+    )
+    # Union of quota picks: CF-res top2={(0,1),(0,2)}; CF-rec={(0,1)};
+    # IF-res={(0,9)} (nonpositive excluded, no pad); RO={(2,0)}.
+    # (1,0) excluded by CF quota cut; (0,8) nonpositive never padded in.
+    assert pool.feature_ids == ((0, 1), (0, 2), (0, 9), (2, 0))
+    assert len(pool.feature_ids) == 4  # |union|, fill is a no-op
+    assert (1, 0) not in pool.feature_ids
+    assert (0, 8) not in pool.feature_ids
+    assert pool.scales == (1.0, 2.0, 3.0, 0.25)
