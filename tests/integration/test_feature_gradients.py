@@ -326,3 +326,63 @@ def test_feature_selection__attribution_scope__matches_configured_intervention_s
     assert heuristic.scope_label == "heuristic"
     assert heuristic.attribution_scope == "last_prompt_token"
     assert heuristic.intervention_token_scope == "all_prompt_tokens"
+
+
+@pytest.mark.integration
+def test_feature_jacobian__uses_actual_decoder_row_without_unrequested_unit_normalization() -> (
+    None
+):
+    """FEAT-035: Jacobian uses SAE.decode rows; unit-norm rows differ (DEC-016)."""
+    w_dec, w_enc, b_enc, head = _frozen_toy_parameters()
+    # DEC-016 f1=[0,2] has L2 norm 2, so unit-normalizing changes the row.
+    assert not torch.allclose(
+        w_dec[1], w_dec[1] / torch.linalg.vector_norm(w_dec[1])
+    )
+
+    residual = torch.tensor([2.0, 3.0], dtype=DTYPE)
+    selected_indices = [0, 1, 2]
+    scales = torch.tensor([2.0, 4.0, 0.5], dtype=DTYPE)
+    latents = torch.relu(residual @ w_enc.T + b_enc)
+    assert bool((latents > 0).all())
+
+    beta = torch.zeros(len(selected_indices), dtype=DTYPE, requires_grad=True)
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+    )
+    autograd_jacobian = torch.autograd.grad(
+        _logistic_margin_loss(_truthful_margin_from_residual(intervened, head=head)),
+        beta,
+    )[0]
+
+    residual_leaf = residual.clone().requires_grad_(True)
+    residual_gradient = torch.autograd.grad(
+        _logistic_margin_loss(
+            _truthful_margin_from_residual(residual_leaf, head=head)
+        ),
+        residual_leaf,
+    )[0]
+    projected = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=residual_gradient, decoder=w_dec
+        ),
+        latents=latents,
+        feature_scales=scales,
+    )
+
+    assert torch.allclose(projected, autograd_jacobian, atol=1e-8, rtol=1e-6)
+
+    unit_normalized = w_dec / torch.linalg.vector_norm(w_dec, dim=1, keepdim=True)
+    unit_projected = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=residual_gradient, decoder=unit_normalized
+        ),
+        latents=latents,
+        feature_scales=scales,
+    )
+    assert not torch.allclose(unit_projected, autograd_jacobian, atol=1e-8, rtol=1e-6)
