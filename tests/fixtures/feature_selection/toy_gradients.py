@@ -50,6 +50,16 @@ def spec_gradient(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
     return torch.tensor([2.0, -1.0], dtype=dtype)
 
 
+def spec_latents(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
+    """Spec §11 example latents z = [0.5, 0.0, 2.0]; f1 is inactive."""
+    return torch.tensor([0.5, 0.0, 2.0], dtype=dtype)
+
+
+def spec_scales(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
+    """Spec §11 example feature scales s = [2.0, 4.0, 0.5]."""
+    return torch.tensor([2.0, 4.0, 0.5], dtype=dtype)
+
+
 def right_padded_batch(
     *, dtype: torch.dtype = DTYPE
 ) -> tuple[torch.Tensor, torch.Tensor]:

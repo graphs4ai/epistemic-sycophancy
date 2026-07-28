@@ -5,10 +5,12 @@ from epistemic_sycophancy.feature_selection.indexing import (
     select_final_token_states,
 )
 from epistemic_sycophancy.feature_selection.projected_gradient import (
+    coefficient_jacobian,
     project_residual_gradient,
 )
 
 __all__ = [
+    "coefficient_jacobian",
     "final_prompt_token_index",
     "project_residual_gradient",
     "select_final_token_states",
