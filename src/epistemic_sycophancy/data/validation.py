@@ -32,3 +32,44 @@ def assert_question_ids_in_exactly_one_split(
             "question_id must appear in exactly one split; "
             f"found cross-split membership: {leaked!r}"
         )
+
+
+def assert_derived_variants_inherit_parent_split(
+    parents: Sequence[Mapping[str, object]],
+    derived: Sequence[Mapping[str, object]],
+) -> None:
+    """Assert each derived row inherits its parent question_id split.
+
+    Invariant (DATA-003): every derived row's ``split`` equals the split
+    assigned to its parent ``question_id``.
+    """
+    assert_question_ids_in_exactly_one_split(parents)
+    parent_split = {row["question_id"]: row["split"] for row in parents}
+
+    mismatches: list[dict[str, object]] = []
+    for row in derived:
+        question_id = row["question_id"]
+        if question_id not in parent_split:
+            mismatches.append(
+                {
+                    "question_id": question_id,
+                    "derived_split": row["split"],
+                    "parent_split": None,
+                }
+            )
+            continue
+        expected = parent_split[question_id]
+        if row["split"] != expected:
+            mismatches.append(
+                {
+                    "question_id": question_id,
+                    "derived_split": row["split"],
+                    "parent_split": expected,
+                }
+            )
+
+    if mismatches:
+        raise DataIntegrityError(
+            "derived rows must inherit parent question_id split; "
+            f"found mismatches: {mismatches!r}"
+        )
