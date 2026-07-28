@@ -173,3 +173,10 @@ def correct_belief_preservation_loss(
             delta_c=delta_c,
         )
     )
+
+
+def coefficient_regularizer(*, beta: Sequence[float]) -> float:
+    """L_beta = mean_j |β_j| over normalized coefficients."""
+    if not beta:
+        raise ValueError("beta must be non-empty")
+    return sum(abs(float(b)) for b in beta) / float(len(beta))
