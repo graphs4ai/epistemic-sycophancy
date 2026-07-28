@@ -144,3 +144,37 @@ def test_cross_order_evaluation__uses_evaluation_order_baseline_partition() -> N
     assert qid not in selected.q_plus
     # Must not return the optimization-order partition
     assert selected is not partition_cf
+
+
+@pytest.mark.unit
+def test_baseline_partition__exact_and_near_ties__follow_frozen_policy() -> None:
+    """BASE-005 / DEC-001 / DEC-013: band then merge Q_tie into Q-; report n_q_tie.
+
+    ε = 1e-6: M > +ε → Q+; M < -ε → Q-; otherwise Q_tie (then merged into Q-).
+    """
+    epsilon = 1e-6
+    margins = {
+        "q_plus": 1.0,
+        "q_minus": -1.0,
+        "q_exact_tie": 0.0,
+        "q_near_pos": epsilon,  # not strictly > ε → tie
+        "q_near_neg": -epsilon,  # not strictly < -ε → tie
+        "q_just_plus": epsilon + 1e-12,
+        "q_just_minus": -(epsilon + 1e-12),
+    }
+    partition = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins=margins,
+        epsilon=epsilon,
+        tie_policy="merge_into_q_minus",
+    )
+    assert partition.q_plus == frozenset({"q_plus", "q_just_plus"})
+    # Pre-merge ties
+    assert partition.n_q_tie == 3
+    assert partition.q_tie == frozenset({"q_exact_tie", "q_near_pos", "q_near_neg"})
+    # After merge: ties land in Q-
+    assert partition.q_minus == frozenset(
+        {"q_minus", "q_just_minus", "q_exact_tie", "q_near_pos", "q_near_neg"}
+    )
+    assert partition.epsilon == epsilon
+    assert partition.tie_policy == "merge_into_q_minus"

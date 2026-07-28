@@ -27,6 +27,7 @@ def _valid_config_kwargs(**overrides: object) -> dict[str, object]:
         "feature_scales": (1.0, 2.0),
         "coefficient_length": 2,
         "tie_policy": "merge_into_q_minus",
+        "tie_band_epsilon": 1e-6,
         "invalid_row_policy": "fail_trial",
         "multi_token_candidate_scoring": "sum_log_probs",
         "ro_manifest_selection": "primary_single",
@@ -162,6 +163,7 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
     """CFG-006: unresolved policies have no hidden defaults and reject None."""
     policy_fields = (
         "tie_policy",
+        "tie_band_epsilon",
         "invalid_row_policy",
         "multi_token_candidate_scoring",
         "ro_manifest_selection",
@@ -180,6 +182,7 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
 
     config = ExperimentConfig(**_valid_config_kwargs())
     assert config.tie_policy == "merge_into_q_minus"
+    assert config.tie_band_epsilon == 1e-6
     assert config.invalid_row_policy == "fail_trial"
     assert config.multi_token_candidate_scoring == "sum_log_probs"
     assert config.ro_manifest_selection == "primary_single"

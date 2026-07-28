@@ -30,6 +30,7 @@ class ExperimentConfig:
         feature_scales: Sequence[float],
         coefficient_length: int,
         tie_policy: object,
+        tie_band_epsilon: object,
         invalid_row_policy: object,
         multi_token_candidate_scoring: object,
         ro_manifest_selection: object,
@@ -86,6 +87,7 @@ class ExperimentConfig:
 
         for name, policy in (
             ("tie_policy", tie_policy),
+            ("tie_band_epsilon", tie_band_epsilon),
             ("invalid_row_policy", invalid_row_policy),
             ("multi_token_candidate_scoring", multi_token_candidate_scoring),
             ("ro_manifest_selection", ro_manifest_selection),
@@ -97,6 +99,18 @@ class ExperimentConfig:
                 raise InvalidExperimentConfig(
                     f"{name} must be explicit; hidden defaults are forbidden"
                 )
+        if not isinstance(tie_band_epsilon, (int, float)) or isinstance(
+            tie_band_epsilon, bool
+        ):
+            raise InvalidExperimentConfig(
+                f"tie_band_epsilon must be a finite nonnegative float; "
+                f"got {tie_band_epsilon!r}"
+            )
+        if not math.isfinite(float(tie_band_epsilon)) or float(tie_band_epsilon) < 0.0:
+            raise InvalidExperimentConfig(
+                f"tie_band_epsilon must be a finite nonnegative float; "
+                f"got {tie_band_epsilon!r}"
+            )
         if continuation_A != "A" or continuation_B != "B":
             raise InvalidExperimentConfig(
                 "DEC-010 requires continuation_A='A' and continuation_B='B'; "
@@ -122,6 +136,7 @@ class ExperimentConfig:
         self.feature_scales = scales
         self.coefficient_length = coefficient_length
         self.tie_policy = tie_policy
+        self.tie_band_epsilon = float(tie_band_epsilon)
         self.invalid_row_policy = invalid_row_policy
         self.multi_token_candidate_scoring = multi_token_candidate_scoring
         self.ro_manifest_selection = ro_manifest_selection
