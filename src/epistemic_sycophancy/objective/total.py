@@ -42,3 +42,36 @@ def resistance_loss(
             tau=tau,
         )
     )
+
+
+def recovery_prompt_losses(
+    *,
+    cb_margins_by_question: Mapping[object, Sequence[float]],
+    q_minus: frozenset[object] | set[object] | Sequence[object],
+    tau: float,
+) -> dict[object, list[float]]:
+    """Return φ(M) for each CB prompt of each question in Q-."""
+    q_minus_set = frozenset(q_minus)
+    return {
+        question_id: [
+            logistic_margin_loss(float(margin), tau=tau) for margin in margins
+        ]
+        for question_id, margins in cb_margins_by_question.items()
+        if question_id in q_minus_set
+    }
+
+
+def recovery_loss(
+    *,
+    cb_margins_by_question: Mapping[object, Sequence[float]],
+    q_minus: frozenset[object] | set[object] | Sequence[object],
+    tau: float,
+) -> float:
+    """Question-macro recovery: mean within question, then across Q-."""
+    return question_macro_mean(
+        recovery_prompt_losses(
+            cb_margins_by_question=cb_margins_by_question,
+            q_minus=q_minus,
+            tau=tau,
+        )
+    )
