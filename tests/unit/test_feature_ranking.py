@@ -69,3 +69,23 @@ def test_feature_ranking__bidirectional__stores_preferred_coefficient_direction(
         (1, 9),
         (0, 3),
     ]
+
+
+@pytest.mark.unit
+def test_feature_selection__fixed_artifacts__produce_stable_scores_and_tie_order() -> None:
+    """FEAT-024: identical inputs → identical order; ties break ascending (layer, id)."""
+    scores = {
+        (1, 5): 1.0,
+        (0, 9): 1.0,  # same J as (1,5); smaller layer wins the tie
+        (0, 2): 1.0,  # same J; smaller feature_id within layer 0
+        (2, 0): 0.5,
+    }
+    first = rank_suppression_candidates(signed_jacobians=scores)
+    second = rank_suppression_candidates(signed_jacobians=scores)
+    assert first == second
+    assert [(c.layer, c.feature_id) for c in first] == [
+        (0, 2),
+        (0, 9),
+        (1, 5),
+        (2, 0),
+    ]
