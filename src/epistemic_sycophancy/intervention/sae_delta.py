@@ -58,8 +58,8 @@ def apply_additive_sae_delta(
     *,
     residual: torch.Tensor,
     selected_indices: Sequence[int],
-    scales: Sequence[float],
-    beta: Sequence[float],
+    scales: Sequence[float] | torch.Tensor,
+    beta: Sequence[float] | torch.Tensor,
     encoder_weight: torch.Tensor,
     encoder_bias: torch.Tensor,
     decoder_weight: torch.Tensor,
@@ -67,22 +67,31 @@ def apply_additive_sae_delta(
     """Return x' = x + (decode(z') - decode(z)); at β=0 return original x.
 
     At β=0 the hook must return the original residual, never the SAE
-    reconstruction decode(encode(x)).
+    reconstruction decode(encode(x)). When ``beta`` requires grad, the
+    additive path stays in the autograd graph (SAE-013).
     """
-    if all(float(b) == 0.0 for b in beta):
+    beta_tensor = (
+        beta
+        if isinstance(beta, torch.Tensor)
+        else torch.tensor(list(beta), dtype=residual.dtype, device=residual.device)
+    )
+    scales_tensor = (
+        scales
+        if isinstance(scales, torch.Tensor)
+        else torch.tensor(list(scales), dtype=residual.dtype, device=residual.device)
+    )
+
+    if not beta_tensor.requires_grad and bool(torch.all(beta_tensor == 0)):
         return residual
 
     latents = torch.relu(residual @ encoder_weight.T + encoder_bias)
-    latent_list = [float(v) for v in latents.reshape(-1).tolist()]
-    updated_list = apply_selected_latent_update(
-        latents=latent_list,
-        selected_indices=selected_indices,
-        scales=scales,
-        beta=beta,
+    alphas = scales_tensor * beta_tensor
+    alpha_full = torch.zeros_like(latents)
+    index = torch.as_tensor(
+        list(selected_indices), device=residual.device, dtype=torch.long
     )
-    latents_prime = torch.tensor(
-        updated_list, dtype=residual.dtype, device=residual.device
-    ).reshape(latents.shape)
+    alpha_full = alpha_full.scatter(0, index, alphas)
+    latents_prime = torch.relu(latents + alpha_full)
     delta = latent_delta_to_residual(
         latents_prime=latents_prime,
         latents=latents,

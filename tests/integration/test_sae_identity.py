@@ -164,3 +164,43 @@ def test_intervention__beta_zero__matches_unmodified_margins_and_labels() -> Non
         )
         assert margin_h == pytest.approx(margin_u, abs=5e-3, rel=1e-4)
         assert margin_preference(margin_h) == margin_preference(margin_u)
+
+
+@pytest.mark.integration
+def test_intervention__loss_backward__populates_only_beta_gradient() -> None:
+    """SAE-013: finite beta.grad only; encoder/decoder/head frozen."""
+    dtype = torch.bfloat16
+    residual = torch.tensor([1.0, 0.5], dtype=dtype)
+    w_dec = decoder_weight(dtype=dtype).detach().clone()
+    w_enc, b_enc = imperfect_encoder_params(dtype=dtype)
+    w_enc = w_enc.detach().clone()
+    b_enc = b_enc.detach().clone()
+    head = logit_head_weight(dtype=dtype).detach().clone()
+
+    for param in (w_dec, w_enc, b_enc, head):
+        param.requires_grad_(False)
+
+    # Nonzero β on an active latent so the ReLU path is differentiable.
+    beta = torch.tensor([-0.5, 0.0, 0.0], dtype=dtype, requires_grad=True)
+    scales = torch.tensor([1.0, 1.0, 1.0], dtype=dtype)
+    selected_indices = [0, 1, 2]
+
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+    )
+    logits = head @ intervened
+    loss = logits.sum()
+    loss.backward()
+
+    assert beta.grad is not None
+    assert torch.isfinite(beta.grad).all()
+    assert w_enc.grad is None
+    assert b_enc.grad is None
+    assert w_dec.grad is None
+    assert head.grad is None
