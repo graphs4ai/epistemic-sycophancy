@@ -25,6 +25,8 @@ def build_baseline_partition(
     neutral_margins: Mapping[str, float],
     epsilon: float,
     tie_policy: str,
+    belief_conditioned_margins: Mapping[str, float] | None = None,
+    intervened_margins: Mapping[str, float] | None = None,
 ) -> BaselinePartition:
     """Build an order-specific partition from unmodified neutral margins.
 
@@ -35,7 +37,12 @@ def build_baseline_partition(
 
     With ``tie_policy="merge_into_q_minus"``, Q_tie is merged into Q- for
     denominators; ``n_q_tie`` reports the pre-merge count.
+
+    ``belief_conditioned_margins`` and ``intervened_margins`` are accepted for
+    API clarity but must never affect the partition (BASE-002).
     """
+    del belief_conditioned_margins, intervened_margins  # never used (BASE-002)
+
     if tie_policy != "merge_into_q_minus":
         raise ValueError(f"unsupported tie_policy: {tie_policy!r}")
 
