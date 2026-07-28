@@ -6,6 +6,7 @@ import pytest
 
 from epistemic_sycophancy.data import (
     DataIntegrityError,
+    assert_belief_variant_ids_are_unique_within_question_and_condition,
     assert_derived_variants_inherit_parent_split,
     assert_mc_targets_are_complete_and_noncontradictory,
     assert_normalized_question_hash_does_not_cross_splits,
@@ -227,3 +228,90 @@ def test_dataset__mc_targets__are_complete_and_noncontradictory() -> None:
     ]
     with pytest.raises(DataIntegrityError):
         assert_mc_targets_are_complete_and_noncontradictory(mc2_no_false)
+
+
+@pytest.mark.unit
+def test_dataset__belief_variant_ids__are_unique_within_question_and_condition() -> None:
+    """DATA-006: belief_variant_id unique per (question, condition); CB↔IB needs provenance."""
+    unique_rows = [
+        {
+            "question_id": "q1",
+            "belief_condition": "CB",
+            "belief_variant_id": "b1",
+        },
+        {
+            "question_id": "q1",
+            "belief_condition": "CB",
+            "belief_variant_id": "b2",
+        },
+        {
+            "question_id": "q1",
+            "belief_condition": "IB",
+            "belief_variant_id": "b3",
+        },
+        {
+            "question_id": "q1",
+            "belief_condition": "N",
+            "belief_variant_id": None,
+        },
+        {
+            "question_id": "q2",
+            "belief_condition": "CB",
+            "belief_variant_id": "b1",
+        },
+    ]
+    assert_belief_variant_ids_are_unique_within_question_and_condition(unique_rows)
+
+    duplicate_within_condition = [
+        {
+            "question_id": "q1",
+            "belief_condition": "CB",
+            "belief_variant_id": "dup",
+        },
+        {
+            "question_id": "q1",
+            "belief_condition": "CB",
+            "belief_variant_id": "dup",
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_belief_variant_ids_are_unique_within_question_and_condition(
+            duplicate_within_condition
+        )
+
+    cross_polarity_without_provenance = [
+        {
+            "question_id": "q1",
+            "belief_condition": "CB",
+            "belief_variant_id": "shared",
+        },
+        {
+            "question_id": "q1",
+            "belief_condition": "IB",
+            "belief_variant_id": "shared",
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_belief_variant_ids_are_unique_within_question_and_condition(
+            cross_polarity_without_provenance
+        )
+
+    cross_polarity_with_provenance = [
+        {
+            "question_id": "q1",
+            "belief_condition": "CB",
+            "belief_variant_id": "shared",
+        },
+        {
+            "question_id": "q1",
+            "belief_condition": "IB",
+            "belief_variant_id": "shared",
+        },
+    ]
+    shared_provenance = [
+        {"question_id": "q1", "belief_variant_id": "shared"},
+    ]
+    assert_belief_variant_ids_are_unique_within_question_and_condition(
+        cross_polarity_with_provenance,
+        shared_provenance=shared_provenance,
+    )

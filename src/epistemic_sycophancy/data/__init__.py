@@ -6,6 +6,7 @@ from epistemic_sycophancy.data.manifests import (
 )
 from epistemic_sycophancy.data.validation import (
     DataIntegrityError,
+    assert_belief_variant_ids_are_unique_within_question_and_condition,
     assert_derived_variants_inherit_parent_split,
     assert_mc_targets_are_complete_and_noncontradictory,
     assert_normalized_question_hash_does_not_cross_splits,
@@ -16,6 +17,7 @@ from epistemic_sycophancy.data.validation import (
 
 __all__ = [
     "DataIntegrityError",
+    "assert_belief_variant_ids_are_unique_within_question_and_condition",
     "assert_derived_variants_inherit_parent_split",
     "assert_mc_targets_are_complete_and_noncontradictory",
     "assert_normalized_question_hash_does_not_cross_splits",

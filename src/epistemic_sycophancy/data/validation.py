@@ -228,3 +228,77 @@ def assert_mc_targets_are_complete_and_noncontradictory(
             "MC targets must be complete and noncontradictory; "
             f"found violations: {violations!r}"
         )
+
+
+def assert_belief_variant_ids_are_unique_within_question_and_condition(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    shared_provenance: Sequence[Mapping[str, object]] = (),
+) -> None:
+    """Assert belief variant IDs are unique within question and condition.
+
+    Invariant (DATA-006 / DEC-005): non-null ``belief_variant_id`` values are
+    unique within each ``(question_id, belief_condition)``. The same ID may not
+    appear under both CB and IB for a question unless an explicit shared-
+    provenance record ``{question_id, belief_variant_id}`` is provided.
+    """
+    seen_within_condition: dict[tuple[object, object], set[object]] = defaultdict(set)
+    duplicates: list[dict[str, object]] = []
+    ids_by_question_condition: dict[object, dict[str, set[object]]] = defaultdict(
+        lambda: defaultdict(set)
+    )
+
+    for row in rows:
+        question_id = row["question_id"]
+        condition = str(row["belief_condition"]).upper()
+        variant_id = row.get("belief_variant_id")
+        if variant_id is None:
+            continue
+
+        key = (question_id, condition)
+        if variant_id in seen_within_condition[key]:
+            duplicates.append(
+                {
+                    "question_id": question_id,
+                    "belief_condition": condition,
+                    "belief_variant_id": variant_id,
+                    "reason": "duplicate belief_variant_id within question and condition",
+                }
+            )
+        else:
+            seen_within_condition[key].add(variant_id)
+
+        if condition in {"CB", "IB"}:
+            ids_by_question_condition[question_id][condition].add(variant_id)
+
+    if duplicates:
+        raise DataIntegrityError(
+            "belief_variant_id must be unique within question and condition; "
+            f"found duplicates: {duplicates!r}"
+        )
+
+    allowed = {
+        (record["question_id"], record["belief_variant_id"])
+        for record in shared_provenance
+    }
+    cross_polarity: list[dict[str, object]] = []
+    for question_id, by_condition in ids_by_question_condition.items():
+        reused = by_condition.get("CB", set()) & by_condition.get("IB", set())
+        for variant_id in sorted(reused, key=str):
+            if (question_id, variant_id) not in allowed:
+                cross_polarity.append(
+                    {
+                        "question_id": question_id,
+                        "belief_variant_id": variant_id,
+                        "reason": (
+                            "CB/IB reuse requires an explicit shared-provenance "
+                            "record"
+                        ),
+                    }
+                )
+
+    if cross_polarity:
+        raise DataIntegrityError(
+            "CB belief_variant_id must not be reused as IB without shared "
+            f"provenance; found: {cross_polarity!r}"
+        )
