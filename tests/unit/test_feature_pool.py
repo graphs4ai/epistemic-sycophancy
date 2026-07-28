@@ -166,3 +166,52 @@ def test_feature_pool__all_order_optimizers__receive_identical_feature_ids_scale
     )
     assert pool_cf.feature_ids == expected
     assert pool_cf.scales == tuple(scales[k] for k in expected)
+
+
+@pytest.mark.unit
+def test_feature_pool__opposite_order_gradients__remain_eligible_under_quota_union() -> (
+    None
+):
+    """FEAT-033: +CF / −IF feature stays in pool via CF quota; averaging cancels it."""
+    from epistemic_sycophancy.feature_selection import build_common_feature_pool
+
+    key = (0, 7)
+    lists = {
+        ("CF", "resistance"): {key: 4.0, (0, 1): 1.0},
+        ("CF", "recovery"): {(0, 2): 1.0},
+        ("IF", "resistance"): {key: -4.0, (0, 3): 1.0},  # opposite sign; mean 0
+        ("IF", "recovery"): {(0, 4): 1.0},
+        ("RO", "resistance"): {(0, 5): 1.0},
+        ("RO", "recovery"): {(0, 6): 1.0},
+    }
+    scales = {k: 1.0 for k in [(0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), key]}
+    pool = build_common_feature_pool(
+        lists_by_order_and_component=lists,
+        feature_scales=scales,
+        pool_quota_per_list=8,
+    )
+    assert key in pool.feature_ids
+
+    # Averaging CF and IF Jacobians cancels the feature and would drop it.
+    averaged = {
+        k: (
+            lists[("CF", "resistance")].get(k, 0.0)
+            + lists[("IF", "resistance")].get(k, 0.0)
+        )
+        / 2.0
+        for k in {key, (0, 1), (0, 3)}
+    }
+    assert averaged[key] == 0.0
+    averaged_pool = build_common_feature_pool(
+        lists_by_order_and_component={
+            ("CF", "resistance"): averaged,
+            ("CF", "recovery"): {},
+            ("IF", "resistance"): {},
+            ("IF", "recovery"): {},
+            ("RO", "resistance"): {},
+            ("RO", "recovery"): {},
+        },
+        feature_scales=scales,
+        pool_quota_per_list=8,
+    )
+    assert key not in averaged_pool.feature_ids
