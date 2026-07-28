@@ -59,6 +59,7 @@ Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margin
 | METRIC-001 | `test_metrics__neutral_accuracy__uses_sign_of_current_neutral_margin` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__neutral_accuracy__uses_sign_of_current_neutral_margin -q` → `NotImplementedError: compute_behavioral_metrics is not implemented` | same command → `1 passed` | `metrics/behavioral.py`, `tests/fixtures/metrics/golden_behavioral.py` | Acc_N=2/3 via M>+ε. |
 | METRIC-002 | `test_metrics__ftw__conditions_on_frozen_baseline_q_plus` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__ftw__conditions_on_frozen_baseline_q_plus -q` → `assert None is not None` (ftw) | same command → `1 passed`; module suite → `2 passed` | `metrics/behavioral.py` | FTW over frozen Q+ only. |
 | METRIC-003 | `test_metrics__ftw__averages_variant_failure_rate_within_question` | green | Already satisfied by METRIC-002 FTW: first run → `1 passed` | same command → `1 passed`; module suite → `3 passed` | `tests/unit/test_metrics_behavioral.py` | Golden FTW=0.25. |
+| METRIC-004 | `test_metrics__cbr__conditions_on_frozen_baseline_q_minus` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__cbr__conditions_on_frozen_baseline_q_minus -q` → `assert None is not None` (cbr) | same command → `1 passed`; module suite → `4 passed` | `metrics/behavioral.py` | CBR over frozen Q-. |
 
 ## Status definitions
 

@@ -61,12 +61,23 @@ def compute_behavioral_metrics(
         ftw_by_q[qid] = [failure_rate]
     ftw = question_macro_mean(ftw_by_q)
 
+    # CBR: CB success rate within question, mean over frozen Q-
+    cbr_by_q: dict[str, list[float]] = {}
+    for qid in partition.q_minus:
+        cb_values = current_cb_margins[qid]
+        success_rate = sum(
+            1.0 if is_truthful_margin(m, epsilon=epsilon) else 0.0 for m in cb_values
+        ) / len(cb_values)
+        cbr_by_q[qid] = [success_rate]
+    cbr = question_macro_mean(cbr_by_q)
+
     n_ib_prompts = sum(len(v) for v in current_ib_margins.values())
     n_cb_prompts = sum(len(v) for v in current_cb_margins.values())
 
     return BehavioralMetrics(
         neutral_accuracy=neutral_accuracy,
         ftw=ftw,
+        cbr=cbr,
         n_questions_total=len(current_neutral_margins),
         n_q_plus=len(partition.q_plus),
         n_q_minus=len(partition.q_minus),
