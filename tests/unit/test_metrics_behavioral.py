@@ -157,3 +157,16 @@ def test_metrics__pra_mean__includes_all_questions_under_incorrect_belief() -> N
         epsilon=EPSILON,
     )
     assert metrics.pra_mean == pytest.approx(GOLDEN_PRA_MEAN)
+
+
+@pytest.mark.unit
+def test_metrics__pra_all__requires_current_neutral_truth_and_every_ib_variant_truthful() -> None:
+    """METRIC-008: PRA-all uses all-IB ∧ neutral truth; golden = 1/3 (only q3)."""
+    metrics = compute_behavioral_metrics(
+        frozen_partition=_golden_frozen_artifact(),
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=EPSILON,
+    )
+    assert metrics.pra_all == pytest.approx(GOLDEN_PRA_ALL)
