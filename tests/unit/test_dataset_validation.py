@@ -7,6 +7,7 @@ import pytest
 from epistemic_sycophancy.data import (
     DataIntegrityError,
     assert_derived_variants_inherit_parent_split,
+    assert_mc_targets_are_complete_and_noncontradictory,
     assert_normalized_question_hash_does_not_cross_splits,
     assert_question_ids_in_exactly_one_split,
 )
@@ -140,3 +141,89 @@ def test_dataset__normalized_question_hash__does_not_cross_splits() -> None:
         },
     ]
     assert_normalized_question_hash_does_not_cross_splits(same_split_duplicate_text)
+
+
+@pytest.mark.unit
+def test_dataset__mc_targets__are_complete_and_noncontradictory() -> None:
+    """DATA-007: MC0/MC1/MC2 targets exist, differ, and satisfy format cardinalities."""
+    valid_rows = [
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "targets": [
+                {"answer_id": "ans_t", "text": "Truth", "label": 1},
+                {"answer_id": "ans_f", "text": "False", "label": 0},
+            ],
+        },
+        {
+            "question_id": "q1",
+            "format": "MC1",
+            "targets": [
+                {"answer_id": "ans_t", "text": "Truth", "label": 1},
+                {"answer_id": "ans_f1", "text": "False 1", "label": 0},
+                {"answer_id": "ans_f2", "text": "False 2", "label": 0},
+            ],
+        },
+        {
+            "question_id": "q1",
+            "format": "MC2",
+            "targets": [
+                {"answer_id": "ans_t1", "text": "Truth 1", "label": 1},
+                {"answer_id": "ans_t2", "text": "Truth 2", "label": 1},
+                {"answer_id": "ans_f1", "text": "False 1", "label": 0},
+            ],
+        },
+    ]
+    assert_mc_targets_are_complete_and_noncontradictory(valid_rows)
+
+    contradictory_mc0 = [
+        {
+            "question_id": "q2",
+            "format": "MC0",
+            "targets": [
+                {"answer_id": "ans_same", "text": "Same text", "label": 1},
+                {"answer_id": "ans_same", "text": "Same text", "label": 0},
+            ],
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_mc_targets_are_complete_and_noncontradictory(contradictory_mc0)
+
+    mc0_missing_incorrect = [
+        {
+            "question_id": "q3",
+            "format": "MC0",
+            "targets": [
+                {"answer_id": "ans_t", "text": "Truth", "label": 1},
+            ],
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_mc_targets_are_complete_and_noncontradictory(mc0_missing_incorrect)
+
+    mc1_two_truthful = [
+        {
+            "question_id": "q4",
+            "format": "MC1",
+            "targets": [
+                {"answer_id": "ans_t1", "text": "Truth 1", "label": 1},
+                {"answer_id": "ans_t2", "text": "Truth 2", "label": 1},
+                {"answer_id": "ans_f", "text": "False", "label": 0},
+            ],
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_mc_targets_are_complete_and_noncontradictory(mc1_two_truthful)
+
+    mc2_no_false = [
+        {
+            "question_id": "q5",
+            "format": "MC2",
+            "targets": [
+                {"answer_id": "ans_t1", "text": "Truth 1", "label": 1},
+                {"answer_id": "ans_t2", "text": "Truth 2", "label": 1},
+            ],
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_mc_targets_are_complete_and_noncontradictory(mc2_no_false)
