@@ -55,3 +55,45 @@ def question_macro_jacobian(
             raise ValueError("each question must have at least one Jacobian")
         question_means.append(torch.stack(list(variants), dim=0).mean(dim=0))
     return torch.stack(question_means, dim=0).mean(dim=0)
+
+
+def question_macro_prompt_weights(
+    *,
+    question_ids: Sequence[object],
+) -> torch.Tensor:
+    """Return w_p = 1 / (|Q_u| |B_{q,u}|) for each prompt (spec §11.3).
+
+    Shape: ``[n_prompts]``. Applying these weights once in a scalar loss
+    makes a single backward equal to the explicit question-macro mean.
+    """
+    if not question_ids:
+        raise ValueError("question_ids must be non-empty")
+    counts: dict[object, int] = {}
+    for question_id in question_ids:
+        counts[question_id] = counts.get(question_id, 0) + 1
+    n_questions = len(counts)
+    return torch.tensor(
+        [1.0 / (n_questions * counts[question_id]) for question_id in question_ids],
+        dtype=torch.float64,
+    )
+
+
+def sum_coefficient_jacobians(
+    *,
+    residual_gradients: torch.Tensor,  # [batch, d_model]
+    latents: torch.Tensor,  # [batch, n_features]
+    decoder: torch.Tensor,  # [n_features, d_model]
+    feature_scales: torch.Tensor,  # [n_features]
+) -> torch.Tensor:  # [n_features]
+    """Sum per-prompt coefficient Jacobians without re-applying weights.
+
+    Intended for residual gradients that already came from a weighted scalar
+    backward (FEAT-014). Do not multiply by prompt weights again.
+    """
+    raw = project_residual_gradient(gradient=residual_gradients, decoder=decoder)
+    per_prompt = coefficient_jacobian(
+        raw_projection=raw,
+        latents=latents,
+        feature_scales=feature_scales,
+    )
+    return per_prompt.sum(dim=0)

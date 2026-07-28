@@ -221,3 +221,76 @@ def test_feature_components__logistic_preservation_surrogates__can_have_nonzero_
 
     assert bool((autograd_jacobian != 0).any())
     assert torch.allclose(projected_jacobian, autograd_jacobian, atol=1e-8, rtol=1e-6)
+
+
+@pytest.mark.integration
+def test_feature_jacobian__weighted_component_backward__matches_explicit_question_macro_gradients() -> (
+    None
+):
+    """FEAT-014: one weighted scalar backward equals explicit question-macro J.
+
+    Weights w_p = 1 / (|Q_u| |B_{q,u}|) are applied exactly once in the
+    scalar; they must not be re-multiplied after projection (spec §11.3).
+    """
+    from epistemic_sycophancy.feature_selection import (
+        question_macro_jacobian,
+        question_macro_prompt_weights,
+        sum_coefficient_jacobians,
+    )
+
+    w_dec, w_enc, b_enc, head = _frozen_toy_parameters()
+    # Two questions with unequal variant counts (mirrors FEAT-013 structure).
+    residuals = torch.stack(
+        [
+            torch.tensor([2.0, 3.0], dtype=DTYPE),  # q1, v0
+            torch.tensor([2.1, 2.9], dtype=DTYPE),  # q1, v1
+            torch.tensor([1.5, 2.5], dtype=DTYPE),  # q2, v0
+        ],
+        dim=0,
+    )
+    question_ids = ["q1", "q1", "q2"]
+    selected_indices = [0, 1, 2]
+    scales = torch.tensor([2.0, 4.0, 0.5], dtype=DTYPE)
+    latents = torch.relu(residuals @ w_enc.T + b_enc)
+    assert bool((latents > 0).all())
+
+    weights = question_macro_prompt_weights(question_ids=question_ids)
+    # Explicit per-prompt Jacobians → question-macro reference.
+    per_prompt: dict[str, list[torch.Tensor]] = {"q1": [], "q2": []}
+    for row, question_id in enumerate(question_ids):
+        leaf = residuals[row].clone().requires_grad_(True)
+        loss = _logistic_margin_loss(
+            _truthful_margin_from_residual(leaf, head=head)
+        )
+        residual_gradient = torch.autograd.grad(loss, leaf)[0]
+        per_prompt[question_id].append(
+            coefficient_jacobian(
+                raw_projection=project_residual_gradient(
+                    gradient=residual_gradient, decoder=w_dec
+                ),
+                latents=latents[row],
+                feature_scales=scales,
+            ).detach()
+        )
+    explicit = question_macro_jacobian(per_prompt)
+
+    # Single weighted scalar backward (weights applied once).
+    residuals_leaf = residuals.clone().requires_grad_(True)
+    prompt_losses = torch.stack(
+        [
+            _logistic_margin_loss(
+                _truthful_margin_from_residual(residuals_leaf[row], head=head)
+            )
+            for row in range(residuals_leaf.shape[0])
+        ]
+    )
+    weighted = (weights * prompt_losses).sum()
+    residual_grads = torch.autograd.grad(weighted, residuals_leaf)[0]
+    from_weighted = sum_coefficient_jacobians(
+        residual_gradients=residual_grads,
+        latents=latents,
+        decoder=w_dec,
+        feature_scales=scales,
+    )
+
+    assert torch.allclose(from_weighted, explicit, atol=1e-8, rtol=1e-6)
