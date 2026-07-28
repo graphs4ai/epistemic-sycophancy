@@ -105,3 +105,11 @@ def test_logistic_loss__tau__changes_margin_scale_but_not_ordering() -> None:
     for i in range(len(margins) - 1):
         assert losses_small[i] >= losses_small[i + 1] - 1e-12
         assert losses_large[i] >= losses_large[i + 1] - 1e-12
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("margin", [-1e4, -100.0, 100.0, 1e4])
+def test_logistic_loss__extreme_margins__remains_finite(margin: float) -> None:
+    """LOSS-005: extreme margins remain finite under production float dtype."""
+    loss = logistic_margin_loss(margin, tau=1.0)
+    assert math.isfinite(loss)
