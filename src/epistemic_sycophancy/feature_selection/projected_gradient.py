@@ -11,9 +11,26 @@ def project_residual_gradient(
     *,
     gradient: torch.Tensor,  # [..., d_model]
     decoder: torch.Tensor,  # [n_features, d_model]
+    feature_chunk_size: int | None = None,
 ) -> torch.Tensor:  # [..., n_features]
-    """Return the raw projection h = g W_dec^T onto decoder directions."""
-    return gradient @ decoder.T
+    """Return the raw projection h = g W_dec^T onto decoder directions.
+
+    When ``feature_chunk_size`` is provided (DEC-022), project in feature
+    chunks so a wide SAE need not materialize the full matmul at once. The
+    final chunk may be uneven. ``None`` selects the dense path.
+    """
+    if feature_chunk_size is None:
+        return gradient @ decoder.T
+    if feature_chunk_size < 1:
+        raise ValueError(
+            f"feature_chunk_size must be a positive int; got {feature_chunk_size!r}"
+        )
+    n_features = decoder.shape[0]
+    chunks: list[torch.Tensor] = []
+    for start in range(0, n_features, feature_chunk_size):
+        end = min(start + feature_chunk_size, n_features)
+        chunks.append(gradient @ decoder[start:end].T)
+    return torch.cat(chunks, dim=-1)
 
 
 def coefficient_jacobian(
