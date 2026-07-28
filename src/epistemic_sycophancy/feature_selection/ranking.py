@@ -15,6 +15,16 @@ class SuppressionCandidate:
     signed_jacobian: float
     absolute_sensitivity: float
     suppression_beneficial: bool
+    preferred_bidirectional_sign: float
+
+
+def _preferred_bidirectional_sign(signed_jacobian: float) -> float:
+    """Return -sign(J): the loss-decreasing direction for an unconstrained step."""
+    if signed_jacobian > 0.0:
+        return -1.0
+    if signed_jacobian < 0.0:
+        return 1.0
+    return 0.0
 
 
 def rank_suppression_candidates(
@@ -35,6 +45,9 @@ def rank_suppression_candidates(
             signed_jacobian=float(jacobian),
             absolute_sensitivity=abs(float(jacobian)),
             suppression_beneficial=float(jacobian) > 0.0,
+            preferred_bidirectional_sign=_preferred_bidirectional_sign(
+                float(jacobian)
+            ),
         )
         for (layer, feature_id), jacobian in signed_jacobians.items()
     ]
