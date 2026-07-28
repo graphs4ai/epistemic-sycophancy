@@ -71,3 +71,38 @@ def test_baseline_partition__ignores_belief_conditioned_and_intervened_margins()
         tie_policy="merge_into_q_minus",
     )
     assert question_id in distractor_if_used.q_minus
+
+
+@pytest.mark.unit
+def test_baseline_partition__intervention_flips__do_not_reassign_question() -> None:
+    """BASE-003: a question remains in its baseline subset for every trial.
+
+    After freezing, flipping the neutral margin sign must not change membership
+    of the frozen artifact.
+    """
+    question_id = "q_frozen"
+    baseline_margins = {question_id: 2.0}
+    frozen = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins=baseline_margins,
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    assert question_id in frozen.q_plus
+
+    # Intervention flips the current margin; frozen artifact must not change.
+    flipped_margins = {question_id: -2.0}
+    assert question_id in frozen.q_plus
+    assert question_id not in frozen.q_minus
+    # Rebuilding from flipped margins would reassign — that is forbidden for trials.
+    would_reassign = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins=flipped_margins,
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    assert question_id in would_reassign.q_minus
+    # Frozen membership is unchanged and immutable
+    assert question_id in frozen.q_plus
+    with pytest.raises(AttributeError):
+        frozen.q_plus = frozenset()  # type: ignore[misc]
