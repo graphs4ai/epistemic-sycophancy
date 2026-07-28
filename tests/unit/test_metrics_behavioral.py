@@ -67,3 +67,21 @@ def test_metrics__neutral_accuracy__uses_sign_of_current_neutral_margin() -> Non
         epsilon=EPSILON,
     )
     assert metrics.neutral_accuracy == pytest.approx(GOLDEN_NEUTRAL_ACCURACY)
+
+
+@pytest.mark.unit
+def test_metrics__ftw__conditions_on_frozen_baseline_q_plus() -> None:
+    """METRIC-002: FTW denominator is frozen |Q+| only."""
+    metrics = compute_behavioral_metrics(
+        frozen_partition=_golden_frozen_artifact(),
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=EPSILON,
+    )
+    assert metrics.n_q_plus == GOLDEN_N_Q_PLUS
+    # FTW must be defined (computed over Q+ only); golden size is 2
+    assert metrics.ftw is not None
+    artifact = _golden_frozen_artifact()
+    assert "q2" not in artifact.partition.q_plus
+    assert set(artifact.partition.q_plus) == {"q1", "q3"}
