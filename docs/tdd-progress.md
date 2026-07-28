@@ -160,6 +160,12 @@ Phase F gate: `pixi run --environment test pytest tests/unit/test_feature_indexi
 
 Phase G gate: `pixi run --environment test pytest tests/unit/test_objective_*.py tests/property/test_objective_invariance.py tests/integration/test_objective_batching.py -q` → `18 passed`. Fast suite `pixi run --environment test pytest -m "not real_model and not slow and not gpu" -q` → `152 passed, 1 deselected`. Golden components+total, batched≡unbatched loss/grad, deterministic invariances, DEC-026…029 green.
 
+## Phase H — Optimizers
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| OPT-001 | `test_optimizer_objective__same_beta_and_regime__returns_identical_scalar_and_components` | green | `pixi run --environment test pytest tests/unit/test_optimizer_objective.py::test_optimizer_objective__same_beta_and_regime__returns_identical_scalar_and_components -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.optimization'` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/optimization/__init__.py`, `src/epistemic_sycophancy/optimization/objective.py`, `tests/unit/test_optimizer_objective.py` | Facade wraps evaluate_objective → ObjectiveComponents; exact identity on repeat (CMA-ES mandatory). |
+
 ## Status definitions
 
 - `not_started`: no test written.
