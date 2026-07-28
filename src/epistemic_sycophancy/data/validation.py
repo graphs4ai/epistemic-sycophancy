@@ -376,3 +376,37 @@ def assert_neutral_rows_exactly_one_per_question_order_and_format(
             "one distinct neutral_prompt_hash; "
             f"found violations: {violations!r}"
         )
+
+
+def assert_question_macro_weights_sum_to_one_within_component(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    atol: float = 1e-9,
+) -> None:
+    """Assert pair_weight sums to one per question within a component.
+
+    Invariant (DATA-008 / DEC-007): for every ``question_id``,
+    ``sum_b pair_weight == 1`` within absolute tolerance ``atol``.
+    ``condition_weight`` is ignored.
+    """
+    totals: dict[object, float] = defaultdict(float)
+    for row in rows:
+        totals[row["question_id"]] += float(row["pair_weight"])
+
+    violations: list[dict[str, object]] = []
+    for question_id, total in sorted(totals.items(), key=lambda item: str(item[0])):
+        if abs(total - 1.0) > atol:
+            violations.append(
+                {
+                    "question_id": question_id,
+                    "pair_weight_sum": total,
+                    "expected": 1.0,
+                    "atol": atol,
+                }
+            )
+
+    if violations:
+        raise DataIntegrityError(
+            "pair_weight must sum to 1 within each question component; "
+            f"found violations: {violations!r}"
+        )

@@ -12,6 +12,7 @@ from epistemic_sycophancy.data import (
     assert_neutral_rows_exactly_one_per_question_order_and_format,
     assert_normalized_question_hash_does_not_cross_splits,
     assert_question_ids_in_exactly_one_split,
+    assert_question_macro_weights_sum_to_one_within_component,
 )
 
 
@@ -394,4 +395,51 @@ def test_dataset__neutral_rows__exactly_one_per_question_order_and_format() -> N
     with pytest.raises(DataIntegrityError):
         assert_neutral_rows_exactly_one_per_question_order_and_format(
             missing_neutral_for_present_key
+        )
+
+
+@pytest.mark.unit
+def test_dataset__question_macro_weights__sum_to_one_within_component() -> None:
+    """DATA-008: for every question, sum_b pair_weight == 1 within the component."""
+    valid_component = [
+        {"question_id": "q1", "belief_pair_id": "p1", "pair_weight": 0.5},
+        {"question_id": "q1", "belief_pair_id": "p2", "pair_weight": 0.5},
+        {"question_id": "q2", "belief_pair_id": "p3", "pair_weight": 0.25},
+        {"question_id": "q2", "belief_pair_id": "p4", "pair_weight": 0.75},
+    ]
+    assert_question_macro_weights_sum_to_one_within_component(valid_component)
+
+    unequal_but_normalized = [
+        {"question_id": "q1", "belief_pair_id": "p1", "pair_weight": 0.2},
+        {"question_id": "q1", "belief_pair_id": "p2", "pair_weight": 0.3},
+        {"question_id": "q1", "belief_pair_id": "p3", "pair_weight": 0.5},
+    ]
+    assert_question_macro_weights_sum_to_one_within_component(unequal_but_normalized)
+
+    bad_sum = [
+        {"question_id": "q1", "belief_pair_id": "p1", "pair_weight": 0.4},
+        {"question_id": "q1", "belief_pair_id": "p2", "pair_weight": 0.4},
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_question_macro_weights_sum_to_one_within_component(bad_sum)
+
+    # condition_weight must not be treated as w_{q,b}; these rows would "pass"
+    # only if the wrong field were summed.
+    wrong_field_would_look_normalized = [
+        {
+            "question_id": "q1",
+            "belief_pair_id": "p1",
+            "pair_weight": 0.4,
+            "condition_weight": 0.5,
+        },
+        {
+            "question_id": "q1",
+            "belief_pair_id": "p2",
+            "pair_weight": 0.4,
+            "condition_weight": 0.5,
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_question_macro_weights_sum_to_one_within_component(
+            wrong_field_would_look_normalized
         )
