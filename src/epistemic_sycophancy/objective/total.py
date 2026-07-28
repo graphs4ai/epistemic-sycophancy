@@ -259,3 +259,346 @@ def evaluate_objective(
         l_beta=l_beta,
         l_total=l_total,
     )
+
+
+def _affine_margin_tensors(
+    *,
+    const: Sequence[float],
+    jac_rows: Sequence[object],
+    beta: object,
+) -> list[object]:
+    import torch
+
+    return [
+        float(c) + torch.dot(g.to(dtype=beta.dtype), beta)
+        for c, g in zip(const, jac_rows, strict=True)
+    ]
+
+
+def _softplus_neg_margin(margin: object, *, tau: float) -> object:
+    import torch
+
+    return torch.nn.functional.softplus(-margin / float(tau))
+
+
+def _hinge_excess(baseline: float, current: object, *, delta: float) -> object:
+    import torch
+
+    return torch.relu(float(baseline) - current - float(delta))
+
+
+def _sum_question_means_phi(
+    *,
+    question_ids: Sequence[object],
+    eligible: frozenset[object],
+    margin_const: Mapping[object, Sequence[float]],
+    margin_jac: Mapping[object, Sequence[object]],
+    beta: object,
+    tau: float,
+) -> object:
+    import torch
+
+    means: list[object] = []
+    for question_id in question_ids:
+        if question_id not in eligible:
+            continue
+        margins = _affine_margin_tensors(
+            const=margin_const[question_id],
+            jac_rows=margin_jac[question_id],
+            beta=beta,
+        )
+        losses = [_softplus_neg_margin(m, tau=tau) for m in margins]
+        means.append(torch.stack(losses).mean())
+    if not means:
+        return torch.zeros((), dtype=beta.dtype, device=beta.device)
+    return torch.stack(means).sum()
+
+
+def _sum_question_means_hinge(
+    *,
+    question_ids: Sequence[object],
+    eligible: frozenset[object],
+    baseline_margins: Mapping[object, Sequence[float]],
+    margin_const: Mapping[object, Sequence[float]],
+    margin_jac: Mapping[object, Sequence[object]],
+    beta: object,
+    delta: float,
+) -> object:
+    import torch
+
+    means: list[object] = []
+    for question_id in question_ids:
+        if question_id not in eligible:
+            continue
+        currents = _affine_margin_tensors(
+            const=margin_const[question_id],
+            jac_rows=margin_jac[question_id],
+            beta=beta,
+        )
+        baselines = baseline_margins[question_id]
+        hinges = [
+            _hinge_excess(float(b0), m, delta=delta)
+            for b0, m in zip(baselines, currents, strict=True)
+        ]
+        means.append(torch.stack(hinges).mean())
+    if not means:
+        return torch.zeros((), dtype=beta.dtype, device=beta.device)
+    return torch.stack(means).sum()
+
+
+def _sum_neutral_hinges(
+    *,
+    question_ids: Sequence[object],
+    baseline_neutral_margins: Mapping[object, float],
+    neutral_margin_const: Mapping[object, float],
+    neutral_margin_jac: Mapping[object, object],
+    beta: object,
+    delta_n: float,
+) -> object:
+    import torch
+
+    terms: list[object] = []
+    for question_id in question_ids:
+        current = float(neutral_margin_const[question_id]) + torch.dot(
+            neutral_margin_jac[question_id].to(dtype=beta.dtype), beta
+        )
+        terms.append(
+            _hinge_excess(
+                float(baseline_neutral_margins[question_id]),
+                current,
+                delta=delta_n,
+            )
+        )
+    if not terms:
+        return torch.zeros((), dtype=beta.dtype, device=beta.device)
+    return torch.stack(terms).sum()
+
+
+def _objective_tensor_from_question_ids(
+    *,
+    beta: object,
+    question_ids: Sequence[object],
+    ib_margin_const: Mapping[object, Sequence[float]],
+    ib_margin_jac: Mapping[object, Sequence[object]],
+    cb_margin_const: Mapping[object, Sequence[float]],
+    cb_margin_jac: Mapping[object, Sequence[object]],
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    baseline_neutral_margins: Mapping[object, float],
+    neutral_margin_const: Mapping[object, float],
+    neutral_margin_jac: Mapping[object, object],
+    q_plus: frozenset[object],
+    q_minus: frozenset[object],
+    n_q_plus: int,
+    n_q_minus: int,
+    n_q: int,
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+    include_beta_penalty: bool,
+) -> object:
+    import torch
+
+    resist_sum = _sum_question_means_phi(
+        question_ids=question_ids,
+        eligible=q_plus,
+        margin_const=ib_margin_const,
+        margin_jac=ib_margin_jac,
+        beta=beta,
+        tau=tau,
+    )
+    recover_sum = _sum_question_means_phi(
+        question_ids=question_ids,
+        eligible=q_minus,
+        margin_const=cb_margin_const,
+        margin_jac=cb_margin_jac,
+        beta=beta,
+        tau=tau,
+    )
+    neutral_sum = _sum_neutral_hinges(
+        question_ids=question_ids,
+        baseline_neutral_margins=baseline_neutral_margins,
+        neutral_margin_const=neutral_margin_const,
+        neutral_margin_jac=neutral_margin_jac,
+        beta=beta,
+        delta_n=delta_n,
+    )
+    correct_sum = _sum_question_means_hinge(
+        question_ids=question_ids,
+        eligible=q_plus,
+        baseline_margins=baseline_cb_margins,
+        margin_const=cb_margin_const,
+        margin_jac=cb_margin_jac,
+        beta=beta,
+        delta=delta_c,
+    )
+    l_resist = resist_sum / float(n_q_plus)
+    l_recover = recover_sum / float(n_q_minus)
+    l_behavior = float(w_r) * l_resist + float(w_u) * l_recover
+    l_neutral = neutral_sum / float(n_q)
+    l_correct = correct_sum / float(n_q_plus)
+    l_total = (
+        l_behavior
+        + float(lambda_n) * l_neutral
+        + float(lambda_c) * l_correct
+    )
+    if include_beta_penalty:
+        l_beta = beta.abs().mean()
+        l_total = l_total + float(lambda_beta) * l_beta
+    return l_total
+
+
+def evaluate_objective_with_grad(
+    *,
+    beta: object,
+    ib_margin_const: Mapping[object, Sequence[float]],
+    ib_margin_jac: Mapping[object, Sequence[object]],
+    cb_margin_const: Mapping[object, Sequence[float]],
+    cb_margin_jac: Mapping[object, Sequence[object]],
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    baseline_neutral_margins: Mapping[object, float],
+    neutral_margin_const: Mapping[object, float],
+    neutral_margin_jac: Mapping[object, object],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    q_minus: frozenset[object] | set[object] | Sequence[object],
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+) -> tuple[float, list[float]]:
+    """Full-split objective and ∂L/∂β under affine margins (DEC-027)."""
+    import torch
+
+    q_plus_set = frozenset(q_plus)
+    q_minus_set = frozenset(q_minus)
+    all_questions = tuple(baseline_neutral_margins.keys())
+    beta_leaf = beta.detach().to(dtype=torch.float64).clone().requires_grad_(True)
+    loss = _objective_tensor_from_question_ids(
+        beta=beta_leaf,
+        question_ids=all_questions,
+        ib_margin_const=ib_margin_const,
+        ib_margin_jac=ib_margin_jac,
+        cb_margin_const=cb_margin_const,
+        cb_margin_jac=cb_margin_jac,
+        baseline_cb_margins=baseline_cb_margins,
+        baseline_neutral_margins=baseline_neutral_margins,
+        neutral_margin_const=neutral_margin_const,
+        neutral_margin_jac=neutral_margin_jac,
+        q_plus=q_plus_set,
+        q_minus=q_minus_set,
+        n_q_plus=len(q_plus_set),
+        n_q_minus=len(q_minus_set),
+        n_q=len(all_questions),
+        tau=tau,
+        w_r=w_r,
+        w_u=w_u,
+        delta_n=delta_n,
+        delta_c=delta_c,
+        lambda_n=lambda_n,
+        lambda_c=lambda_c,
+        lambda_beta=lambda_beta,
+        include_beta_penalty=True,
+    )
+    loss.backward()
+    assert beta_leaf.grad is not None
+    return float(loss.detach()), [float(x) for x in beta_leaf.grad.detach()]
+
+
+def accumulate_objective_batches(
+    *,
+    beta: object,
+    question_batches: Sequence[Sequence[object]],
+    ib_margin_const: Mapping[object, Sequence[float]],
+    ib_margin_jac: Mapping[object, Sequence[object]],
+    cb_margin_const: Mapping[object, Sequence[float]],
+    cb_margin_jac: Mapping[object, Sequence[object]],
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    baseline_neutral_margins: Mapping[object, float],
+    neutral_margin_const: Mapping[object, float],
+    neutral_margin_jac: Mapping[object, object],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    q_minus: frozenset[object] | set[object] | Sequence[object],
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+) -> tuple[float, list[float]]:
+    """Accumulate question-batched objective with full-split denominators (DEC-027)."""
+    import torch
+
+    q_plus_set = frozenset(q_plus)
+    q_minus_set = frozenset(q_minus)
+    all_questions = tuple(baseline_neutral_margins.keys())
+    n_q_plus = len(q_plus_set)
+    n_q_minus = len(q_minus_set)
+    n_q = len(all_questions)
+
+    beta_leaf = beta.detach().to(dtype=torch.float64).clone().requires_grad_(True)
+    # Sum numerator contributions across batches, then scale by full denominators.
+    # Equivalent to one full-split forward when batches partition all questions.
+    resist_sum = torch.zeros((), dtype=torch.float64)
+    recover_sum = torch.zeros((), dtype=torch.float64)
+    neutral_sum = torch.zeros((), dtype=torch.float64)
+    correct_sum = torch.zeros((), dtype=torch.float64)
+    for batch in question_batches:
+        resist_sum = resist_sum + _sum_question_means_phi(
+            question_ids=batch,
+            eligible=q_plus_set,
+            margin_const=ib_margin_const,
+            margin_jac=ib_margin_jac,
+            beta=beta_leaf,
+            tau=tau,
+        )
+        recover_sum = recover_sum + _sum_question_means_phi(
+            question_ids=batch,
+            eligible=q_minus_set,
+            margin_const=cb_margin_const,
+            margin_jac=cb_margin_jac,
+            beta=beta_leaf,
+            tau=tau,
+        )
+        neutral_sum = neutral_sum + _sum_neutral_hinges(
+            question_ids=batch,
+            baseline_neutral_margins=baseline_neutral_margins,
+            neutral_margin_const=neutral_margin_const,
+            neutral_margin_jac=neutral_margin_jac,
+            beta=beta_leaf,
+            delta_n=delta_n,
+        )
+        correct_sum = correct_sum + _sum_question_means_hinge(
+            question_ids=batch,
+            eligible=q_plus_set,
+            baseline_margins=baseline_cb_margins,
+            margin_const=cb_margin_const,
+            margin_jac=cb_margin_jac,
+            beta=beta_leaf,
+            delta=delta_c,
+        )
+
+    l_resist = resist_sum / float(n_q_plus)
+    l_recover = recover_sum / float(n_q_minus)
+    l_behavior = float(w_r) * l_resist + float(w_u) * l_recover
+    l_neutral = neutral_sum / float(n_q)
+    l_correct = correct_sum / float(n_q_plus)
+    l_beta = beta_leaf.abs().mean()
+    loss = (
+        l_behavior
+        + float(lambda_n) * l_neutral
+        + float(lambda_c) * l_correct
+        + float(lambda_beta) * l_beta
+    )
+    loss.backward()
+    assert beta_leaf.grad is not None
+    return float(loss.detach()), [float(x) for x in beta_leaf.grad.detach()]
