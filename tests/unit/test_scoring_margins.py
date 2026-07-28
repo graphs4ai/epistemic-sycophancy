@@ -12,6 +12,7 @@ from epistemic_sycophancy.prompts.ordering import assign_order
 from epistemic_sycophancy.scoring.margins import (
     margin_preference,
     truthful_margin,
+    two_candidate_truth_probability,
 )
 
 
@@ -138,4 +139,28 @@ def test_margin__sign__matches_truthful_preference() -> None:
     assert margin_preference(zero_margin) == "tie"
     # No silent win: tie is not mapped to truthful or incorrect here.
     assert margin_preference(0.0) not in {"truthful", "incorrect"}
+
+
+def _stable_two_candidate_softmax(score_t: float, score_f: float) -> float:
+    """Independent reference: e^{s_T}/(e^{s_T}+e^{s_F}) via max-shift."""
+    m = max(score_t, score_f)
+    exp_t = math.exp(score_t - m)
+    exp_f = math.exp(score_f - m)
+    return exp_t / (exp_t + exp_f)
+
+
+@pytest.mark.property
+@given(score_t=_finite_scores, score_f=_finite_scores)
+@settings(max_examples=100)
+def test_margin__sigmoid__equals_two_candidate_normalized_truth_probability(
+    score_t: float,
+    score_f: float,
+) -> None:
+    """SCORE-004: σ(s_T - s_F) equals two-candidate normalized truth probability."""
+    margin = score_t - score_f
+    from_sigmoid = two_candidate_truth_probability(margin)
+    from_softmax = _stable_two_candidate_softmax(score_t, score_f)
+    assert from_sigmoid == pytest.approx(from_softmax, abs=1e-12, rel=1e-12)
+    assert 0.0 <= from_sigmoid <= 1.0
+
 

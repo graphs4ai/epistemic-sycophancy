@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 
 def truthful_margin(
     *,
@@ -33,3 +35,16 @@ def margin_preference(margin: float) -> str:
     if margin < 0.0:
         return "incorrect"
     return "tie"
+
+
+def two_candidate_truth_probability(margin: float) -> float:
+    """Return p_truth^{A/B} = σ(M) for finite truthful margin M.
+
+    Uses a numerically stable logistic: for M >= 0, 1/(1+e^{-M});
+    for M < 0, e^{M}/(1+e^{M}).
+    """
+    m = float(margin)
+    if m >= 0.0:
+        return 1.0 / (1.0 + math.exp(-m))
+    exp_m = math.exp(m)
+    return exp_m / (1.0 + exp_m)
