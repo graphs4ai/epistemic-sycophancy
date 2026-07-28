@@ -23,3 +23,28 @@ def test_intervention__nonpositive_alpha__cannot_activate_zero_latent(
         beta=[alpha],
     )
     assert updated[0] == 0.0
+
+
+@pytest.mark.property
+@given(
+    latent=st.floats(
+        min_value=0.0,
+        max_value=10.0,
+        allow_nan=False,
+        allow_infinity=False,
+    ),
+    alpha=st.floats(max_value=0.0, allow_nan=False, allow_infinity=False),
+)
+@settings(max_examples=50)
+def test_intervention__suppression_only__never_increases_selected_latent(
+    latent: float,
+    alpha: float,
+) -> None:
+    """SAE-005: α <= 0 ⇒ 0 <= z' <= z for selected latents."""
+    updated = apply_selected_latent_update(
+        latents=[latent],
+        selected_indices=[0],
+        scales=[1.0],
+        beta=[alpha],
+    )
+    assert 0.0 <= updated[0] <= latent
