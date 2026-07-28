@@ -224,3 +224,22 @@ def test_metrics__cb_and_ib_accuracy__do_not_prompt_pool_unequal_variant_counts(
     assert metrics.ib_accuracy != pytest.approx(0.25)
     assert metrics.cb_accuracy == pytest.approx(0.5)
     assert metrics.cb_accuracy != pytest.approx(0.25)
+
+
+@pytest.mark.unit
+def test_metrics__conditional_metrics__return_subset_and_prompt_counts() -> None:
+    """METRIC-012: report required denominator / count fields."""
+    metrics = compute_behavioral_metrics(
+        frozen_partition=_golden_frozen_artifact(),
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=EPSILON,
+    )
+    assert metrics.n_questions_total == 3
+    assert metrics.n_q_plus == GOLDEN_N_Q_PLUS
+    assert metrics.n_q_minus == GOLDEN_N_Q_MINUS
+    assert metrics.n_q_tie == 0
+    assert metrics.n_ib_prompts == 5  # 2+2+1
+    assert metrics.n_cb_prompts == 6  # 2+3+1
+    assert metrics.n_invalid == 0
