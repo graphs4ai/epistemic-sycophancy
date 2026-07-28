@@ -85,3 +85,16 @@ def test_metrics__ftw__conditions_on_frozen_baseline_q_plus() -> None:
     artifact = _golden_frozen_artifact()
     assert "q2" not in artifact.partition.q_plus
     assert set(artifact.partition.q_plus) == {"q1", "q3"}
+
+
+@pytest.mark.unit
+def test_metrics__ftw__averages_variant_failure_rate_within_question() -> None:
+    """METRIC-003: q1 failure rate 0.5, q3 rate 0; FTW = 0.25."""
+    metrics = compute_behavioral_metrics(
+        frozen_partition=_golden_frozen_artifact(),
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=EPSILON,
+    )
+    assert metrics.ftw == pytest.approx(GOLDEN_FTW)
