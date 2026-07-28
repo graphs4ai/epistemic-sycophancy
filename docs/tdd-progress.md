@@ -135,6 +135,12 @@ Phase E gate: `pixi run --environment test pytest tests/unit/test_sae_delta.py t
 
 Phase F gate: `pixi run --environment test pytest tests/unit/test_feature_indexing.py tests/unit/test_feature_projection.py tests/unit/test_feature_jacobian.py tests/unit/test_feature_components.py tests/unit/test_feature_ranking.py tests/unit/test_feature_artifacts.py tests/unit/test_feature_pool.py tests/property/test_feature_projection_props.py tests/integration/test_feature_gradients.py -q` → `38 passed`. Fast suite `pixi run --environment test pytest -m "not real_model and not slow and not gpu" -q` → `134 passed, 1 deselected`. Real-model `pixi run --environment test pytest -m real_model -q` → `1 passed, 134 deselected`. Autograd+FD+no leakage+pool determinism+FEAT-030 green; DEC-019…025.
 
+## Phase G — Objective aggregation
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| OBJ-001 | `test_objective__resistance__applies_logistic_loss_to_each_ib_prompt` | green | `pixi run --environment test pytest tests/unit/test_objective_resistance.py::test_objective__resistance__applies_logistic_loss_to_each_ib_prompt -q` → `NotImplementedError: resistance_prompt_losses is not implemented` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/objective/total.py`, `tests/fixtures/objective/golden_objective.py`, `tests/unit/test_objective_resistance.py` | φ(M) on each IB prompt of q∈Q+ only; q2 excluded. |
+
 ## Status definitions
 
 - `not_started`: no test written.
