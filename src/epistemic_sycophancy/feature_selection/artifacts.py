@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
+
 
 @dataclass(frozen=True)
 class FeatureSelectionRow:
@@ -28,8 +30,15 @@ class FeatureSelectionArtifact:
     """Logged feature-selection scores for one component × order (DEC-024)."""
 
     rows: tuple[FeatureSelectionRow, ...]
+    question_ids: frozenset[str]
 
-    def __init__(self, *, rows: Sequence[Mapping[str, object]]) -> None:
+    def __init__(
+        self,
+        *,
+        rows: Sequence[Mapping[str, object]],
+        question_ids: frozenset[str] | None = None,
+        feature_selection_question_ids: frozenset[str] | None = None,
+    ) -> None:
         parsed = tuple(
             FeatureSelectionRow(
                 layer=int(row["layer"]),  # type: ignore[arg-type]
@@ -48,4 +57,13 @@ class FeatureSelectionArtifact:
             )
             for row in rows
         )
+        ids = frozenset() if question_ids is None else frozenset(question_ids)
+        if feature_selection_question_ids is not None:
+            leaked = ids - frozenset(feature_selection_question_ids)
+            if leaked:
+                raise HoldoutAccessError(
+                    "feature selection may only use feature_selection-split "
+                    f"question IDs; leaked={sorted(leaked)!r}"
+                )
         object.__setattr__(self, "rows", parsed)
+        object.__setattr__(self, "question_ids", ids)

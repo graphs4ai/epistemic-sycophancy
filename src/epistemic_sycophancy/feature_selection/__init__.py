@@ -11,6 +11,7 @@ from epistemic_sycophancy.feature_selection.components import (
     selection_component_prompts,
 )
 from epistemic_sycophancy.feature_selection.exceptions import (
+    HoldoutAccessError,
     LayerMismatchError,
     ScopeMismatchError,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "EligibilityResult",
     "FeatureSelectionArtifact",
     "FeatureSelectionRow",
+    "HoldoutAccessError",
     "LayerMismatchError",
     "ScopeMismatchError",
     "StreamingJacobianAccumulator",

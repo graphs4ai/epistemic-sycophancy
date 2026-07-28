@@ -11,3 +11,7 @@ class ScopeMismatchError(ValueError):
 
 class HookSiteMismatchError(ValueError):
     """Raised when the gradient tensor is not the intervention hook site."""
+
+
+class HoldoutAccessError(Exception):
+    """Raised when feature selection touches a non-feature_selection question ID."""
