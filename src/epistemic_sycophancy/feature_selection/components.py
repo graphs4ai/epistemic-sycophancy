@@ -85,3 +85,24 @@ def logistic_preservation_surrogate(
     if tau <= 0.0:
         raise ValueError(f"tau must be strictly positive; got {tau!r}")
     return torch.nn.functional.softplus(-margin / float(tau))
+
+
+def isolate_component_jacobian(
+    *,
+    component: str,
+    component_jacobians: dict[str, dict[tuple[int, int], float]],
+) -> dict[tuple[int, int], float]:
+    """Return one component's Jacobian map without mixing others (FEAT-023).
+
+    Composite scores require an explicitly versioned request; slash/plus
+    composite names are rejected here.
+    """
+    if component not in COMPONENT_CONDITION:
+        raise ValueError(
+            f"unknown or composite component {component!r}; "
+            "composite scores require an explicitly versioned request"
+        )
+    try:
+        return dict(component_jacobians[component])
+    except KeyError as exc:
+        raise KeyError(f"missing Jacobian map for component={component!r}") from exc

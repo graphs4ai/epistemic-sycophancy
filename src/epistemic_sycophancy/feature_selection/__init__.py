@@ -2,6 +2,7 @@
 
 from epistemic_sycophancy.feature_selection.components import (
     component_question_subset,
+    isolate_component_jacobian,
     logistic_preservation_surrogate,
     selection_component_prompts,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "coefficient_jacobian_aggregate_first",
     "component_question_subset",
     "final_prompt_token_index",
+    "isolate_component_jacobian",
     "logistic_preservation_surrogate",
     "multi_token_coefficient_jacobian",
     "project_residual_gradient",

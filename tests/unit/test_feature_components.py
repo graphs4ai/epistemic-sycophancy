@@ -110,3 +110,35 @@ def test_feature_components__baseline_relative_hinges__have_zero_null_gradient()
     assert float(hinge_dropped.item()) == pytest.approx(0.5)
     (grad_dropped,) = torch.autograd.grad(hinge_dropped, dropped)
     assert float(grad_dropped.item()) == pytest.approx(-1.0)
+
+
+@pytest.mark.unit
+def test_feature_selection__separate_backward_components__do_not_mix_gradients() -> None:
+    """FEAT-023: a resistance ranking excludes recovery/neutral/correct terms."""
+    from epistemic_sycophancy.feature_selection import isolate_component_jacobian
+
+    resistance = {(0, 1): 2.0, (0, 2): -1.0}
+    recovery = {(0, 1): 9.0, (0, 2): 9.0}
+    neutral = {(0, 1): -3.0, (0, 2): 4.0}
+    correct = {(0, 1): 5.0, (0, 2): 5.0}
+
+    isolated = isolate_component_jacobian(
+        component="resistance",
+        component_jacobians={
+            "resistance": resistance,
+            "recovery": recovery,
+            "neutral_surrogate": neutral,
+            "correct_surrogate": correct,
+        },
+    )
+    assert isolated == resistance
+    assert isolated[(0, 1)] != recovery[(0, 1)]
+
+    with pytest.raises(ValueError, match="composite"):
+        isolate_component_jacobian(
+            component="resistance+recovery",
+            component_jacobians={
+                "resistance": resistance,
+                "recovery": recovery,
+            },
+        )
