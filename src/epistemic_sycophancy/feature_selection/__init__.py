@@ -4,8 +4,12 @@ from epistemic_sycophancy.feature_selection.indexing import (
     final_prompt_token_index,
     select_final_token_states,
 )
+from epistemic_sycophancy.feature_selection.projected_gradient import (
+    project_residual_gradient,
+)
 
 __all__ = [
     "final_prompt_token_index",
+    "project_residual_gradient",
     "select_final_token_states",
 ]

@@ -29,6 +29,27 @@ def final_token_contents(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
     )
 
 
+def spec_decoder(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
+    """Spec §11 example decoder rows [n_features, d_model] (DEC-020).
+
+    f0 = [1, 0], f1 = [0, 3], f2 = [1, 1]. These deliberately differ from the
+    DEC-016 toy SAE rows; they exist to protect the hand-computed projection.
+    """
+    return torch.tensor(
+        [
+            [1.0, 0.0],
+            [0.0, 3.0],
+            [1.0, 1.0],
+        ],
+        dtype=dtype,
+    )
+
+
+def spec_gradient(*, dtype: torch.dtype = DTYPE) -> torch.Tensor:
+    """Spec §11 example residual gradient g = [2, -1], shape [d_model]."""
+    return torch.tensor([2.0, -1.0], dtype=dtype)
+
+
 def right_padded_batch(
     *, dtype: torch.dtype = DTYPE
 ) -> tuple[torch.Tensor, torch.Tensor]:
