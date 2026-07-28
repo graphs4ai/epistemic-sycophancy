@@ -1,0 +1,12 @@
+{
+  "tokenizer_name": "epistemic_sycophancy.ascii_letter",
+  "tokenizer_revision": "v1",
+  "continuation_A": "A",
+  "continuation_B": "B",
+  "continuation_include_eos": false,
+  "trailing_newline": false,
+  "token_ids": {
+    "A": [65],
+    "B": [66]
+  }
+}

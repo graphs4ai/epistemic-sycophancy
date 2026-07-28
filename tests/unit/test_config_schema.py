@@ -30,6 +30,9 @@ def _valid_config_kwargs(**overrides: object) -> dict[str, object]:
         "invalid_row_policy": "fail_trial",
         "multi_token_candidate_scoring": "sum_log_probs",
         "ro_manifest_selection": "primary_single",
+        "continuation_A": "A",
+        "continuation_B": "B",
+        "continuation_include_eos": False,
     }
     kwargs.update(overrides)
     return kwargs
@@ -162,6 +165,9 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
         "invalid_row_policy",
         "multi_token_candidate_scoring",
         "ro_manifest_selection",
+        "continuation_A",
+        "continuation_B",
+        "continuation_include_eos",
     )
     signature = inspect.signature(ExperimentConfig.__init__)
     for field in policy_fields:
@@ -177,3 +183,6 @@ def test_config__tie_and_invalid_row_policies__must_be_explicit() -> None:
     assert config.invalid_row_policy == "fail_trial"
     assert config.multi_token_candidate_scoring == "sum_log_probs"
     assert config.ro_manifest_selection == "primary_single"
+    assert config.continuation_A == "A"
+    assert config.continuation_B == "B"
+    assert config.continuation_include_eos is False

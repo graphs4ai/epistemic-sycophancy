@@ -33,6 +33,9 @@ class ExperimentConfig:
         invalid_row_policy: object,
         multi_token_candidate_scoring: object,
         ro_manifest_selection: object,
+        continuation_A: object,
+        continuation_B: object,
+        continuation_include_eos: object,
     ) -> None:
         if tau <= 0:
             raise InvalidExperimentConfig(
@@ -86,11 +89,24 @@ class ExperimentConfig:
             ("invalid_row_policy", invalid_row_policy),
             ("multi_token_candidate_scoring", multi_token_candidate_scoring),
             ("ro_manifest_selection", ro_manifest_selection),
+            ("continuation_A", continuation_A),
+            ("continuation_B", continuation_B),
+            ("continuation_include_eos", continuation_include_eos),
         ):
             if policy is None:
                 raise InvalidExperimentConfig(
                     f"{name} must be explicit; hidden defaults are forbidden"
                 )
+        if continuation_A != "A" or continuation_B != "B":
+            raise InvalidExperimentConfig(
+                "DEC-010 requires continuation_A='A' and continuation_B='B'; "
+                f"got continuation_A={continuation_A!r}, continuation_B={continuation_B!r}"
+            )
+        if continuation_include_eos is not False:
+            raise InvalidExperimentConfig(
+                "DEC-010 requires continuation_include_eos=False; "
+                f"got {continuation_include_eos!r}"
+            )
 
         self.tau = tau
         self.lambda_n = lambda_n
@@ -109,3 +125,6 @@ class ExperimentConfig:
         self.invalid_row_policy = invalid_row_policy
         self.multi_token_candidate_scoring = multi_token_candidate_scoring
         self.ro_manifest_selection = ro_manifest_selection
+        self.continuation_A = continuation_A
+        self.continuation_B = continuation_B
+        self.continuation_include_eos = continuation_include_eos
