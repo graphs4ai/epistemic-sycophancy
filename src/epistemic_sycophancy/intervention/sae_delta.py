@@ -31,5 +31,5 @@ def apply_selected_latent_update(
     alphas = normalized_coefficients(scales=scales, beta=beta)
     updated = [float(z) for z in latents]
     for index, alpha in zip(selected_indices, alphas):
-        updated[index] = updated[index] + alpha
+        updated[index] = max(0.0, updated[index] + alpha)
     return updated

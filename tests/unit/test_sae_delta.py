@@ -37,3 +37,19 @@ def test_intervention__selected_features__leave_all_other_latents_unchanged() ->
     assert updated[3] == latents[3]
     assert updated[0] != latents[0]
     assert updated[2] != latents[2]
+
+
+@pytest.mark.unit
+def test_intervention__suppression_crossing_zero__clamps_at_zero() -> None:
+    """SAE-003: z'_j = ReLU(z_j + α_j); suppression past zero clamps at 0."""
+    latents = [0.4]
+    selected_indices = [0]
+    scales = [1.0]
+    beta = [-1.0]  # α = -1.0
+    updated = apply_selected_latent_update(
+        latents=latents,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+    )
+    assert updated[0] == pytest.approx(0.0, abs=1e-12, rel=1e-12)
