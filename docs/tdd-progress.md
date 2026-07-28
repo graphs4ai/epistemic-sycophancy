@@ -165,6 +165,7 @@ Phase G gate: `pixi run --environment test pytest tests/unit/test_objective_*.py
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | OPT-001 | `test_optimizer_objective__same_beta_and_regime__returns_identical_scalar_and_components` | green | `pixi run --environment test pytest tests/unit/test_optimizer_objective.py::test_optimizer_objective__same_beta_and_regime__returns_identical_scalar_and_components -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.optimization'` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/optimization/__init__.py`, `src/epistemic_sycophancy/optimization/objective.py`, `tests/unit/test_optimizer_objective.py` | Facade wraps evaluate_objective → ObjectiveComponents; exact identity on repeat (CMA-ES mandatory). |
+| OPT-002 | `test_optimizer_objective__cmaes_trial__evaluates_every_eligible_optimization_row` | green | `pixi run --environment test pytest tests/unit/test_cmaes.py::test_optimizer_objective__cmaes_trial__evaluates_every_eligible_optimization_row -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.optimization.cmaes'` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/optimization/cmaes.py`, `tests/unit/test_cmaes.py`, `pyproject.toml`, `pixi.lock`, `docs/decisions.md` | DEC-030; `pixi add --pypi cma`; every ask candidate evaluates full eligible Q set. |
 
 ## Status definitions
 

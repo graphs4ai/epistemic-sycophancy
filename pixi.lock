@@ -79,6 +79,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - pypi: ./
+      - pypi: https://files.pythonhosted.org/packages/d4/d4/ec46cedab6a6145e21768baa8110db3e2e836a320d8499e4ef18bc894e61/cma-4.4.4-py3-none-any.whl
   dev:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -198,6 +199,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - pypi: ./
+      - pypi: https://files.pythonhosted.org/packages/d4/d4/ec46cedab6a6145e21768baa8110db3e2e836a320d8499e4ef18bc894e61/cma-4.4.4-py3-none-any.whl
   test:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -310,6 +312,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - pypi: ./
+      - pypi: https://files.pythonhosted.org/packages/d4/d4/ec46cedab6a6145e21768baa8110db3e2e836a320d8499e4ef18bc894e61/cma-4.4.4-py3-none-any.whl
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-7_kmp_llvm.conda
   build_number: 7
@@ -2039,4 +2042,15 @@ packages:
   timestamp: 1784250406640
 - pypi: ./
   name: epistemic-sycophancy
+  requires_dist:
+  - cma>=4.4.4,<5
   requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/d4/d4/ec46cedab6a6145e21768baa8110db3e2e836a320d8499e4ef18bc894e61/cma-4.4.4-py3-none-any.whl
+  name: cma
+  version: 4.4.4
+  sha256: edb6d02eb2aac2d54650f16a8f0c70711ff17445957de7c9de92ff7fd4b7ef38
+  requires_dist:
+  - numpy
+  - matplotlib ; extra == 'plotting'
+  - moarchiving ; extra == 'constrained-solution-tracking'
+  - scipy ; extra == 'statistical-tests'
