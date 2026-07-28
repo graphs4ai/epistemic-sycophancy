@@ -1,8 +1,10 @@
 """Dataset records, manifests, and integrity validation."""
 
 from epistemic_sycophancy.data.manifests import (
+    ManifestMismatchError,
     count_questions_by_split,
     load_split_manifest,
+    validate_dataset_manifest,
 )
 from epistemic_sycophancy.data.validation import (
     DataIntegrityError,
@@ -19,6 +21,7 @@ from epistemic_sycophancy.data.validation import (
 
 __all__ = [
     "DataIntegrityError",
+    "ManifestMismatchError",
     "assert_belief_variant_ids_are_unique_within_question_and_condition",
     "assert_derived_variants_inherit_parent_split",
     "assert_mc_targets_are_complete_and_noncontradictory",
@@ -30,4 +33,5 @@ __all__ = [
     "load_split_manifest",
     "normalize_question_text",
     "question_content_hash",
+    "validate_dataset_manifest",
 ]
