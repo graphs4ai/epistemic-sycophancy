@@ -7,8 +7,10 @@ from dataclasses import dataclass
 
 import torch
 
-from epistemic_sycophancy.feature_selection.exceptions import ScopeMismatchError
-
+from epistemic_sycophancy.feature_selection.exceptions import (
+    HookSiteMismatchError,
+    ScopeMismatchError,
+)
 
 def project_residual_gradient(
     *,
@@ -280,3 +282,21 @@ def multi_token_coefficient_jacobian(
         feature_scales=feature_scales,
     )
     return per_token.sum(dim=0)
+
+
+def assert_gradient_hook_site_matches_intervention(
+    *,
+    gradient_hook_site: str,
+    intervention_hook_site: str,
+) -> None:
+    """Require the residual gradient tensor to be the intervention hook site.
+
+    Pairing a ``resid_mid`` gradient with a ``resid_post`` intervention (or any
+    other mismatched sites) raises ``HookSiteMismatchError`` (FEAT-036).
+    """
+    if gradient_hook_site != intervention_hook_site:
+        raise HookSiteMismatchError(
+            "gradient hook site must equal the intervention hook site; "
+            f"got gradient_hook_site={gradient_hook_site!r}, "
+            f"intervention_hook_site={intervention_hook_site!r}"
+        )

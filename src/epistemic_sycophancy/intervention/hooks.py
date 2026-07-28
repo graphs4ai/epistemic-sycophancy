@@ -68,3 +68,14 @@ def apply_delta_with_token_scope(
         delta = delta.unsqueeze(1).expand_as(residual)
     mask_expanded = mask.unsqueeze(-1)
     return torch.where(mask_expanded, residual + delta, residual)
+
+
+def tag_hook_site(tensor: torch.Tensor, *, hook_site: str) -> torch.Tensor:
+    """Attach a hook-site label for FEAT-036 alignment checks."""
+    tensor.hook_site = hook_site  # type: ignore[attr-defined]
+    return tensor
+
+
+def read_hook_site(tensor: torch.Tensor) -> str | None:
+    """Return the hook-site tag if present."""
+    return getattr(tensor, "hook_site", None)

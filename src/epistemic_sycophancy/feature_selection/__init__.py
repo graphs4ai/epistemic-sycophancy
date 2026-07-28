@@ -13,6 +13,7 @@ from epistemic_sycophancy.feature_selection.components import (
 )
 from epistemic_sycophancy.feature_selection.exceptions import (
     HoldoutAccessError,
+    HookSiteMismatchError,
     LayerMismatchError,
     ScopeMismatchError,
 )
@@ -30,6 +31,7 @@ from epistemic_sycophancy.feature_selection.pool import (
 from epistemic_sycophancy.feature_selection.projected_gradient import (
     AttributionScopeResolution,
     StreamingJacobianAccumulator,
+    assert_gradient_hook_site_matches_intervention,
     coefficient_jacobian,
     coefficient_jacobian_aggregate_first,
     multi_token_coefficient_jacobian,
@@ -55,11 +57,13 @@ __all__ = [
     "FeatureSelectionArtifact",
     "FeatureSelectionRow",
     "HoldoutAccessError",
+    "HookSiteMismatchError",
     "LayerMismatchError",
     "ScopeMismatchError",
     "StreamingJacobianAccumulator",
     "SuppressionCandidate",
     "annotate_preservation_jacobians",
+    "assert_gradient_hook_site_matches_intervention",
     "assert_layer_tensors_aligned",
     "build_common_feature_pool",
     "build_order_specific_artifacts",

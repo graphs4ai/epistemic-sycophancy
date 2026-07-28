@@ -386,3 +386,63 @@ def test_feature_jacobian__uses_actual_decoder_row_without_unrequested_unit_norm
         feature_scales=scales,
     )
     assert not torch.allclose(unit_projected, autograd_jacobian, atol=1e-8, rtol=1e-6)
+
+
+@pytest.mark.integration
+def test_feature_selection__gradient_tensor__is_the_same_tensor_modified_by_the_intervention_hook() -> (
+    None
+):
+    """FEAT-036: resid_mid grad with resid_post intervention raises HookSiteMismatchError."""
+    from epistemic_sycophancy.feature_selection import (
+        assert_gradient_hook_site_matches_intervention,
+    )
+    from epistemic_sycophancy.feature_selection.exceptions import HookSiteMismatchError
+
+    # Matched sites: projection proceeds and equals autograd on the toy SAE.
+    w_dec, w_enc, b_enc, head = _frozen_toy_parameters()
+    residual = torch.tensor([2.0, 3.0], dtype=DTYPE)
+    selected_indices = [0, 1, 2]
+    scales = torch.tensor([2.0, 4.0, 0.5], dtype=DTYPE)
+    latents = torch.relu(residual @ w_enc.T + b_enc)
+
+    beta = torch.zeros(len(selected_indices), dtype=DTYPE, requires_grad=True)
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=selected_indices,
+        scales=scales,
+        beta=beta,
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+    )
+    autograd_jacobian = torch.autograd.grad(
+        _logistic_margin_loss(_truthful_margin_from_residual(intervened, head=head)),
+        beta,
+    )[0]
+
+    residual_leaf = residual.clone().requires_grad_(True)
+    residual_gradient = torch.autograd.grad(
+        _logistic_margin_loss(
+            _truthful_margin_from_residual(residual_leaf, head=head)
+        ),
+        residual_leaf,
+    )[0]
+
+    assert_gradient_hook_site_matches_intervention(
+        gradient_hook_site="resid_post",
+        intervention_hook_site="resid_post",
+    )
+    projected = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=residual_gradient, decoder=w_dec
+        ),
+        latents=latents,
+        feature_scales=scales,
+    )
+    assert torch.allclose(projected, autograd_jacobian, atol=1e-8, rtol=1e-6)
+
+    with pytest.raises(HookSiteMismatchError):
+        assert_gradient_hook_site_matches_intervention(
+            gradient_hook_site="resid_mid",
+            intervention_hook_site="resid_post",
+        )
