@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
+from epistemic_sycophancy.objective.aggregation import question_macro_mean
 from epistemic_sycophancy.objective.losses import logistic_margin_loss
 
 
@@ -25,3 +26,19 @@ def resistance_prompt_losses(
         for question_id, margins in ib_margins_by_question.items()
         if question_id in q_plus_set
     }
+
+
+def resistance_loss(
+    *,
+    ib_margins_by_question: Mapping[object, Sequence[float]],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    tau: float,
+) -> float:
+    """Question-macro resistance: mean within question, then across Q+."""
+    return question_macro_mean(
+        resistance_prompt_losses(
+            ib_margins_by_question=ib_margins_by_question,
+            q_plus=q_plus,
+            tau=tau,
+        )
+    )
