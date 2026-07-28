@@ -111,3 +111,74 @@ def test_feature_selection__data_access__is_limited_to_feature_selection_split()
             question_ids=frozenset({"optimization_q1"}),
             feature_selection_question_ids=feature_selection_ids,
         )
+
+
+@pytest.mark.unit
+def test_feature_artifact__records_component_order_model_sae_scope_scale_and_dataset_hashes() -> (
+    None
+):
+    """FEAT-029: deterministic fingerprint over component/order/model/SAE/scope/scale/dataset."""
+    from epistemic_sycophancy.feature_selection import freeze_feature_selection_artifact
+
+    rows = (
+        {
+            "layer": 0,
+            "feature_id": 1,
+            "signed_jacobian": 2.0,
+            "absolute_sensitivity": 2.0,
+            "raw_projection": 1.0,
+            "mean_active_rate": 1.0,
+            "feature_scale": 2.0,
+            "suppression_beneficial": True,
+            "preferred_bidirectional_sign": -1.0,
+            "n_questions": 1,
+            "n_prompts": 1,
+        },
+    )
+    base = FeatureSelectionArtifact(
+        rows=rows,
+        question_ids=frozenset({"q1"}),
+        feature_selection_question_ids=frozenset({"q1", "q2"}),
+    )
+    artifact = freeze_feature_selection_artifact(
+        artifact=base,
+        component="resistance",
+        order_regime="CF",
+        model_revision_hash="model_rev_abc",
+        sae_revision_hash="sae_rev_def",
+        scope="last_prompt_token",
+        scale_source="decoder_norm",
+        dataset_manifest_hash="dataset_jkl",
+    )
+    assert artifact.component == "resistance"
+    assert artifact.order_regime == "CF"
+    assert artifact.model_revision_hash == "model_rev_abc"
+    assert artifact.sae_revision_hash == "sae_rev_def"
+    assert artifact.scope == "last_prompt_token"
+    assert artifact.scale_source == "decoder_norm"
+    assert artifact.dataset_manifest_hash == "dataset_jkl"
+    assert artifact.fingerprint
+
+    again = freeze_feature_selection_artifact(
+        artifact=base,
+        component="resistance",
+        order_regime="CF",
+        model_revision_hash="model_rev_abc",
+        sae_revision_hash="sae_rev_def",
+        scope="last_prompt_token",
+        scale_source="decoder_norm",
+        dataset_manifest_hash="dataset_jkl",
+    )
+    assert again.fingerprint == artifact.fingerprint
+
+    different = freeze_feature_selection_artifact(
+        artifact=base,
+        component="recovery",
+        order_regime="CF",
+        model_revision_hash="model_rev_abc",
+        sae_revision_hash="sae_rev_def",
+        scope="last_prompt_token",
+        scale_source="decoder_norm",
+        dataset_manifest_hash="dataset_jkl",
+    )
+    assert different.fingerprint != artifact.fingerprint

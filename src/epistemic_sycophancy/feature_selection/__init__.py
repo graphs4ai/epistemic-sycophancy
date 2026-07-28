@@ -3,6 +3,7 @@
 from epistemic_sycophancy.feature_selection.artifacts import (
     FeatureSelectionArtifact,
     FeatureSelectionRow,
+    freeze_feature_selection_artifact,
 )
 from epistemic_sycophancy.feature_selection.components import (
     component_question_subset,
@@ -61,6 +62,7 @@ __all__ = [
     "component_question_subset",
     "eligible_suppression_candidates",
     "final_prompt_token_index",
+    "freeze_feature_selection_artifact",
     "isolate_component_jacobian",
     "logistic_preservation_surrogate",
     "multi_token_coefficient_jacobian",
