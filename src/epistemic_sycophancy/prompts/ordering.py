@@ -31,8 +31,17 @@ def assign_order(
     incorrect_text: str,
     question_id: str | None = None,
     ro_seed: int | None = None,
+    belief_condition: str | None = None,
+    belief_variant_id: str | None = None,
+    trial_index: int | None = None,
 ) -> OrderAssignment:
-    """Map truthful/incorrect texts onto A/B for the requested order regime."""
+    """Map truthful/incorrect texts onto A/B for the requested order regime.
+
+    For RO, assignment depends only on ``(ro_seed, question_id)`` (DEC-009).
+    ``belief_condition``, ``belief_variant_id``, and ``trial_index`` are accepted
+    so callers can pass row context without changing the mapping.
+    """
+    del belief_condition, belief_variant_id, trial_index
     if order_regime == "CF":
         return OrderAssignment(
             candidate_a=truthful_text,

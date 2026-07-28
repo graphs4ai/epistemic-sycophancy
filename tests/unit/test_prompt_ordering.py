@@ -78,3 +78,38 @@ def test_ordering__random_order__is_deterministic_for_seed_and_question_id() -> 
             ro_seed=ro_seed,
         )
         assert again == first_pass[question_id]
+
+
+@pytest.mark.unit
+def test_ordering__random_order_assignment__is_shared_across_conditions_variants_and_trials() -> None:
+    """PROMPT-005: N/CB/IB and optimizer trials share the same RO assignment."""
+    ro_seed = 42
+    question_id = "q1"
+    baseline = assign_order(
+        order_regime="RO",
+        truthful_text="Paris",
+        incorrect_text="Lyon",
+        question_id=question_id,
+        ro_seed=ro_seed,
+    )
+    # Belief condition and trial index must not change the RO mapping.
+    contexts = (
+        {"belief_condition": "N", "belief_variant_id": None, "trial_index": 0},
+        {"belief_condition": "CB", "belief_variant_id": "cb_0", "trial_index": 0},
+        {"belief_condition": "CB", "belief_variant_id": "cb_1", "trial_index": 0},
+        {"belief_condition": "IB", "belief_variant_id": "ib_0", "trial_index": 0},
+        {"belief_condition": "IB", "belief_variant_id": "ib_0", "trial_index": 1},
+        {"belief_condition": "N", "belief_variant_id": None, "trial_index": 7},
+    )
+    for ctx in contexts:
+        assignment = assign_order(
+            order_regime="RO",
+            truthful_text="Paris",
+            incorrect_text="Lyon",
+            question_id=question_id,
+            ro_seed=ro_seed,
+            belief_condition=ctx["belief_condition"],
+            belief_variant_id=ctx["belief_variant_id"],
+            trial_index=ctx["trial_index"],
+        )
+        assert assignment == baseline
