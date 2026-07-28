@@ -25,6 +25,7 @@ python = "3.10.*"
 pytest = "*"
 pytest-cov = "*"
 hypothesis = "*"
+transformers = ">=5.14.1,<6"
 
 [tool.pixi.feature.test.tasks]
 test = "pytest -q"
