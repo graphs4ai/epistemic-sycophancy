@@ -1,0 +1,70 @@
+"""Residual hook token-scope masking (Phase E SAE-010+)."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+import torch
+
+
+def build_token_scope_mask(
+    *,
+    batch_size: int,
+    seq_len: int,
+    prompt_lengths: Sequence[int],
+    token_scope: str,
+    k: int | None = None,
+    device: torch.device | None = None,
+) -> torch.Tensor:
+    """Return boolean mask [B, T] of positions that may receive Δx (DEC-015).
+
+    Modes:
+      - last_prompt_token: only index prompt_length-1
+      - all_prompt_tokens: indices [0, prompt_length)
+      - last_k_prompt_tokens: last k positions within the prompt (requires k >= 1)
+
+    Positions at or beyond prompt_length (padding / generated answers) stay False.
+    """
+    if len(prompt_lengths) != batch_size:
+        raise ValueError(
+            f"prompt_lengths length must equal batch_size; "
+            f"got {len(prompt_lengths)} vs {batch_size}"
+        )
+    mask = torch.zeros(batch_size, seq_len, dtype=torch.bool, device=device)
+    for batch_index, prompt_length in enumerate(prompt_lengths):
+        if prompt_length <= 0:
+            continue
+        if token_scope == "last_prompt_token":
+            mask[batch_index, prompt_length - 1] = True
+        elif token_scope == "all_prompt_tokens":
+            mask[batch_index, :prompt_length] = True
+        elif token_scope == "last_k_prompt_tokens":
+            if k is None or k < 1:
+                raise ValueError(
+                    "last_k_prompt_tokens requires positive int k; "
+                    f"got k={k!r}"
+                )
+            start = max(0, prompt_length - k)
+            mask[batch_index, start:prompt_length] = True
+        else:
+            raise ValueError(f"unsupported token_scope: {token_scope!r}")
+    return mask
+
+
+def apply_delta_with_token_scope(
+    *,
+    residual: torch.Tensor,
+    delta: torch.Tensor,
+    mask: torch.Tensor,
+) -> torch.Tensor:
+    """Return residual + delta on masked positions; elsewhere residual unchanged.
+
+    Shapes:
+      residual: [B, T, D]
+      delta: [B, T, D] or [B, D] (broadcast onto masked positions)
+      mask: [B, T] bool
+    """
+    if delta.ndim == 2:
+        delta = delta.unsqueeze(1).expand_as(residual)
+    mask_expanded = mask.unsqueeze(-1)
+    return torch.where(mask_expanded, residual + delta, residual)
