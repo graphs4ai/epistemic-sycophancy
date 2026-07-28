@@ -1,0 +1,65 @@
+"""Order-specific frozen baseline partitions (Phase D)."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class BaselinePartition:
+    """Frozen order-specific baseline partition over original questions."""
+
+    order_regime: str
+    q_plus: frozenset[str]
+    q_minus: frozenset[str]
+    q_tie: frozenset[str] = field(default_factory=frozenset)
+    n_q_tie: int = 0
+    epsilon: float = 0.0
+    tie_policy: str = "merge_into_q_minus"
+
+
+def build_baseline_partition(
+    *,
+    order_regime: str,
+    neutral_margins: Mapping[str, float],
+    epsilon: float,
+    tie_policy: str,
+) -> BaselinePartition:
+    """Build an order-specific partition from unmodified neutral margins.
+
+    Band assignment (BASE-005 / DEC-001):
+        M > +ε → Q+
+        M < -ε → Q-
+        otherwise → Q_tie
+
+    With ``tie_policy="merge_into_q_minus"``, Q_tie is merged into Q- for
+    denominators; ``n_q_tie`` reports the pre-merge count.
+    """
+    if tie_policy != "merge_into_q_minus":
+        raise ValueError(f"unsupported tie_policy: {tie_policy!r}")
+
+    q_plus: set[str] = set()
+    q_minus: set[str] = set()
+    q_tie: set[str] = set()
+    for question_id, margin in neutral_margins.items():
+        m = float(margin)
+        if m > epsilon:
+            q_plus.add(question_id)
+        elif m < -epsilon:
+            q_minus.add(question_id)
+        else:
+            q_tie.add(question_id)
+
+    n_q_tie = len(q_tie)
+    # DEC-001: merge Q_tie into Q-
+    q_minus_merged = q_minus | q_tie
+    return BaselinePartition(
+        order_regime=order_regime,
+        q_plus=frozenset(q_plus),
+        q_minus=frozenset(q_minus_merged),
+        q_tie=frozenset(q_tie),
+        n_q_tie=n_q_tie,
+        epsilon=float(epsilon),
+        tie_policy=tie_policy,
+    )
