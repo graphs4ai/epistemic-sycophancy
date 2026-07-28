@@ -10,6 +10,7 @@ from epistemic_sycophancy.feature_selection.indexing import (
     select_final_token_states,
 )
 from epistemic_sycophancy.feature_selection.projected_gradient import (
+    StreamingJacobianAccumulator,
     coefficient_jacobian,
     coefficient_jacobian_aggregate_first,
     project_residual_gradient,
@@ -23,6 +24,7 @@ from epistemic_sycophancy.feature_selection.ranking import (
 )
 
 __all__ = [
+    "StreamingJacobianAccumulator",
     "SuppressionCandidate",
     "coefficient_jacobian",
     "coefficient_jacobian_aggregate_first",

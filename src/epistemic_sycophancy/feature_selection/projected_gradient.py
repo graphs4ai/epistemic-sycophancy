@@ -142,3 +142,78 @@ def coefficient_jacobian_aggregate_first(
         gradient=residual_gradients.mean(dim=0), decoder=decoder
     )
     return feature_scales * shared_mask * mean_raw
+
+
+class StreamingJacobianAccumulator:
+    """Stream prompt batches into a question-macro Jacobian (FEAT-019 / DEC-022).
+
+    Accumulates per-prompt Jacobians keyed by question_id in float64. Does not
+    materialize a dataset-sized ``[all_prompts, all_features]`` tensor; each
+    ``update`` projects only the current batch (optionally feature-chunked).
+    ``prompt_batch_size`` and ``feature_chunk_size`` are explicit required
+    constructor arguments with no hidden defaults.
+    """
+
+    def __init__(
+        self,
+        *,
+        n_features: int,
+        feature_chunk_size: int,
+        prompt_batch_size: int,
+    ) -> None:
+        if n_features < 1:
+            raise ValueError(f"n_features must be positive; got {n_features!r}")
+        if feature_chunk_size < 1:
+            raise ValueError(
+                f"feature_chunk_size must be a positive int; got {feature_chunk_size!r}"
+            )
+        if prompt_batch_size < 1:
+            raise ValueError(
+                f"prompt_batch_size must be a positive int; got {prompt_batch_size!r}"
+            )
+        self.n_features = n_features
+        self.feature_chunk_size = feature_chunk_size
+        self.prompt_batch_size = prompt_batch_size
+        self._by_question: dict[object, list[torch.Tensor]] = {}
+
+    def update(
+        self,
+        *,
+        residual_gradients: torch.Tensor,  # [batch, d_model]
+        latents: torch.Tensor,  # [batch, n_features]
+        decoder: torch.Tensor,  # [n_features, d_model]
+        feature_scales: torch.Tensor,  # [n_features]
+        question_ids: Sequence[object],
+    ) -> None:
+        """Accumulate coefficient Jacobians for one prompt batch."""
+        batch = residual_gradients.shape[0]
+        if batch > self.prompt_batch_size:
+            raise ValueError(
+                f"batch size {batch} exceeds prompt_batch_size={self.prompt_batch_size}"
+            )
+        if len(question_ids) != batch:
+            raise ValueError(
+                f"question_ids length must equal batch; got {len(question_ids)} vs {batch}"
+            )
+        if decoder.shape[0] != self.n_features:
+            raise ValueError(
+                f"decoder n_features {decoder.shape[0]} != accumulator {self.n_features}"
+            )
+        raw = project_residual_gradient(
+            gradient=residual_gradients,
+            decoder=decoder,
+            feature_chunk_size=self.feature_chunk_size,
+        )
+        per_prompt = coefficient_jacobian(
+            raw_projection=raw,
+            latents=latents,
+            feature_scales=feature_scales,
+        )
+        for row, question_id in enumerate(question_ids):
+            self._by_question.setdefault(question_id, []).append(
+                per_prompt[row].detach().to(dtype=torch.float64)
+            )
+
+    def finalize(self) -> torch.Tensor:
+        """Return the question-macro mean Jacobian over all streamed prompts."""
+        return question_macro_jacobian(self._by_question)

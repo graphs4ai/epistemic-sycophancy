@@ -213,3 +213,73 @@ def test_feature_jacobian__constant_masks_and_scales__permit_aggregate_first_equ
             decoder=decoder,
             feature_scales=scales,
         )
+
+
+@pytest.mark.unit
+def test_feature_jacobian__streamed_batches__match_single_batch_reference() -> None:
+    """FEAT-019: batch size / row order must not change the accumulated Jacobian."""
+    from epistemic_sycophancy.feature_selection import (
+        StreamingJacobianAccumulator,
+        project_residual_gradient,
+        question_macro_jacobian,
+    )
+
+    decoder = torch.tensor(
+        [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]], dtype=torch.float64
+    )
+    scales = torch.tensor([2.0, 3.0, 0.5], dtype=torch.float64)
+    # Three prompts, two questions (unequal variants).
+    gradients = torch.tensor(
+        [
+            [2.0, -1.0],  # q1
+            [1.0, 0.0],  # q1
+            [0.0, 4.0],  # q2
+        ],
+        dtype=torch.float64,
+    )
+    latents = torch.tensor(
+        [
+            [1.0, 0.5, 2.0],
+            [0.5, 1.0, 0.0],
+            [0.0, 1.0, 1.0],
+        ],
+        dtype=torch.float64,
+    )
+    question_ids = ["q1", "q1", "q2"]
+
+    per_prompt = coefficient_jacobian(
+        raw_projection=project_residual_gradient(
+            gradient=gradients, decoder=decoder
+        ),
+        latents=latents,
+        feature_scales=scales,
+    )
+    by_question: dict[str, list[torch.Tensor]] = {"q1": [], "q2": []}
+    for row, question_id in enumerate(question_ids):
+        by_question[question_id].append(per_prompt[row])
+    reference = question_macro_jacobian(by_question)
+
+    def _stream(order: list[int], prompt_batch_size: int) -> torch.Tensor:
+        acc = StreamingJacobianAccumulator(
+            n_features=decoder.shape[0],
+            feature_chunk_size=2,
+            prompt_batch_size=prompt_batch_size,
+        )
+        ordered_grads = gradients[order]
+        ordered_latents = latents[order]
+        ordered_qids = [question_ids[i] for i in order]
+        for start in range(0, len(order), prompt_batch_size):
+            end = start + prompt_batch_size
+            acc.update(
+                residual_gradients=ordered_grads[start:end],
+                latents=ordered_latents[start:end],
+                decoder=decoder,
+                feature_scales=scales,
+                question_ids=ordered_qids[start:end],
+            )
+        return acc.finalize()
+
+    for batch_size in (1, 2, 3):
+        for order in ([0, 1, 2], [2, 0, 1], [1, 2, 0]):
+            streamed = _stream(order, batch_size)
+            assert torch.allclose(streamed, reference, atol=1e-10, rtol=1e-9)
