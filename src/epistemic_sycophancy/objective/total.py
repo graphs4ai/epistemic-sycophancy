@@ -125,3 +125,33 @@ def neutral_preservation_loss(
     if not penalties:
         raise ValueError("neutral_preservation_loss requires at least one question")
     return sum(penalties.values()) / float(len(penalties))
+
+
+def correct_belief_question_penalties(
+    *,
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    current_cb_margins: Mapping[object, Sequence[float]],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    delta_c: float,
+) -> dict[object, list[float]]:
+    """Per-variant CB hinges for each q∈Q+: [M0 - M(β) - δ_C]_+."""
+    q_plus_set = frozenset(q_plus)
+    result: dict[object, list[float]] = {}
+    for question_id in q_plus_set:
+        baselines = baseline_cb_margins[question_id]
+        currents = current_cb_margins[question_id]
+        if len(baselines) != len(currents):
+            raise ValueError(
+                f"baseline/current CB margin length mismatch for {question_id!r}"
+            )
+        result[question_id] = [
+            float(
+                baseline_relative_hinge(
+                    baseline_margin=float(b0),
+                    current_margin=float(m),
+                    delta=delta_c,
+                )
+            )
+            for b0, m in zip(baselines, currents, strict=True)
+        ]
+    return result
