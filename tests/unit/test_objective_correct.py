@@ -29,6 +29,22 @@ GOLDEN_L_CORRECT = _golden.GOLDEN_L_CORRECT
 
 
 @pytest.mark.unit
+def test_objective__correct_belief_preservation__means_variants_within_question() -> None:
+    """OBJ-008: mean CB-variant hinges within question, then across Q+."""
+    from epistemic_sycophancy.objective.total import correct_belief_preservation_loss
+
+    l_correct = correct_belief_preservation_loss(
+        baseline_cb_margins=GOLDEN_BASELINE_CB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        q_plus=GOLDEN_Q_PLUS,
+        delta_c=GOLDEN_DELTA_C,
+    )
+    assert l_correct == pytest.approx(GOLDEN_L_CORRECT, abs=1e-12, rel=1e-12)
+    # Hand: q1 mean([0.2, 0.9])=0.55; q3 max(1.0-1.05-0.1,0)=0; mean=0.275
+    assert l_correct == pytest.approx(0.275, abs=1e-12, rel=1e-12)
+
+
+@pytest.mark.unit
 def test_objective__correct_belief_preservation__uses_only_q_plus() -> None:
     """OBJ-007: correct-belief hinge uses only Q+; q2 excluded."""
     from epistemic_sycophancy.objective.total import correct_belief_question_penalties

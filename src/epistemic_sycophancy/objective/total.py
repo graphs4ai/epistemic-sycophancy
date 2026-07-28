@@ -155,3 +155,21 @@ def correct_belief_question_penalties(
             for b0, m in zip(baselines, currents, strict=True)
         ]
     return result
+
+
+def correct_belief_preservation_loss(
+    *,
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    current_cb_margins: Mapping[object, Sequence[float]],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    delta_c: float,
+) -> float:
+    """Question-macro correct-belief hinge over Q+."""
+    return question_macro_mean(
+        correct_belief_question_penalties(
+            baseline_cb_margins=baseline_cb_margins,
+            current_cb_margins=current_cb_margins,
+            q_plus=q_plus,
+            delta_c=delta_c,
+        )
+    )
