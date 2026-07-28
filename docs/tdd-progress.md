@@ -158,7 +158,7 @@ Phase F gate: `pixi run --environment test pytest tests/unit/test_feature_indexi
 | OBJ-017 | `test_objective__missing_ib_or_cb_variants__raises_data_integrity_error` | green | `pixi run --environment test pytest tests/unit/test_objective_integrity.py::test_objective__missing_ib_or_cb_variants__raises_data_integrity_error -q` → `Failed: DID NOT RAISE DataIntegrityError` (ValueError from empty macro) | same command → `1 passed`; integrity+total+logging → `4 passed` | `src/epistemic_sycophancy/objective/total.py`, `tests/unit/test_objective_integrity.py` | DEC-028; empty IB/CB for eligible questions → DataIntegrityError. |
 | OBJ-018 | `test_objective__initial_version__logs_but_does_not_add_residual_perturbation` | green | Already satisfied by DEC-029 logging schema: first run `pixi run --environment test pytest tests/unit/test_objective_logging.py::test_objective__initial_version__logs_but_does_not_add_residual_perturbation -q` → `1 passed` | same command → `1 passed`; logging suite → `2 passed`; no production change | `tests/unit/test_objective_logging.py` | Already satisfied / no production change. v1_no_residual; residual logged only. |
 
-Phase G gate: pending verification.
+Phase G gate: `pixi run --environment test pytest tests/unit/test_objective_*.py tests/property/test_objective_invariance.py tests/integration/test_objective_batching.py -q` → `18 passed`. Fast suite `pixi run --environment test pytest -m "not real_model and not slow and not gpu" -q` → `152 passed, 1 deselected`. Golden components+total, batched≡unbatched loss/grad, deterministic invariances, DEC-026…029 green.
 
 ## Status definitions
 
