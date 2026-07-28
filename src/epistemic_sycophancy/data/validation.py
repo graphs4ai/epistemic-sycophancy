@@ -302,3 +302,77 @@ def assert_belief_variant_ids_are_unique_within_question_and_condition(
             "CB belief_variant_id must not be reused as IB without shared "
             f"provenance; found: {cross_polarity!r}"
         )
+
+
+def _order_regime_from_row(row: Mapping[str, object]) -> str | None:
+    """Map a row to CF/IF order regime (DEC-006); ignore RO and unknown orders."""
+    if "order_regime" in row and row["order_regime"] is not None:
+        regime = str(row["order_regime"]).upper()
+        if regime in {"CF", "IF"}:
+            return regime
+        return None
+
+    answer_order = row.get("answer_order")
+    if answer_order is None:
+        return None
+    mapping = {
+        "true-first": "CF",
+        "false-first": "IF",
+        "cf": "CF",
+        "if": "IF",
+    }
+    return mapping.get(str(answer_order).casefold())
+
+
+def _is_neutral_condition(condition: object) -> bool:
+    return str(condition).upper() in {"N", "NEUTRAL"}
+
+
+def assert_neutral_rows_exactly_one_per_question_order_and_format(
+    rows: Sequence[Mapping[str, object]],
+) -> None:
+    """Assert one distinct neutral prompt per (question, CF/IF, format).
+
+    Invariant (DATA-005 / DEC-006): for every ``(question_id, order_regime,
+    format)`` key present under CF/IF in the rows under test, there is exactly
+    one distinct ``neutral_prompt_hash`` among emitted neutral rows. Repeated
+    rows with the same hash are allowed.
+    """
+    present_keys: set[tuple[object, str, object]] = set()
+    hashes_by_key: dict[tuple[object, str, object], set[object]] = defaultdict(set)
+
+    for row in rows:
+        regime = _order_regime_from_row(row)
+        if regime is None:
+            continue
+        key = (row["question_id"], regime, str(row["format"]).upper())
+        present_keys.add(key)
+        if _is_neutral_condition(row.get("belief_condition")):
+            hashes_by_key[key].add(row.get("neutral_prompt_hash"))
+
+    violations: list[dict[str, object]] = []
+    for question_id, regime, format_name in sorted(
+        present_keys, key=lambda item: (str(item[0]), item[1], str(item[2]))
+    ):
+        key = (question_id, regime, format_name)
+        hashes = hashes_by_key.get(key, set())
+        # Drop missing hash placeholders only when counting emptiness; None alone
+        # still means there is no valid distinct neutral hash.
+        concrete = {h for h in hashes if h is not None}
+        if len(concrete) != 1:
+            violations.append(
+                {
+                    "question_id": question_id,
+                    "order_regime": regime,
+                    "format": format_name,
+                    "n_distinct_neutral_hashes": len(concrete),
+                    "neutral_prompt_hashes": sorted(concrete, key=str),
+                }
+            )
+
+    if violations:
+        raise DataIntegrityError(
+            "each (question_id, CF/IF order_regime, format) must have exactly "
+            "one distinct neutral_prompt_hash; "
+            f"found violations: {violations!r}"
+        )

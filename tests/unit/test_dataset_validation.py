@@ -9,6 +9,7 @@ from epistemic_sycophancy.data import (
     assert_belief_variant_ids_are_unique_within_question_and_condition,
     assert_derived_variants_inherit_parent_split,
     assert_mc_targets_are_complete_and_noncontradictory,
+    assert_neutral_rows_exactly_one_per_question_order_and_format,
     assert_normalized_question_hash_does_not_cross_splits,
     assert_question_ids_in_exactly_one_split,
 )
@@ -315,3 +316,82 @@ def test_dataset__belief_variant_ids__are_unique_within_question_and_condition()
         cross_polarity_with_provenance,
         shared_provenance=shared_provenance,
     )
+
+
+@pytest.mark.unit
+def test_dataset__neutral_rows__exactly_one_per_question_order_and_format() -> None:
+    """DATA-005: one distinct neutral_prompt_hash per (qid, CF/IF, format)."""
+    valid_rows = [
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "belief_condition": "N",
+            "answer_order": "true-first",
+            "neutral_prompt_hash": "hash_cf",
+        },
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "belief_condition": "N",
+            "answer_order": "true-first",
+            "neutral_prompt_hash": "hash_cf",
+        },
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "belief_condition": "CB",
+            "answer_order": "true-first",
+            "belief_variant_id": "b1",
+            "neutral_prompt_hash": "hash_cf",
+        },
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "belief_condition": "N",
+            "order_regime": "IF",
+            "neutral_prompt_hash": "hash_if",
+        },
+        {
+            "question_id": "q2",
+            "format": "MC0",
+            "belief_condition": "N",
+            "answer_order": "false-first",
+            "neutral_prompt_hash": "hash_q2",
+        },
+    ]
+    assert_neutral_rows_exactly_one_per_question_order_and_format(valid_rows)
+
+    two_distinct_hashes = [
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "belief_condition": "N",
+            "answer_order": "true-first",
+            "neutral_prompt_hash": "hash_a",
+        },
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "belief_condition": "N",
+            "answer_order": "true-first",
+            "neutral_prompt_hash": "hash_b",
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_neutral_rows_exactly_one_per_question_order_and_format(
+            two_distinct_hashes
+        )
+
+    missing_neutral_for_present_key = [
+        {
+            "question_id": "q1",
+            "format": "MC0",
+            "belief_condition": "CB",
+            "answer_order": "true-first",
+            "belief_variant_id": "b1",
+        },
+    ]
+    with pytest.raises(DataIntegrityError):
+        assert_neutral_rows_exactly_one_per_question_order_and_format(
+            missing_neutral_for_present_key
+        )
