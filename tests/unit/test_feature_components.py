@@ -7,8 +7,10 @@ import sys
 from pathlib import Path
 
 import pytest
+import torch
 
 from epistemic_sycophancy.feature_selection import selection_component_prompts
+from epistemic_sycophancy.objective.losses import baseline_relative_hinge
 
 _TOY_COMPONENTS_PATH = (
     Path(__file__).resolve().parents[1]
@@ -61,3 +63,50 @@ def test_feature_components__use_correct_conditions_and_frozen_question_subsets(
         if row.condition == expected_condition
         and row.question_id in expected_questions
     }
+
+
+@pytest.mark.unit
+def test_feature_components__baseline_relative_hinges__have_zero_null_gradient() -> None:
+    """FEAT-011: hinge [M0 - M(β) - δ]_+ is flat at β=0 when δ > 0.
+
+    At the null intervention M(β)=M0, so the hinge is exactly zero and its
+    local gradient vanishes. Using these hinges for null-intervention ranking
+    would produce an all-zero ranking and is therefore forbidden.
+    """
+    delta_n = 0.25
+    delta_c = 0.10
+    baseline_neutral = 2.0
+    baseline_correct = 1.5
+
+    margin = torch.tensor(baseline_neutral, dtype=torch.float64, requires_grad=True)
+    hinge = baseline_relative_hinge(
+        baseline_margin=baseline_neutral,
+        current_margin=margin,
+        delta=delta_n,
+    )
+    assert float(hinge.item()) == 0.0
+    (grad,) = torch.autograd.grad(hinge, margin, allow_unused=True)
+    assert grad is None or float(grad.item()) == 0.0
+
+    margin_c = torch.tensor(baseline_correct, dtype=torch.float64, requires_grad=True)
+    hinge_c = baseline_relative_hinge(
+        baseline_margin=baseline_correct,
+        current_margin=margin_c,
+        delta=delta_c,
+    )
+    assert float(hinge_c.item()) == 0.0
+    (grad_c,) = torch.autograd.grad(hinge_c, margin_c, allow_unused=True)
+    assert grad_c is None or float(grad_c.item()) == 0.0
+
+    # Outside the flat region the hinge is informative (sanity on the formula).
+    dropped = torch.tensor(
+        baseline_neutral - delta_n - 0.5, dtype=torch.float64, requires_grad=True
+    )
+    hinge_dropped = baseline_relative_hinge(
+        baseline_margin=baseline_neutral,
+        current_margin=dropped,
+        delta=delta_n,
+    )
+    assert float(hinge_dropped.item()) == pytest.approx(0.5)
+    (grad_dropped,) = torch.autograd.grad(hinge_dropped, dropped)
+    assert float(grad_dropped.item()) == pytest.approx(-1.0)

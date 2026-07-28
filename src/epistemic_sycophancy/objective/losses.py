@@ -31,3 +31,26 @@ def mean_logistic_margin_loss(margins: list[float], *, tau: float) -> float:
     for margin in margins:
         total += logistic_margin_loss(float(margin), tau=tau)
     return total / float(len(margins))
+
+
+def baseline_relative_hinge(
+    *,
+    baseline_margin: float | object,
+    current_margin: float | object,
+    delta: float,
+) -> float | object:
+    """Return [M0 - M(β) - δ]_+.
+
+    Accepts Python floats or torch tensors. At β=0 with δ>0 the hinge is
+    exactly zero and locally flat (FEAT-011), so it must not be used for
+    null-intervention ranking.
+    """
+    excess = baseline_margin - current_margin - float(delta)
+    try:
+        import torch
+
+        if isinstance(excess, torch.Tensor):
+            return torch.relu(excess)
+    except ImportError:
+        pass
+    return max(0.0, float(excess))
