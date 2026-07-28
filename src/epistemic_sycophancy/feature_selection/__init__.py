@@ -41,6 +41,7 @@ from epistemic_sycophancy.feature_selection.ranking import (
     AnnotatedSuppressionCandidate,
     SuppressionCandidate,
     annotate_preservation_jacobians,
+    build_order_specific_artifacts,
     rank_suppression_candidates,
 )
 
@@ -57,6 +58,7 @@ __all__ = [
     "SuppressionCandidate",
     "annotate_preservation_jacobians",
     "assert_layer_tensors_aligned",
+    "build_order_specific_artifacts",
     "coefficient_jacobian",
     "coefficient_jacobian_aggregate_first",
     "component_question_subset",

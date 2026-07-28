@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from epistemic_sycophancy.feature_selection.artifacts import FeatureSelectionArtifact
 
 
 @dataclass(frozen=True)
@@ -102,3 +106,41 @@ def annotate_preservation_jacobians(
             )
         )
     return tuple(annotated)
+
+
+def build_order_specific_artifacts(
+    *,
+    artifacts_by_order: Mapping[str, FeatureSelectionArtifact],
+    component: str,
+    model_revision_hash: str,
+    sae_revision_hash: str,
+    scope: str,
+    scale_source: str,
+    dataset_manifest_hash: str,
+) -> dict[str, FeatureSelectionArtifact]:
+    """Freeze one fingerprinted artifact per answer-order regime (FEAT-031).
+
+    CF, IF, and RO remain distinct keyed entries. Scores are never overwritten
+    or averaged across orders.
+    """
+    from epistemic_sycophancy.feature_selection.artifacts import (
+        freeze_feature_selection_artifact,
+    )
+
+    required = ("CF", "IF", "RO")
+    missing = [order for order in required if order not in artifacts_by_order]
+    if missing:
+        raise KeyError(f"missing order-specific artifacts for {missing!r}")
+    return {
+        order: freeze_feature_selection_artifact(
+            artifact=artifacts_by_order[order],
+            component=component,
+            order_regime=order,
+            model_revision_hash=model_revision_hash,
+            sae_revision_hash=sae_revision_hash,
+            scope=scope,
+            scale_source=scale_source,
+            dataset_manifest_hash=dataset_manifest_hash,
+        )
+        for order in required
+    }

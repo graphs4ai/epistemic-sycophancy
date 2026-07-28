@@ -89,3 +89,67 @@ def test_feature_selection__fixed_artifacts__produce_stable_scores_and_tie_order
         (1, 5),
         (2, 0),
     ]
+
+
+@pytest.mark.unit
+def test_feature_selection__answer_orders__produce_separate_jacobian_artifacts() -> None:
+    """FEAT-031: CF, IF, and RO produce three distinct keyed artifacts.
+
+    Scores must not overwrite one another and must not be silently averaged.
+    """
+    from epistemic_sycophancy.feature_selection import (
+        FeatureSelectionArtifact,
+        build_order_specific_artifacts,
+    )
+
+    row_template = {
+        "layer": 0,
+        "feature_id": 0,
+        "absolute_sensitivity": 1.0,
+        "raw_projection": 1.0,
+        "mean_active_rate": 1.0,
+        "feature_scale": 1.0,
+        "suppression_beneficial": True,
+        "preferred_bidirectional_sign": -1.0,
+        "n_questions": 1,
+        "n_prompts": 1,
+    }
+    # Distinct signed Jacobians per order; mean would be 0.
+    by_order = {
+        "CF": FeatureSelectionArtifact(
+            rows=[{**row_template, "signed_jacobian": 3.0, "absolute_sensitivity": 3.0}],
+            question_ids=frozenset({"q1"}),
+            feature_selection_question_ids=frozenset({"q1"}),
+        ),
+        "IF": FeatureSelectionArtifact(
+            rows=[{**row_template, "signed_jacobian": -3.0, "absolute_sensitivity": 3.0}],
+            question_ids=frozenset({"q1"}),
+            feature_selection_question_ids=frozenset({"q1"}),
+        ),
+        "RO": FeatureSelectionArtifact(
+            rows=[{**row_template, "signed_jacobian": 1.5, "absolute_sensitivity": 1.5}],
+            question_ids=frozenset({"q1"}),
+            feature_selection_question_ids=frozenset({"q1"}),
+        ),
+    }
+    artifacts = build_order_specific_artifacts(
+        artifacts_by_order=by_order,
+        component="resistance",
+        model_revision_hash="model",
+        sae_revision_hash="sae",
+        scope="last_prompt_token",
+        scale_source="decoder_norm",
+        dataset_manifest_hash="dataset",
+    )
+
+    assert set(artifacts.keys()) == {"CF", "IF", "RO"}
+    assert artifacts["CF"].rows[0].signed_jacobian == 3.0
+    assert artifacts["IF"].rows[0].signed_jacobian == -3.0
+    assert artifacts["RO"].rows[0].signed_jacobian == 1.5
+    # No silent averaging: mean of CF and IF would be 0.
+    assert artifacts["CF"].rows[0].signed_jacobian != artifacts["IF"].rows[0].signed_jacobian
+    assert all(a.fingerprint for a in artifacts.values())
+    assert len({a.fingerprint for a in artifacts.values()}) == 3
+    assert artifacts["CF"].order_regime == "CF"
+    assert artifacts["IF"].order_regime == "IF"
+    assert artifacts["RO"].order_regime == "RO"
