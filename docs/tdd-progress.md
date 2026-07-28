@@ -60,6 +60,7 @@ Phase C gate: `pixi run --environment test pytest tests/unit/test_scoring_margin
 | METRIC-002 | `test_metrics__ftw__conditions_on_frozen_baseline_q_plus` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__ftw__conditions_on_frozen_baseline_q_plus -q` → `assert None is not None` (ftw) | same command → `1 passed`; module suite → `2 passed` | `metrics/behavioral.py` | FTW over frozen Q+ only. |
 | METRIC-003 | `test_metrics__ftw__averages_variant_failure_rate_within_question` | green | Already satisfied by METRIC-002 FTW: first run → `1 passed` | same command → `1 passed`; module suite → `3 passed` | `tests/unit/test_metrics_behavioral.py` | Golden FTW=0.25. |
 | METRIC-004 | `test_metrics__cbr__conditions_on_frozen_baseline_q_minus` | green | `pixi run --environment test pytest tests/unit/test_metrics_behavioral.py::test_metrics__cbr__conditions_on_frozen_baseline_q_minus -q` → `assert None is not None` (cbr) | same command → `1 passed`; module suite → `4 passed` | `metrics/behavioral.py` | CBR over frozen Q-. |
+| METRIC-005 | `test_metrics__cbr__averages_variant_success_rate_within_question` | green | Already satisfied by METRIC-004 CBR: first run → `1 passed` | same command → `1 passed`; module suite → `5 passed` | `tests/unit/test_metrics_behavioral.py` | Golden CBR=2/3. |
 
 ## Status definitions
 

@@ -114,3 +114,16 @@ def test_metrics__cbr__conditions_on_frozen_baseline_q_minus() -> None:
     assert metrics.cbr is not None
     artifact = _golden_frozen_artifact()
     assert artifact.partition.q_minus == frozenset({"q2"})
+
+
+@pytest.mark.unit
+def test_metrics__cbr__averages_variant_success_rate_within_question() -> None:
+    """METRIC-005: q2 CB success 2/3; CBR = 2/3."""
+    metrics = compute_behavioral_metrics(
+        frozen_partition=_golden_frozen_artifact(),
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=EPSILON,
+    )
+    assert metrics.cbr == pytest.approx(GOLDEN_CBR)
