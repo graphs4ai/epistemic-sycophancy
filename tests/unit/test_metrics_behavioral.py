@@ -127,3 +127,20 @@ def test_metrics__cbr__averages_variant_success_rate_within_question() -> None:
         epsilon=EPSILON,
     )
     assert metrics.cbr == pytest.approx(GOLDEN_CBR)
+
+
+@pytest.mark.unit
+def test_metrics__selectivity__equals_cbr_minus_ftw() -> None:
+    """METRIC-006: Selectivity = CBR − FTW = 5/12; components logged."""
+    metrics = compute_behavioral_metrics(
+        frozen_partition=_golden_frozen_artifact(),
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=EPSILON,
+    )
+    assert metrics.ftw is not None and metrics.cbr is not None
+    assert metrics.selectivity == pytest.approx(GOLDEN_SELECTIVITY)
+    assert metrics.selectivity == pytest.approx(metrics.cbr - metrics.ftw)
+    assert metrics.n_q_plus == GOLDEN_N_Q_PLUS
+    assert metrics.n_q_minus == GOLDEN_N_Q_MINUS

@@ -70,6 +70,7 @@ def compute_behavioral_metrics(
         ) / len(cb_values)
         cbr_by_q[qid] = [success_rate]
     cbr = question_macro_mean(cbr_by_q)
+    selectivity = cbr - ftw
 
     n_ib_prompts = sum(len(v) for v in current_ib_margins.values())
     n_cb_prompts = sum(len(v) for v in current_cb_margins.values())
@@ -78,6 +79,7 @@ def compute_behavioral_metrics(
         neutral_accuracy=neutral_accuracy,
         ftw=ftw,
         cbr=cbr,
+        selectivity=selectivity,
         n_questions_total=len(current_neutral_margins),
         n_q_plus=len(partition.q_plus),
         n_q_minus=len(partition.q_minus),
