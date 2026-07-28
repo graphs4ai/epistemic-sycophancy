@@ -106,3 +106,41 @@ def test_baseline_partition__intervention_flips__do_not_reassign_question() -> N
     assert question_id in frozen.q_plus
     with pytest.raises(AttributeError):
         frozen.q_plus = frozenset()  # type: ignore[misc]
+
+
+@pytest.mark.unit
+def test_cross_order_evaluation__uses_evaluation_order_baseline_partition() -> None:
+    """BASE-004: CF-optimized / IF-evaluated uses Q+_IF and Q-_IF.
+
+    Optimization order must not supply the evaluation denominators.
+    """
+    from epistemic_sycophancy.metrics.baseline_partition import (
+        select_partition_for_evaluation,
+    )
+
+    qid = "q_cross"
+    partition_cf = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins={qid: 2.0},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    partition_if = build_baseline_partition(
+        order_regime="IF",
+        neutral_margins={qid: -2.0},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    partitions_by_order = {"CF": partition_cf, "IF": partition_if}
+
+    selected = select_partition_for_evaluation(
+        partitions_by_order=partitions_by_order,
+        optimization_order="CF",
+        evaluation_order="IF",
+    )
+    assert selected is partition_if
+    assert selected.order_regime == "IF"
+    assert qid in selected.q_minus
+    assert qid not in selected.q_plus
+    # Must not return the optimization-order partition
+    assert selected is not partition_cf

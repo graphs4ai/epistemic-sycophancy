@@ -70,3 +70,23 @@ def build_baseline_partition(
         epsilon=float(epsilon),
         tie_policy=tie_policy,
     )
+
+
+def select_partition_for_evaluation(
+    *,
+    partitions_by_order: Mapping[str, BaselinePartition],
+    optimization_order: str,
+    evaluation_order: str,
+) -> BaselinePartition:
+    """Return the baseline partition for the evaluation order (BASE-004).
+
+    ``optimization_order`` is accepted for call-site clarity but must not
+    select the partition; only ``evaluation_order`` determines denominators.
+    """
+    del optimization_order  # never used for selection (BASE-004)
+    try:
+        return partitions_by_order[evaluation_order]
+    except KeyError as exc:
+        raise KeyError(
+            f"no baseline partition for evaluation_order={evaluation_order!r}"
+        ) from exc
