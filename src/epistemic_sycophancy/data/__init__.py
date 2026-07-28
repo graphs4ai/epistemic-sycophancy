@@ -1,5 +1,9 @@
 """Dataset records, manifests, and integrity validation."""
 
+from epistemic_sycophancy.data.manifests import (
+    count_questions_by_split,
+    load_split_manifest,
+)
 from epistemic_sycophancy.data.validation import (
     DataIntegrityError,
     assert_derived_variants_inherit_parent_split,
@@ -14,6 +18,8 @@ __all__ = [
     "assert_derived_variants_inherit_parent_split",
     "assert_normalized_question_hash_does_not_cross_splits",
     "assert_question_ids_in_exactly_one_split",
+    "count_questions_by_split",
+    "load_split_manifest",
     "normalize_question_text",
     "question_content_hash",
 ]
