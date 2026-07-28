@@ -59,3 +59,33 @@ def score_masked_conditional_log_probs(
     if not kept:
         raise ValueError("no non-pad log-probs to score")
     return float(sum(kept))
+
+
+def score_candidates_batched(
+    rows: list[dict],
+) -> list[float]:
+    """Score a batch of candidate log-prob rows; must match scalar masked sums.
+
+    Pads each row's log-prob / mask sequences to a common max length, then
+    sums non-pad positions (DEC-011 sum_log_probs + SCORE-009 masking).
+    """
+    if not rows:
+        return []
+    max_len = max(len(row["log_probs"]) for row in rows)
+    scores: list[float] = []
+    for row in rows:
+        log_probs = list(row["log_probs"])
+        is_pad = list(row["is_pad"])
+        if len(log_probs) != len(is_pad):
+            raise ValueError(
+                f"row label={row.get('label')!r}: log_probs/is_pad length mismatch"
+            )
+        # Right-pad batch slots as pad so they never contribute.
+        pad_count = max_len - len(log_probs)
+        if pad_count:
+            log_probs.extend([0.0] * pad_count)
+            is_pad.extend([True] * pad_count)
+        scores.append(
+            score_masked_conditional_log_probs(log_probs=log_probs, is_pad=is_pad)
+        )
+    return scores

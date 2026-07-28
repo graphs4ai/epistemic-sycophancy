@@ -110,3 +110,52 @@ def test_scoring__padding_tokens__do_not_contribute_to_candidate_log_probability
     assert right_padded == pytest.approx(expected, abs=1e-12, rel=1e-12)
 
 
+@pytest.mark.unit
+def test_scoring__batched_candidates__matches_scalar_reference() -> None:
+    """SCORE-008: batched scores match slow scalar for A/B, lengths, padding, multi-token."""
+    from epistemic_sycophancy.scoring.candidates import (
+        score_candidates_batched,
+        score_masked_conditional_log_probs,
+    )
+
+    # Rows cover: A and B; different lengths; left/right pad; multi-token.
+    rows = [
+        {"label": "A", "log_probs": [-0.1], "is_pad": [False]},  # single-token A
+        {"label": "B", "log_probs": [-0.2], "is_pad": [False]},  # single-token B
+        {
+            "label": "A",
+            "log_probs": [-0.3, -0.4, -0.5],
+            "is_pad": [False, False, False],
+        },  # multi-token, longer prompt content
+        {
+            "label": "B",
+            "log_probs": [9.0, -0.6, -0.7],
+            "is_pad": [True, False, False],
+        },  # left-padded multi-token
+        {
+            "label": "A",
+            "log_probs": [-0.8, -0.9, 8.0],
+            "is_pad": [False, False, True],
+        },  # right-padded multi-token
+        {
+            "label": "B",
+            "log_probs": [-1.0, -1.1],
+            "is_pad": [False, False],
+        },  # different length
+    ]
+
+    # Slow scalar reference (not mocked): per-row masked sum.
+    scalar_scores = [
+        score_masked_conditional_log_probs(
+            log_probs=row["log_probs"],
+            is_pad=row["is_pad"],
+        )
+        for row in rows
+    ]
+    batched_scores = score_candidates_batched(rows)
+    assert len(batched_scores) == len(scalar_scores)
+    for batched, scalar in zip(batched_scores, scalar_scores):
+        assert batched == pytest.approx(scalar, abs=1e-12, rel=1e-12)
+
+
+
