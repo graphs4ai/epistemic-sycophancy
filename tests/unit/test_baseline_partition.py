@@ -14,17 +14,18 @@ def test_baseline_partition__same_question__may_belong_to_different_subsets_by_o
     Same question_id with CF M>0 and IF M<0 lands in different subsets.
     """
     question_id = "q_shared"
-    # CF: positive neutral margin → Q+
+    # Companion keeps both subsets non-empty (BASE-006).
+    # CF: shared → Q+; companion → Q-
     partition_cf = build_baseline_partition(
         order_regime="CF",
-        neutral_margins={question_id: 1.5},
+        neutral_margins={question_id: 1.5, "q_companion": -1.0},
         epsilon=1e-6,
         tie_policy="merge_into_q_minus",
     )
-    # IF: negative neutral margin → Q-
+    # IF: shared → Q-; companion → Q+
     partition_if = build_baseline_partition(
         order_regime="IF",
-        neutral_margins={question_id: -1.5},
+        neutral_margins={question_id: -1.5, "q_companion": 1.0},
         epsilon=1e-6,
         tie_policy="merge_into_q_minus",
     )
@@ -46,11 +47,11 @@ def test_baseline_partition__ignores_belief_conditioned_and_intervened_margins()
     affect assignment when only neutral margins are the partition input.
     """
     question_id = "q1"
-    # Neutral: clearly Q+
-    neutral_margins = {question_id: 2.0}
+    # Neutral: clearly Q+; companion keeps Q- nonempty
+    neutral_margins = {question_id: 2.0, "q_companion": -1.0}
     # Distractors that would place q1 in Q- if mistakenly used
-    belief_conditioned_ib_margins = {question_id: -5.0}
-    intervened_margins = {question_id: -3.0}
+    belief_conditioned_ib_margins = {question_id: -5.0, "q_companion": 1.0}
+    intervened_margins = {question_id: -3.0, "q_companion": 1.0}
 
     partition = build_baseline_partition(
         order_regime="CF",
@@ -63,7 +64,7 @@ def test_baseline_partition__ignores_belief_conditioned_and_intervened_margins()
     )
     assert question_id in partition.q_plus
     assert question_id not in partition.q_minus
-    # Sanity: distractors alone would have been Q-
+    # Sanity: distractors alone would have placed q1 in Q-
     distractor_if_used = build_baseline_partition(
         order_regime="CF",
         neutral_margins=belief_conditioned_ib_margins,
@@ -81,7 +82,7 @@ def test_baseline_partition__intervention_flips__do_not_reassign_question() -> N
     of the frozen artifact.
     """
     question_id = "q_frozen"
-    baseline_margins = {question_id: 2.0}
+    baseline_margins = {question_id: 2.0, "q_companion": -1.0}
     frozen = build_baseline_partition(
         order_regime="CF",
         neutral_margins=baseline_margins,
@@ -91,7 +92,7 @@ def test_baseline_partition__intervention_flips__do_not_reassign_question() -> N
     assert question_id in frozen.q_plus
 
     # Intervention flips the current margin; frozen artifact must not change.
-    flipped_margins = {question_id: -2.0}
+    flipped_margins = {question_id: -2.0, "q_companion": 1.0}
     assert question_id in frozen.q_plus
     assert question_id not in frozen.q_minus
     # Rebuilding from flipped margins would reassign — that is forbidden for trials.
@@ -121,13 +122,13 @@ def test_cross_order_evaluation__uses_evaluation_order_baseline_partition() -> N
     qid = "q_cross"
     partition_cf = build_baseline_partition(
         order_regime="CF",
-        neutral_margins={qid: 2.0},
+        neutral_margins={qid: 2.0, "q_companion": -1.0},
         epsilon=1e-6,
         tie_policy="merge_into_q_minus",
     )
     partition_if = build_baseline_partition(
         order_regime="IF",
-        neutral_margins={qid: -2.0},
+        neutral_margins={qid: -2.0, "q_companion": 1.0},
         epsilon=1e-6,
         tie_policy="merge_into_q_minus",
     )
@@ -178,3 +179,26 @@ def test_baseline_partition__exact_and_near_ties__follow_frozen_policy() -> None
     )
     assert partition.epsilon == epsilon
     assert partition.tie_policy == "merge_into_q_minus"
+
+
+@pytest.mark.unit
+def test_baseline_partition__empty_required_subset__raises_degenerate_baseline_error() -> None:
+    """BASE-006: empty Q+ or Q- after merge raises DegenerateBaselineError."""
+    from epistemic_sycophancy.metrics.exceptions import DegenerateBaselineError
+
+    # All positive → empty Q- after merge
+    with pytest.raises(DegenerateBaselineError):
+        build_baseline_partition(
+            order_regime="CF",
+            neutral_margins={"q1": 1.0, "q2": 2.0},
+            epsilon=1e-6,
+            tie_policy="merge_into_q_minus",
+        )
+    # All negative → empty Q+
+    with pytest.raises(DegenerateBaselineError):
+        build_baseline_partition(
+            order_regime="CF",
+            neutral_margins={"q1": -1.0, "q2": -2.0},
+            epsilon=1e-6,
+            tie_policy="merge_into_q_minus",
+        )

@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from epistemic_sycophancy.metrics.exceptions import DegenerateBaselineError
+
 
 @dataclass(frozen=True)
 class BaselinePartition:
@@ -61,6 +63,12 @@ def build_baseline_partition(
     n_q_tie = len(q_tie)
     # DEC-001: merge Q_tie into Q-
     q_minus_merged = q_minus | q_tie
+    if not q_plus or not q_minus_merged:
+        raise DegenerateBaselineError(
+            "required baseline subset empty after partitioning: "
+            f"|Q+|={len(q_plus)}, |Q-|={len(q_minus_merged)}, "
+            f"n_q_tie={n_q_tie}, order_regime={order_regime!r}"
+        )
     return BaselinePartition(
         order_regime=order_regime,
         q_plus=frozenset(q_plus),
