@@ -20,16 +20,24 @@ def test_runner__cli_stages__expose_identity_baseline_fs_opt_full_in_order() -> 
         "baseline_partitions",
         "feature_selection",
         "opt_smoke",
+        "optimize",
+        "freeze",
         "full_study",
+        "holdout_eval",
     )
     assert PIXI_TASK_NAMES == (
         "run-identity",
         "run-baseline",
         "run-fs",
         "run-opt-smoke",
+        "run-optimize",
+        "run-freeze",
         "run-study",
+        "run-holdout",
     )
-    for stage in STAGE_ORDER[:-1]:
+    for stage in STAGE_ORDER:
+        if stage in {"full_study", "holdout_eval"}:
+            continue
         result = run_stage(stage, freeze_status="unsealed")
         assert result.stage == stage
         assert result.ok is True

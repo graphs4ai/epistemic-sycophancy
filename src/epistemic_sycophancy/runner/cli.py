@@ -17,7 +17,10 @@ STAGE_ORDER: tuple[str, ...] = (
     "baseline_partitions",
     "feature_selection",
     "opt_smoke",
+    "optimize",
+    "freeze",
     "full_study",
+    "holdout_eval",
 )
 
 PIXI_TASK_NAMES: tuple[str, ...] = (
@@ -25,7 +28,10 @@ PIXI_TASK_NAMES: tuple[str, ...] = (
     "run-baseline",
     "run-fs",
     "run-opt-smoke",
+    "run-optimize",
+    "run-freeze",
     "run-study",
+    "run-holdout",
 )
 
 
@@ -127,6 +133,8 @@ def dispatch_stage(
     margin_payload: Mapping[str, Any] | None = None,
     beta: Sequence[float] | None = None,
     adam_grad: Sequence[float] | None = None,
+    objective_fn: Callable[..., Any] | None = None,
+    grad_fn: Callable[..., Any] | None = None,
 ) -> StageResult:
     """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
     if stage not in STAGE_ORDER:
@@ -272,6 +280,56 @@ def dispatch_stage(
             study=study,
             metrics=metrics,
             artifacts=artifacts,
+        )
+
+    if stage == "optimize":
+        from epistemic_sycophancy.runner.optimize import run_optimize_dispatch
+
+        if identity_passed is None:
+            raise ValueError("optimize requires identity_passed (ORCH-009)")
+        if objective_fn is None:
+            raise ValueError("optimize requires objective_fn injection (ORCH-009)")
+        opt_result = run_optimize_dispatch(
+            study=study,
+            freeze_status=freeze_status,
+            identity_passed=bool(identity_passed),
+            optimization_question_ids=optimization_question_ids or (),
+            objective_fn=objective_fn,
+            grad_fn=grad_fn,
+            beta_init=beta,
+        )
+        metrics = dict(opt_result["metrics"])
+        artifacts = dict(opt_result["artifacts"])
+        message = (
+            f"completed optimize: kind={metrics['optimizer_kind']} "
+            f"n_trials={metrics['n_trials']} "
+            f"study_fp={fingerprint[:12]}…"
+        )
+        return _make_result(
+            stage=stage,
+            ok=True,
+            message=message,
+            study=study,
+            metrics=metrics,
+            artifacts=artifacts,
+        )
+
+    if stage in {"freeze", "holdout_eval"}:
+        # Implemented in ORCH-013 / ORCH-015.
+        return _make_result(
+            stage=stage,
+            ok=True,
+            message=f"completed {stage} (stub pending ORCH)",
+            study=study,
+        )
+
+    if stage == "full_study":
+        # Body in ORCH-014; sealed gate already handled above when freeze_status set.
+        return _make_result(
+            stage=stage,
+            ok=True,
+            message=f"completed {stage}",
+            study=study,
         )
 
     return _make_result(
