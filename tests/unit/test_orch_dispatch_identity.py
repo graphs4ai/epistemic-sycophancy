@@ -127,6 +127,53 @@ class _FakeIdentityStack:
         yield
 
 
+class _FakeBrokenIdentityStack(_FakeIdentityStack):
+    """Hooked residuals differ from unhooked even at β=0 (identity failure)."""
+
+    def capture_layer_residuals(
+        self,
+        *,
+        texts: Sequence[str],
+        layers: Sequence[int],
+    ) -> dict[int, torch.Tensor]:
+        del texts
+        self.capture_calls += 1
+        # Alternate unhooked vs hooked by call parity after hooks installed.
+        if self.hook_installs > 0:
+            return {
+                int(layer): self._residual.clone() + 1.0 for layer in layers
+            }
+        return {int(layer): self._residual.clone() for layer in layers}
+
+
+@pytest.mark.unit
+def test_dispatch__identity_failure__sets_ok_false_and_blocks_require_identity_gate() -> None:
+    """ORCH-002: failed identity → StageResult.ok=False; require_identity_gate blocks."""
+    from epistemic_sycophancy.reproducibility.phase_gates import (
+        OptimizationBlockedError,
+        require_identity_gate,
+    )
+    from epistemic_sycophancy.runner.cli import dispatch_stage
+    from epistemic_sycophancy.runner.identity import clear_stack_cache
+
+    clear_stack_cache()
+    stack = _FakeBrokenIdentityStack()
+
+    result = dispatch_stage(
+        "identity",
+        study=_study(),
+        freeze_status="unsealed",
+        stack_loader=lambda _study: stack,
+    )
+
+    assert result.ok is False
+    assert result.metrics.get("identity_passed") is False
+    assert result.metrics.get("max_abs_diff", 0.0) > 0.0
+
+    with pytest.raises(OptimizationBlockedError):
+        require_identity_gate(identity_passed=bool(result.metrics["identity_passed"]))
+
+
 @pytest.mark.unit
 def test_dispatch__identity__beta_zero_identity_on_smoke_prompts_returns_structured_stage_result() -> None:
     """ORCH-001: identity loads stack, checks β=0 residual identity, structured StageResult."""
