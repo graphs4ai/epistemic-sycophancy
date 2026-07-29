@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import torch
 
+from epistemic_sycophancy.intervention.sae_delta import apply_additive_sae_delta
 from epistemic_sycophancy.metrics.baseline_partition import (
     BaselinePartition,
     build_baseline_partition,
@@ -19,6 +21,15 @@ from epistemic_sycophancy.scoring.margins import truthful_margin
 
 # DEC-016 / DEC-046 identity head: score_A = r[0], score_B = r[1].
 _HEAD = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float64)
+_DECODER = torch.tensor(
+    [[1.0, 0.0], [0.0, 2.0], [1.0, 1.0]],
+    dtype=torch.float64,
+)
+_ENCODER = torch.tensor(
+    [[0.5, 0.0], [0.0, 0.25], [0.25, 0.25]],
+    dtype=torch.float64,
+)
+_ENCODER_BIAS = torch.tensor([0.1, -0.2, 0.05], dtype=torch.float64)
 
 # CF semantic margins matching §13.1 (DEC-046).
 _CF_NEUTRAL: dict[str, float] = {"q1": 2.0, "q2": -1.0, "q3": 0.5}
@@ -53,7 +64,7 @@ class ToyPromptRow:
 
 @dataclass(frozen=True)
 class ToyE2EBaselineResult:
-    """Unintervened toy baseline outputs for one order regime."""
+    """Toy pipeline outputs for one order regime."""
 
     logits_by_prompt_id: dict[str, tuple[float, float]]
     margins_by_prompt_id: dict[str, float]
@@ -130,35 +141,49 @@ def build_dec046_corpus() -> tuple[ToyPromptRow, ...]:
     return tuple(rows)
 
 
-def _score_row(row: ToyPromptRow) -> tuple[float, float, float]:
-    residual = torch.tensor(row.residual_last, dtype=torch.float64)
+def _score_residual(
+    residual_last: tuple[float, float] | torch.Tensor,
+    *,
+    truthful_label: str,
+) -> tuple[float, float, float]:
+    if isinstance(residual_last, torch.Tensor):
+        residual = residual_last.to(dtype=torch.float64)
+    else:
+        residual = torch.tensor(residual_last, dtype=torch.float64)
     logits = _HEAD @ residual
     score_a = float(logits[0].item())
     score_b = float(logits[1].item())
     margin = truthful_margin(
-        score_a=score_a, score_b=score_b, truthful_label=row.truthful_label
+        score_a=score_a, score_b=score_b, truthful_label=truthful_label
     )
     return score_a, score_b, margin
 
 
-def run_toy_e2e_baseline(*, order_regime: str) -> ToyE2EBaselineResult:
-    """Score the DEC-046 toy corpus without intervention for ``order_regime``."""
-    rows = [row for row in build_dec046_corpus() if row.order_regime == order_regime]
-    if not rows:
-        raise ValueError(f"no DEC-046 rows for order_regime={order_regime!r}")
+def _score_row(row: ToyPromptRow) -> tuple[float, float, float]:
+    return _score_residual(row.residual_last, truthful_label=row.truthful_label)
 
+
+def _assemble_result(
+    *,
+    order_regime: str,
+    rows: Sequence[ToyPromptRow],
+    residuals: Sequence[torch.Tensor],
+    baseline_neutral_margins: dict[str, float],
+) -> ToyE2EBaselineResult:
     logits_by_prompt_id: dict[str, tuple[float, float]] = {}
     margins_by_prompt_id: dict[str, float] = {}
-    neutral_margins: dict[str, float] = {}
+    current_neutral: dict[str, float] = {}
     ib_margins: dict[str, list[float]] = {}
     cb_margins: dict[str, list[float]] = {}
 
-    for row in rows:
-        score_a, score_b, margin = _score_row(row)
+    for row, residual in zip(rows, residuals):
+        score_a, score_b, margin = _score_residual(
+            residual, truthful_label=row.truthful_label
+        )
         logits_by_prompt_id[row.prompt_id] = (score_a, score_b)
         margins_by_prompt_id[row.prompt_id] = margin
         if row.condition == "N":
-            neutral_margins[row.question_id] = margin
+            current_neutral[row.question_id] = margin
         elif row.condition == "IB":
             ib_margins.setdefault(row.question_id, []).append(margin)
         elif row.condition == "CB":
@@ -166,7 +191,7 @@ def run_toy_e2e_baseline(*, order_regime: str) -> ToyE2EBaselineResult:
 
     partition = build_baseline_partition(
         order_regime=order_regime,
-        neutral_margins=neutral_margins,
+        neutral_margins=baseline_neutral_margins,
         epsilon=EPSILON,
         tie_policy=TIE_POLICY,
     )
@@ -179,7 +204,7 @@ def run_toy_e2e_baseline(*, order_regime: str) -> ToyE2EBaselineResult:
     )
     metrics = compute_behavioral_metrics(
         frozen_partition=artifact,
-        current_neutral_margins=neutral_margins,
+        current_neutral_margins=current_neutral,
         current_ib_margins=ib_margins,
         current_cb_margins=cb_margins,
         epsilon=EPSILON,
@@ -187,9 +212,63 @@ def run_toy_e2e_baseline(*, order_regime: str) -> ToyE2EBaselineResult:
     return ToyE2EBaselineResult(
         logits_by_prompt_id=logits_by_prompt_id,
         margins_by_prompt_id=margins_by_prompt_id,
-        neutral_margins=neutral_margins,
+        neutral_margins=current_neutral,
         ib_margins=ib_margins,
         cb_margins=cb_margins,
         partition=partition,
         metrics=metrics,
+    )
+
+
+def run_toy_e2e_baseline(*, order_regime: str) -> ToyE2EBaselineResult:
+    """Score the DEC-046 toy corpus without intervention for ``order_regime``."""
+    rows = [row for row in build_dec046_corpus() if row.order_regime == order_regime]
+    if not rows:
+        raise ValueError(f"no DEC-046 rows for order_regime={order_regime!r}")
+    residuals = [
+        torch.tensor(row.residual_last, dtype=torch.float64) for row in rows
+    ]
+    baseline_neutral = {
+        row.question_id: _score_row(row)[2] for row in rows if row.condition == "N"
+    }
+    return _assemble_result(
+        order_regime=order_regime,
+        rows=rows,
+        residuals=residuals,
+        baseline_neutral_margins=baseline_neutral,
+    )
+
+
+def run_toy_e2e_with_beta(
+    *,
+    order_regime: str,
+    beta: Sequence[float],
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+) -> ToyE2EBaselineResult:
+    """Score the DEC-046 corpus with additive SAE intervention at ``beta``."""
+    rows = [row for row in build_dec046_corpus() if row.order_regime == order_regime]
+    if not rows:
+        raise ValueError(f"no DEC-046 rows for order_regime={order_regime!r}")
+    baseline_neutral = {
+        row.question_id: _score_row(row)[2] for row in rows if row.condition == "N"
+    }
+    residuals: list[torch.Tensor] = []
+    for row in rows:
+        original = torch.tensor(row.residual_last, dtype=torch.float64)
+        intervened = apply_additive_sae_delta(
+            residual=original,
+            selected_indices=list(selected_indices),
+            scales=list(scales),
+            beta=list(beta),
+            encoder_weight=_ENCODER,
+            encoder_bias=_ENCODER_BIAS,
+            decoder_weight=_DECODER,
+        )
+        residuals.append(intervened)
+    return _assemble_result(
+        order_regime=order_regime,
+        rows=rows,
+        residuals=residuals,
+        baseline_neutral_margins=baseline_neutral,
     )

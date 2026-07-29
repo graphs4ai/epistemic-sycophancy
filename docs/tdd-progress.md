@@ -218,6 +218,7 @@ Phase I gate: `pixi run --environment test pytest tests/unit/test_cluster_bootst
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | E2E-001 | `test_e2e_toy__baseline__matches_hand_computed_logits_margins_partitions_and_metrics` | green | `pixi run --environment test pytest tests/integration/test_e2e_toy.py::test_e2e_toy__baseline__matches_hand_computed_logits_margins_partitions_and_metrics -q` → `NotImplementedError: run_toy_e2e_baseline is not implemented` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/evaluation/toy_e2e.py`, `evaluation/__init__.py`, `docs/decisions.md`, `tests/fixtures/e2e/` | DEC-046; CF baseline goldens §13.1/§14 |
+| E2E-002 | `test_e2e_toy__zero_beta__matches_unhooked_pipeline` | green | `pixi run --environment test pytest tests/integration/test_e2e_toy.py::test_e2e_toy__zero_beta__matches_unhooked_pipeline -q` → `NotImplementedError: run_toy_e2e_with_beta is not implemented` | same command → `1 passed`; module suite → `2 passed` | `src/epistemic_sycophancy/evaluation/toy_e2e.py` | β=0 hooked ≡ unhooked |
 
 ## Status definitions
 

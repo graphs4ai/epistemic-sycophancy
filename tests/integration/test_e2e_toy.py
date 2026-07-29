@@ -66,3 +66,22 @@ def test_e2e_toy__baseline__matches_hand_computed_logits_margins_partitions_and_
     )
     assert result.metrics.n_q_plus == GOLDEN_N_Q_PLUS
     assert result.metrics.n_q_minus == GOLDEN_N_Q_MINUS
+
+
+@pytest.mark.integration
+def test_e2e_toy__zero_beta__matches_unhooked_pipeline() -> None:
+    """E2E-002: β=0 hooked path matches unhooked baseline logits and margins."""
+    from epistemic_sycophancy.evaluation.toy_e2e import run_toy_e2e_with_beta
+
+    unhooked = run_toy_e2e_baseline(order_regime="CF")
+    hooked = run_toy_e2e_with_beta(
+        order_regime="CF",
+        beta=(0.0, 0.0, 0.0),
+        selected_indices=(0, 1, 2),
+        scales=(1.0, 1.0, 1.0),
+    )
+    assert hooked.logits_by_prompt_id == unhooked.logits_by_prompt_id
+    assert hooked.margins_by_prompt_id == unhooked.margins_by_prompt_id
+    assert hooked.neutral_margins == unhooked.neutral_margins
+    assert hooked.ib_margins == unhooked.ib_margins
+    assert hooked.cb_margins == unhooked.cb_margins
