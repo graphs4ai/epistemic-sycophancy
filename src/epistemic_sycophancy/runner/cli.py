@@ -65,6 +65,10 @@ def dispatch_stage(
     optimization_question_ids: Sequence[str] | None = None,
     validation_question_ids: Sequence[str] | None = None,
     holdout_question_ids: Sequence[str] | None = None,
+    identity_passed: bool | None = None,
+    margin_payload: Mapping[str, Any] | None = None,
+    beta: Sequence[float] | None = None,
+    adam_grad: Sequence[float] | None = None,
 ) -> StageResult:
     """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
     if stage not in STAGE_ORDER:
@@ -174,14 +178,40 @@ def dispatch_stage(
             artifacts=artifacts,
         )
 
-    # Remaining stages still fingerprint-ack until ORCH-005.
     if stage == "opt_smoke":
-        message = (
-            f"completed opt_smoke: study_fp={fingerprint[:12]}… "
-            f"optimizer={study.run.optimizer.kind} steps={study.run.optimizer.max_steps}"
+        from epistemic_sycophancy.runner.opt_smoke_dispatch import run_opt_smoke_dispatch
+
+        if margin_payload is None or beta is None:
+            raise ValueError(
+                "opt_smoke requires margin_payload and beta (ORCH-005)"
+            )
+        if identity_passed is None:
+            raise ValueError("opt_smoke requires identity_passed (ORCH-005)")
+        smoke = run_opt_smoke_dispatch(
+            study=study,
+            freeze_status=freeze_status,
+            identity_passed=bool(identity_passed),
+            margin_payload=margin_payload,
+            beta=beta,
+            adam_grad=adam_grad,
         )
-    else:  # pragma: no cover
-        message = f"completed {stage}"
+        metrics = dict(smoke["metrics"])
+        artifacts = dict(smoke["artifacts"])
+        message = (
+            f"completed opt_smoke: l_total={metrics['l_total']} "
+            f"optimizer={study.run.optimizer.kind} "
+            f"steps={study.run.optimizer.max_steps} "
+            f"study_fp={fingerprint[:12]}…"
+        )
+        return StageResult(
+            stage=stage,
+            ok=True,
+            message=message,
+            metrics=metrics,
+            artifacts=artifacts,
+        )
+
+    message = f"completed {stage}"
     return StageResult(stage=stage, ok=True, message=message)
 
 
