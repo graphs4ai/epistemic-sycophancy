@@ -271,6 +271,7 @@ CFGFILE-* / WIRE-* Spec IDs are Phase L inventions. They add file-driven StudyCo
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | CFGFILE-001 | `test_study_config__missing_required_policy_field__raises_invalid_config` | green | `pixi run --environment test pytest tests/unit/test_study_config.py::test_study_config__missing_required_policy_field__raises_invalid_config -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.config.study'` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/config/study.py`, `config/__init__.py`, `docs/decisions.md` | DEC-056; StudyConfig = stack+experiment+run; CFG-006 |
+| CFGFILE-002 | `test_load_study_config__identical_files__stable_fingerprint_round_trip` | green | `pixi run --environment test pytest tests/unit/test_load_study_config.py::test_load_study_config__identical_files__stable_fingerprint_round_trip -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.config.load_study'` | same command → `1 passed` | `config/load_study.py`, `pyproject.toml`, `pixi.lock`, `docs/decisions.md` | DEC-057; PyYAML safe_load; stable fingerprint |
 
 ## Status definitions
 

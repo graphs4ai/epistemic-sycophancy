@@ -1,6 +1,6 @@
 [project]
 authors = [{name = "Eduardo Bouhid", email = "eduardobouhid.neto@gmail.com"}]
-dependencies = ["cma>=4.4.4,<5"]
+dependencies = ["cma>=4.4.4,<5", "pyyaml>=6.0.3,<7"]
 name = "epistemic-sycophancy"
 requires-python = ">= 3.10"
 version = "0.1.0"
