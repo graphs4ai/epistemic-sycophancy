@@ -45,3 +45,20 @@ def test_phase_gate__missing_or_mismatched_baseline_partition__blocks_optimizati
             expected_fingerprint="abc",
             actual_fingerprint="xyz",
         )
+
+
+@pytest.mark.unit
+def test_phase_gate__feature_selection_artifact__cannot_reference_optimization_validation_or_holdout_rows() -> None:
+    """REPRO-006: feature artifact question IDs must be feature_selection-only."""
+    from epistemic_sycophancy.reproducibility.phase_gates import (
+        require_feature_selection_split_gate,
+    )
+
+    with pytest.raises(HoldoutAccessError):
+        require_feature_selection_split_gate(
+            artifact_question_ids={"q_fs", "q_opt"},
+            feature_selection_question_ids={"q_fs"},
+            optimization_question_ids={"q_opt"},
+            validation_question_ids={"q_val"},
+            holdout_question_ids={"q_hold"},
+        )
