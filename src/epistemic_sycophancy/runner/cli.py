@@ -1,10 +1,12 @@
-"""Staged CLI entry points for Phase K experiment runs (DEC-055 / RUN-013)."""
+"""Staged CLI entry points for Phase K/L experiment runs (DEC-055 / CFGFILE-006)."""
 
 from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from pathlib import Path
 
+from epistemic_sycophancy.config.load_study import load_study_config
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 
 STAGE_ORDER: tuple[str, ...] = (
@@ -53,6 +55,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Experiment stage to run (DEC-055)",
     )
     parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to StudyConfig YAML (CFGFILE-006)",
+    )
+    parser.add_argument(
         "--freeze-status",
         default="unsealed",
         help="FrozenExperimentConfig status (sealed required for full_study)",
@@ -62,6 +70,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
+    if args.config is not None:
+        # Validate early; real stage dispatch lands in WIRE-011.
+        load_study_config(Path(args.config))
     result = run_stage(args.stage, freeze_status=args.freeze_status)
     print(result.message)
     return 0 if result.ok else 1

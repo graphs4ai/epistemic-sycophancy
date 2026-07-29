@@ -275,6 +275,7 @@ CFGFILE-* / WIRE-* Spec IDs are Phase L inventions. They add file-driven StudyCo
 | CFGFILE-003 | `test_load_study_config__first_study_yaml__loads_stack_experiment_and_run` | green | `pixi run --environment test pytest tests/unit/test_load_study_config.py::test_load_study_config__first_study_yaml__loads_stack_experiment_and_run -q` → `InvalidExperimentConfig: study missing required key 'stack'` | same command → `1 passed`; module → `2 passed` | `configs/first_study_gemma3_4b_resid_post_65k_medium.yaml`, `docs/decisions.md` | DEC-058; unified Study YAML |
 | CFGFILE-004 | `test_load_study_config__layers_one_vs_four__same_loader_no_code_fork` | green | Already satisfied by load_study_config layer mapping: first run → `1 passed` | same command → `1 passed`; module → `3 passed` | `tests/unit/test_load_study_config.py` | Already satisfied / no production change |
 | CFGFILE-005 | `test_load_study_config__smoke_preset__explicit_n_or_allowlist` | green | Already satisfied by StudySmokeConfig XOR + smoke YAML: first run → `1 passed` | same command → `1 passed` | `configs/smokes/layer17_n2.yaml`, `docs/decisions.md` | DEC-059; tiny smoke preset |
+| CFGFILE-006 | `test_runner_cli__config_path__invalid_yaml_raises_clear_validation_error` | green | `pixi run --environment test pytest tests/unit/test_runner_cli.py::test_runner_cli__config_path__invalid_yaml_raises_clear_validation_error -q` → `unrecognized arguments: --config` | same command → `1 passed`; module → `2 passed` | `runner/cli.py` | CLI `--config` validates Study YAML |
 
 ## Status definitions
 

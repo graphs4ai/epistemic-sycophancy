@@ -40,3 +40,22 @@ def test_runner__cli_stages__expose_identity_baseline_fs_opt_full_in_order() -> 
     sealed = run_stage("full_study", freeze_status="sealed")
     assert sealed.stage == "full_study"
     assert sealed.ok is True
+
+
+@pytest.mark.unit
+def test_runner_cli__config_path__invalid_yaml_raises_clear_validation_error(
+    tmp_path,
+) -> None:
+    """CFGFILE-006: --config with invalid study YAML raises InvalidExperimentConfig."""
+    from epistemic_sycophancy.config.schema import InvalidExperimentConfig
+    from epistemic_sycophancy.runner.cli import build_arg_parser, main
+
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("stack:\n  model: not-a-mapping\n", encoding="utf-8")
+
+    parser = build_arg_parser()
+    args = parser.parse_args(["identity", "--config", str(bad)])
+    assert args.config == str(bad)
+
+    with pytest.raises(InvalidExperimentConfig):
+        main(["identity", "--config", str(bad)])
