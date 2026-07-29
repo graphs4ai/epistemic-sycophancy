@@ -239,6 +239,14 @@ Phase J gate:
 
 Phase J complete: E2E-001…007 green; REPRO-003 green; REAL-001…007 green.
 
+## Phase K — Real Experiment Stack (RUN-*)
+
+RUN-* Spec IDs are Phase K inventions (absent from TDD spec v2). They implement REAL/E2E *contracts* via a configurable `ExperimentStackConfig` / `InterventionStack` for Gemma-3-4B-IT + GemmaScope2; they do not renumber Phase J REAL-001…007.
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| RUN-001 | `test_stack_config__sae_site_spec__rejects_empty_duplicate_or_unknown_layers` | green | `pixi run --environment test pytest tests/unit/test_stack_config.py::test_stack_config__sae_site_spec__rejects_empty_duplicate_or_unknown_layers -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.models'` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/models/spec.py`, `sae/spec.py`, `stack/config.py`, package `__init__.py` stubs | Layers nonempty/unique/⊆{9,17,22,29}; width/L0 explicit; HookSpec token_scope required |
+
 ## Status definitions
 
 - `not_started`: no test written.
