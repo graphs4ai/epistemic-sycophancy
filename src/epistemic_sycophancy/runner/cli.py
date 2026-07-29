@@ -138,6 +138,9 @@ def dispatch_stage(
     eval_payload: Mapping[str, Any] | None = None,
     frozen_config_path: str | None = None,
     holdout_rows_provider: Callable[[], Any] | None = None,
+    corpus_jsonl_paths: Sequence[str | Path] | None = None,
+    split_manifest_path: str | Path | None = None,
+    corpus_root: str | Path | None = None,
 ) -> StageResult:
     """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
     if stage not in STAGE_ORDER:
@@ -203,17 +206,76 @@ def dispatch_stage(
 
     if stage == "baseline_partitions":
         from epistemic_sycophancy.runner.baseline import run_baseline_dispatch
+        from epistemic_sycophancy.runner.identity import resolve_stack
+
+        regimes = tuple(str(o) for o in study.run.order_regimes) or ("CF",)
 
         if score_fn is None:
-            raise ValueError(
-                "baseline_partitions requires score_fn injection or stack scoring "
-                "(ORCH-003); pass score_fn for unit tests"
+            from epistemic_sycophancy.runner.adapters.resolve import resolve_corpus_context
+            from epistemic_sycophancy.runner.adapters.score import build_score_fn
+
+            stack = resolve_stack(study, stack_loader=stack_loader)
+            corpus, split_ids, smoke_ids = resolve_corpus_context(
+                study,
+                corpus_jsonl_paths=corpus_jsonl_paths,
+                split_manifest_path=split_manifest_path,
+                corpus_root=corpus_root,
             )
+            artifacts: dict[str, str] = {}
+            metrics: dict[str, Any] = {"order_regimes": list(regimes)}
+            last_metrics: dict[str, Any] = {}
+            for order in regimes:
+                one = run_baseline_dispatch(
+                    study=study,
+                    freeze_status=freeze_status,
+                    score_fn=build_score_fn(
+                        study,
+                        stack,
+                        corpus=corpus,
+                        split_question_ids=split_ids,
+                        order_regime=order,
+                        belief_condition="N",
+                    ),
+                    question_ids=smoke_ids,
+                    split_name=split_name_override,
+                    order_regimes=(order,),
+                )
+                artifacts.update(one["artifacts"])
+                last_metrics = dict(one["metrics"])
+                metrics[f"n_q_plus_{order}"] = one["metrics"]["n_q_plus"]
+                metrics[f"n_q_minus_{order}"] = one["metrics"]["n_q_minus"]
+            metrics.update(
+                {
+                    "n_q_plus": last_metrics["n_q_plus"],
+                    "n_q_minus": last_metrics["n_q_minus"],
+                    "n_q_tie": last_metrics.get("n_q_tie", 0),
+                    "order_regime": last_metrics.get("order_regime", regimes[-1]),
+                    "q_plus": last_metrics.get("q_plus", []),
+                    "q_minus": last_metrics.get("q_minus", []),
+                }
+            )
+            if "partition" not in artifacts and artifacts:
+                artifacts["partition"] = next(iter(artifacts.values()))
+            message = (
+                f"completed baseline_partitions: n_q_plus={metrics['n_q_plus']} "
+                f"n_q_minus={metrics['n_q_minus']} "
+                f"study_fp={fingerprint[:12]}…"
+            )
+            return _make_result(
+                stage=stage,
+                ok=True,
+                message=message,
+                study=study,
+                metrics=metrics,
+                artifacts=artifacts,
+            )
+
         baseline = run_baseline_dispatch(
             study=study,
             freeze_status=freeze_status,
             score_fn=score_fn,
             split_name=split_name_override,
+            order_regimes=regimes,
         )
         metrics = dict(baseline["metrics"])
         artifacts = dict(baseline["artifacts"])

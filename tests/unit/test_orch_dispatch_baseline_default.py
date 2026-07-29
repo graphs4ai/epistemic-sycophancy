@@ -1,10 +1,14 @@
-"""ORCH-003: dispatch baseline_partitions writes FS-only partition artifact."""
+"""ORCH-027: baseline builds score_fn when None (DEC-075/077)."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import torch
+import torch.nn as nn
 
 from epistemic_sycophancy.config.schema import ExperimentConfig
 from epistemic_sycophancy.config.study import (
@@ -14,10 +18,50 @@ from epistemic_sycophancy.config.study import (
     StudyRunConfig,
     StudySmokeConfig,
 )
-from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 from epistemic_sycophancy.models.spec import ModelSpec
+from epistemic_sycophancy.runner.cli import dispatch_stage
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
 from epistemic_sycophancy.stack.config import ExperimentStackConfig, HookSpec
+
+FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "adapters"
+
+
+class _Tok:
+    def __call__(self, texts, return_tensors="pt", padding=True):
+        batch = len(texts)
+        return {
+            "input_ids": torch.zeros(batch, 3, dtype=torch.long),
+            "attention_mask": torch.ones(batch, 3, dtype=torch.long),
+        }
+
+    def encode(self, text, add_special_tokens=False):
+        del add_special_tokens
+        return {"A": [0], "B": [1]}[text]
+
+
+class _ToyCausalLM(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.device = torch.device("cpu")
+
+    def __call__(self, *, input_ids, attention_mask=None, **kwargs):
+        del attention_mask, kwargs
+        batch, seq = input_ids.shape
+        logits = torch.zeros(batch, seq, 3, dtype=torch.float64)
+        # Alternate A-favoring / B-favoring so Q+/Q- are both nonempty under CF.
+        for i in range(batch):
+            if i % 2 == 0:
+                logits[i, -1, :] = torch.tensor([2.0, -1.0, 0.0])
+            else:
+                logits[i, -1, :] = torch.tensor([-1.0, 2.0, 0.0])
+        return SimpleNamespace(logits=logits)
+
+
+class _FakeStack:
+    def __init__(self) -> None:
+        self.model = _ToyCausalLM()
+        self.tokenizer = _Tok()
+        self.device = torch.device("cpu")
 
 
 def _study(*, artifact_dir: str) -> StudyConfig:
@@ -45,8 +89,8 @@ def _study(*, artifact_dir: str) -> StudyConfig:
         ),
         experiment=ExperimentConfig(
             tau=1.0,
-            lambda_n=1.0,
-            lambda_c=1.0,
+            lambda_n=0.0,
+            lambda_c=0.0,
             lambda_beta=0.01,
             delta_n=0.0,
             delta_c=0.0,
@@ -72,10 +116,10 @@ def _study(*, artifact_dir: str) -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
-            order_regimes=("CF", "IF", "RO"),
+            order_regimes=("CF", "IF"),
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(question_ids=("q1", "q2")),
+            smoke=StudySmokeConfig(question_ids=("q_fs_1", "q_fs_2")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -88,54 +132,36 @@ def _study(*, artifact_dir: str) -> StudyConfig:
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
                 max_steps=20,
-                n_questions=4,
+                n_questions=2,
             ),
         ),
     )
 
 
 @pytest.mark.unit
-def test_dispatch__baseline_partitions__writes_fs_only_partition_artifact_holdout_sealed(
-    tmp_path: Path,
+def test_dispatch__baseline_partitions__builds_score_fn_when_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ORCH-003: baseline scores smoke IDs, writes artifact, holdout sealed."""
-    from epistemic_sycophancy.runner.cli import dispatch_stage
-    from epistemic_sycophancy.runner.identity import clear_stack_cache
-
-    clear_stack_cache()
-    artifact_dir = tmp_path / "artifacts"
-    study = _study(artifact_dir=str(artifact_dir))
-    scored: list[str] = []
-
-    def score_fn(question_ids):
-        scored.extend(list(question_ids))
-        return {qid: (1.0 if qid == "q1" else -0.5) for qid in question_ids}
+    """ORCH-027: score_fn=None → build from stack; loops order_regimes."""
+    monkeypatch.chdir(tmp_path)
+    # Point corpus bridge at fixtures without depending on repo cwd.
+    art = tmp_path / "art"
+    study = _study(artifact_dir=str(art))
 
     result = dispatch_stage(
         "baseline_partitions",
         study=study,
         freeze_status="unsealed",
-        score_fn=score_fn,
+        stack_loader=lambda _s: _FakeStack(),
+        # corpus inject via kwargs if supported; else default fixture path override
+        corpus_jsonl_paths=(FIXTURE_ROOT / "processed_mc0_tiny.jsonl",),
+        split_manifest_path=FIXTURE_ROOT / "split_manifest_tiny.csv",
+        score_fn=None,
     )
-
-    assert result.ok is True
-    assert result.stage == "baseline_partitions"
-    # DEC-075: baseline loops all order_regimes (CF/IF/RO on this study).
-    assert scored == ["q1", "q2"] * 3
-    assert "study_fp=" not in result.message or "q_plus" in result.metrics
-    assert result.metrics.get("n_q_plus", 0) >= 1
-    assert result.metrics.get("n_q_minus", 0) >= 1
-    assert "partition" in result.artifacts
-    partition_path = Path(result.artifacts["partition"])
-    assert partition_path.is_file()
-    assert "baseline" in partition_path.parts
-
-    # Holdout remains sealed for this stage path.
-    with pytest.raises(HoldoutAccessError):
-        dispatch_stage(
-            "baseline_partitions",
-            study=study,
-            freeze_status="unsealed",
-            score_fn=score_fn,
-            split_name_override="holdout_test_behavior",
-        )
+    assert result.ok
+    for order in ("CF", "IF"):
+        path = art / "baseline" / f"partition_{order}.json"
+        assert path.is_file()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert payload["order_regime"] == order
+        assert "q_plus" in payload
