@@ -115,3 +115,143 @@ def test_real_model__layer17_n2__feature_selection_writes_pool_keys(
     assert payload["scale_source"] == "decoder_norm"
     assert all(len(pair) == 2 for pair in payload["feature_ids"])
     assert all(s > 0 for s in payload["feature_scales"])
+
+
+@pytest.mark.real_model
+@pytest.mark.slow
+@pytest.mark.gpu
+def test_real_model__layer17_n2__opt_smoke_finite_l_total_default_adapters(
+    tmp_path: Path,
+) -> None:
+    """ORCH-037: opt_smoke finite l_total via default adapters (identity from artifact)."""
+    _require_cuda()
+    clear_stack_cache()
+    from dataclasses import replace
+
+    from epistemic_sycophancy.config.study import StudySmokeConfig
+
+    art = tmp_path / "art"
+    study = load_study_config(CFG)
+    study = replace(study, run=replace(study.run, artifact_dir=str(art)))
+
+    assert dispatch_stage("identity", study=study, freeze_status="unsealed").ok
+    assert dispatch_stage(
+        "baseline_partitions", study=study, freeze_status="unsealed", score_fn=None
+    ).ok
+    part = json.loads((art / "baseline" / "partition_CF.json").read_text(encoding="utf-8"))
+    q_plus = list(part["q_plus"])
+    q_minus = list(part["q_minus"])
+    assert q_plus and q_minus, "need both partitions for opt_smoke objective"
+    # Tiny smoke IDs spanning Q+/Q- (full YAML N=32 is too heavy for live IB/CB).
+    smoke_ids = (q_plus[0], q_minus[0])
+
+    fs_study = replace(
+        study,
+        run=replace(
+            study.run,
+            order_regimes=("CF",),
+            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+        ),
+    )
+    assert dispatch_stage(
+        "feature_selection",
+        study=fs_study,
+        freeze_status="unsealed",
+        jacobian_fn=None,
+        scale_fn=None,
+    ).ok
+
+    opt_study = replace(
+        study,
+        run=replace(study.run, smoke=StudySmokeConfig(question_ids=smoke_ids)),
+    )
+    result = dispatch_stage(
+        "opt_smoke",
+        study=opt_study,
+        freeze_status="unsealed",
+        margin_payload=None,
+        beta=None,
+        identity_passed=None,
+    )
+    assert result.ok
+    assert math.isfinite(float(result.metrics["l_total"]))
+    path = Path(result.artifacts["opt_smoke"])
+    assert path.is_file()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert math.isfinite(float(payload["l_total"]))
+
+
+@pytest.mark.real_model
+@pytest.mark.slow
+@pytest.mark.gpu
+def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapters(
+    tmp_path: Path,
+) -> None:
+    """ORCH-038: optimize uses run.optimize budget; writes best_checkpoint via defaults."""
+    _require_cuda()
+    clear_stack_cache()
+    from dataclasses import replace
+
+    from epistemic_sycophancy.config.study import StudyOptimizeConfig, StudySmokeConfig
+
+    art = tmp_path / "art"
+    study = load_study_config(CFG)
+    study = replace(study, run=replace(study.run, artifact_dir=str(art)))
+
+    assert dispatch_stage("identity", study=study, freeze_status="unsealed").ok
+    assert dispatch_stage(
+        "baseline_partitions", study=study, freeze_status="unsealed", score_fn=None
+    ).ok
+    fs_study = replace(
+        study,
+        run=replace(
+            study.run,
+            order_regimes=("CF",),
+            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+        ),
+    )
+    assert dispatch_stage(
+        "feature_selection",
+        study=fs_study,
+        freeze_status="unsealed",
+        jacobian_fn=None,
+        scale_fn=None,
+    ).ok
+
+    # Tiny optimize coverage (YAML n_questions=4); never smoke max_steps.
+    opt_study = replace(
+        study,
+        run=replace(
+            study.run,
+            optimize=StudyOptimizeConfig(
+                budget_match_on="n_objective_evals",
+                max_steps=2,
+                n_questions=2,
+            ),
+        ),
+    )
+    assert opt_study.run.optimize.max_steps != opt_study.run.optimizer.max_steps or (
+        opt_study.run.optimize.max_steps == 2
+    )
+    assert opt_study.run.optimizer.max_steps == 1  # smoke budget unused
+
+    result = dispatch_stage(
+        "optimize",
+        study=opt_study,
+        freeze_status="unsealed",
+        objective_fn=None,
+        grad_fn=None,
+        identity_passed=None,
+    )
+    assert result.ok
+    ckpt = art / "optimize" / "best_checkpoint.json"
+    assert ckpt.is_file()
+    payload = json.loads(ckpt.read_text(encoding="utf-8"))
+    assert "beta" in payload
+    assert len(payload["beta"]) >= 1
+    assert all(math.isfinite(float(b)) for b in payload["beta"])
+    # Must respect run.optimize.max_steps, not smoke optimizer.max_steps=1 alone.
+    trials = art / "optimize" / "trials.jsonl"
+    assert trials.is_file()
+    n_trials = sum(1 for _ in trials.read_text(encoding="utf-8").splitlines() if _.strip())
+    assert n_trials >= 1

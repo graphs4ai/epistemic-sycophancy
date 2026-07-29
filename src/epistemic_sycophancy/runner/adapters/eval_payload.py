@@ -19,7 +19,6 @@ def build_eval_payload(
     holdout_question_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Score behavior_validation margins at best β; never include holdout IDs."""
-    del stack
     val_ids = tuple(str(q) for q in validation_question_ids)
     holdout = {str(q) for q in holdout_question_ids}
     if holdout and set(val_ids) & holdout:
@@ -32,9 +31,12 @@ def build_eval_payload(
 
     scorer = margin_scorer
     if scorer is None:
-        raise ValueError(
-            "build_eval_payload requires margin_scorer or stack.score_belief_margins"
-        )
+        if not hasattr(stack, "score_belief_margins"):
+            raise ValueError(
+                "build_eval_payload requires margin_scorer or "
+                "stack.score_belief_margins (DEC-076 live scoring)"
+            )
+        scorer = stack.score_belief_margins
 
     beta = tuple(float(b) for b in best_beta)
     zero = tuple(0.0 for _ in beta) if beta else (0.0,)

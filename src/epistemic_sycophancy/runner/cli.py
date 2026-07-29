@@ -179,12 +179,34 @@ def dispatch_stage(
                 )
                 del _corpus, _smoke
                 val_ids = tuple(split_ids.get("behavior_validation", ()))
+            margin_scorer = getattr(stack, "score_belief_margins", None)
+            if margin_scorer is None:
+                from epistemic_sycophancy.runner.adapters.belief_scorer import (
+                    build_belief_margin_scorer,
+                )
+                from epistemic_sycophancy.runner.adapters.resolve import (
+                    resolve_corpus_context,
+                )
+
+                corpus, split_ids, _smoke = resolve_corpus_context(
+                    study,
+                    corpus_jsonl_paths=corpus_jsonl_paths,
+                    split_manifest_path=split_manifest_path,
+                    corpus_root=corpus_root,
+                )
+                del _smoke
+                margin_scorer = build_belief_margin_scorer(
+                    study,
+                    stack,
+                    corpus=corpus,
+                    split_question_ids=split_ids,
+                )
             eval_payload = build_eval_payload(
                 study,
                 stack,
                 best_beta=best_beta,
                 validation_question_ids=val_ids,
-                margin_scorer=getattr(stack, "score_belief_margins", None),
+                margin_scorer=margin_scorer,
                 holdout_question_ids=holdout_question_ids or (),
             )
         fs = run_full_study_dispatch(
@@ -406,6 +428,13 @@ def dispatch_stage(
             if beta is None:
                 beta = tuple(0.0 for _ in range(m))
             if margin_payload is None:
+                from epistemic_sycophancy.runner.adapters.belief_scorer import (
+                    build_belief_margin_scorer,
+                )
+                from epistemic_sycophancy.runner.adapters.resolve import (
+                    resolve_corpus_context,
+                )
+
                 part_path = (
                     Path(study.run.artifact_dir) / "baseline" / "partition_CF.json"
                 )
@@ -414,21 +443,48 @@ def dispatch_stage(
                         f"opt_smoke default adapters require baseline partition at {part_path}"
                     )
                 part = json.loads(part_path.read_text(encoding="utf-8"))
-                partitions = {
-                    "q_plus": frozenset(part["q_plus"]),
-                    "q_minus": frozenset(part["q_minus"]),
-                }
                 smoke_ids = (
                     tuple(study.run.smoke.question_ids)
                     if study.run.smoke.question_ids is not None
-                    else tuple(sorted(partitions["q_plus"] | partitions["q_minus"]))
+                    else tuple(
+                        sorted(
+                            set(part["q_plus"]) | set(part["q_minus"])
+                        )
+                    )
                 )
+                smoke_set = frozenset(str(q) for q in smoke_ids)
+                partitions = {
+                    "q_plus": frozenset(str(q) for q in part["q_plus"]) & smoke_set,
+                    "q_minus": frozenset(str(q) for q in part["q_minus"]) & smoke_set,
+                }
+                if not partitions["q_plus"] or not partitions["q_minus"]:
+                    raise ValueError(
+                        "opt_smoke smoke question_ids must intersect both "
+                        f"q_plus and q_minus (got plus={sorted(partitions['q_plus'])}, "
+                        f"minus={sorted(partitions['q_minus'])})"
+                    )
+                margin_scorer = getattr(stack, "score_belief_margins", None)
+                if margin_scorer is None:
+                    corpus, split_ids, _smoke = resolve_corpus_context(
+                        study,
+                        corpus_jsonl_paths=corpus_jsonl_paths,
+                        split_manifest_path=split_manifest_path,
+                        corpus_root=corpus_root,
+                    )
+                    del _smoke
+                    margin_scorer = build_belief_margin_scorer(
+                        study_for_opt,
+                        stack,
+                        corpus=corpus,
+                        split_question_ids=split_ids,
+                    )
                 margin_payload = build_margin_payload(
                     study_for_opt,
                     stack,
                     beta=beta,
                     question_ids=smoke_ids,
                     partitions=partitions,
+                    margin_scorer=margin_scorer,
                 )
 
         smoke = run_opt_smoke_dispatch(
@@ -505,6 +561,25 @@ def dispatch_stage(
             grad_fn is None and study.run.optimizer.kind == "projected_adam"
         ):
             stack = resolve_stack(study_for_opt, stack_loader=stack_loader)
+            margin_scorer = getattr(stack, "score_belief_margins", None)
+            if margin_scorer is None:
+                from epistemic_sycophancy.runner.adapters.belief_scorer import (
+                    build_belief_margin_scorer,
+                )
+
+                corpus, split_ids_for_scorer, _smoke = resolve_corpus_context(
+                    study,
+                    corpus_jsonl_paths=corpus_jsonl_paths,
+                    split_manifest_path=split_manifest_path,
+                    corpus_root=corpus_root,
+                )
+                del _smoke
+                margin_scorer = build_belief_margin_scorer(
+                    study_for_opt,
+                    stack,
+                    corpus=corpus,
+                    split_question_ids=split_ids_for_scorer,
+                )
             part_path = Path(study.run.artifact_dir) / "baseline" / "partition_CF.json"
             partitions: dict[str, Any]
             if part_path.is_file():
@@ -539,6 +614,7 @@ def dispatch_stage(
                         beta=zero,
                         question_ids=opt_qids,
                         partitions=tmp,
+                        margin_scorer=margin_scorer,
                     )
                     built = build_baseline_partition(
                         order_regime="CF",
@@ -559,12 +635,14 @@ def dispatch_stage(
                     study_for_opt,
                     stack,
                     partitions=partitions,
+                    margin_scorer=margin_scorer,
                 )
             if grad_fn is None and study.run.optimizer.kind == "projected_adam":
                 grad_fn = build_grad_fn(
                     study_for_opt,
                     stack,
                     partitions=partitions,
+                    margin_scorer=margin_scorer,
                 )
 
         opt_result = run_optimize_dispatch(

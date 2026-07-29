@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.stack.config import ExperimentStackConfig
 from epistemic_sycophancy.stack.intervention_stack import InterventionStack, load_stack
 
-# Process-local stack cache (DEC-064): one InterventionStack per study fingerprint.
+# Process-local stack cache (DEC-064/080): one InterventionStack per stack config.
 _STACK_CACHE: dict[str, Any] = {}
 
 
@@ -19,22 +22,49 @@ def clear_stack_cache() -> None:
     _STACK_CACHE.clear()
 
 
+def stack_config_fingerprint(stack: ExperimentStackConfig) -> str:
+    """Stable hash of model+SAE+hooks only (DEC-080); ignores experiment/run."""
+    payload = {
+        "model": {
+            "hf_id": stack.model.hf_id,
+            "revision": stack.model.revision,
+            "tokenizer_revision": stack.model.tokenizer_revision,
+            "dtype": stack.model.dtype,
+            "device_policy": stack.model.device_policy,
+        },
+        "sae": {
+            "release": stack.sae.release,
+            "site": stack.sae.site,
+            "width": stack.sae.width,
+            "l0": stack.sae.l0,
+            "layers": list(stack.sae.layers),
+        },
+        "hooks": {
+            "token_scope": stack.hooks.token_scope,
+            "resolver_id": stack.hooks.resolver_id,
+            "k": stack.hooks.k,
+        },
+    }
+    material = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return sha256(material.encode("utf-8")).hexdigest()
+
+
 def resolve_stack(
     study: StudyConfig,
     *,
     stack_loader: Callable[[StudyConfig], Any] | None = None,
 ) -> Any:
-    """Lazy-load and cache InterventionStack for this process (DEC-064/065)."""
-    fingerprint = study_config_fingerprint(study)
+    """Lazy-load and cache InterventionStack for this process (DEC-064/065/080)."""
+    cache_key = stack_config_fingerprint(study.stack)
     if stack_loader is not None:
         # Explicit injection always wins (unit tests; DEC-065).
         stack = stack_loader(study)
-        _STACK_CACHE[fingerprint] = stack
+        _STACK_CACHE[cache_key] = stack
         return stack
-    if fingerprint in _STACK_CACHE:
-        return _STACK_CACHE[fingerprint]
+    if cache_key in _STACK_CACHE:
+        return _STACK_CACHE[cache_key]
     stack = _default_stack_loader(study)
-    _STACK_CACHE[fingerprint] = stack
+    _STACK_CACHE[cache_key] = stack
     return stack
 
 
