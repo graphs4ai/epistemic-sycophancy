@@ -324,6 +324,7 @@ ORCH-021+ / ADAPT-* wire production adapters so bare CLI `--config` needs no sco
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | ADAPT-001 | `test_adapters__load_processed_mc0__normalizes_belief_and_order_for_render` | green | `pixi run --environment test pytest tests/unit/test_adapt_corpus_bridge.py::test_adapters__load_processed_mc0__normalizes_belief_and_order_for_render -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.runner.adapters'` | same command → `1 passed` | `runner/adapters/corpus.py`, `runner/adapters/__init__.py`, `tests/fixtures/adapters/*`, `docs/decisions.md` | DEC-078/075; RO via DEC-009; holdout sealed |
+| ORCH-021 | `test_adapters__build_score_fn__beta0_neutral_margins_match_hand_toy_stack` | green | `pixi run --environment test pytest tests/unit/test_adapt_score_fn.py::test_adapters__build_score_fn__beta0_neutral_margins_match_hand_toy_stack -q` → `ModuleNotFoundError: ...adapters.score` | same → `1 passed` | `runner/adapters/score.py` | β=0 neutrals via score_batch_through_hooks |
 
 Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is wired; holdout gated by DEC-071. Researcher ASAP path documented in `docs/phase_m_ship_gate.md`.
 
