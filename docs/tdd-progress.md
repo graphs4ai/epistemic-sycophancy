@@ -185,6 +185,7 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | STAT-001 | `test_cluster_bootstrap__samples_question_ids_not_prompt_rows` | green | `pixi run --environment test pytest tests/unit/test_cluster_bootstrap.py::test_cluster_bootstrap__samples_question_ids_not_prompt_rows -q` → `NotImplementedError: sample_question_clusters is not implemented` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/statistics/cluster_bootstrap.py`, `statistics/__init__.py`, `docs/decisions.md` | DEC-037; sample question IDs; full variant clusters. |
+| STAT-002 | `test_cluster_bootstrap__duplicate_sampled_question__duplicates_complete_question_cluster` | green | `pixi run --environment test pytest tests/unit/test_cluster_bootstrap.py::test_cluster_bootstrap__duplicate_sampled_question__duplicates_complete_question_cluster -q` → `TypeError: ... unexpected keyword argument 'sample_question_ids'` | same command → `1 passed`; module suite → `2 passed` | `src/epistemic_sycophancy/statistics/cluster_bootstrap.py` | Duplicate ID ⇒ duplicate complete cluster. |
 
 ## Status definitions
 

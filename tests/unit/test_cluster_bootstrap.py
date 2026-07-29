@@ -40,3 +40,33 @@ def test_cluster_bootstrap__samples_question_ids_not_prompt_rows() -> None:
     assert set(sampled_ids).issubset({"q1", "q2"})
     # With replacement over 2 questions and 4 draws, multiplicity is allowed.
     assert sum(Counter(sampled_ids).values()) == 4
+
+
+@pytest.mark.unit
+def test_cluster_bootstrap__duplicate_sampled_question__duplicates_complete_question_cluster() -> None:
+    """STAT-002: with-replacement multiplicity duplicates the entire cluster.
+
+    Hand-check: when question q1 (3 variants) appears twice in the sampled ID
+    multiset, both draws must carry the full 3-variant tuple — not a partial
+    or prompt-row subset.
+    """
+    clusters = {
+        "q1": ("v1", "v2", "v3"),
+        "q2": ("only",),
+    }
+    # Inject an explicit ID multiset with a known duplicate of q1.
+    sampled = sample_question_clusters(
+        clusters,
+        n_samples=3,
+        seed=0,
+        sample_question_ids=["q1", "q2", "q1"],
+    )
+    assert len(sampled) == 3
+    assert [qid for qid, _ in sampled] == ["q1", "q2", "q1"]
+    assert sampled[0] == ("q1", ("v1", "v2", "v3"))
+    assert sampled[2] == ("q1", ("v1", "v2", "v3"))
+    assert sampled[1] == ("q2", ("only",))
+    # Multiplicity of the complete cluster matches sample multiplicity.
+    q1_clusters = [variants for qid, variants in sampled if qid == "q1"]
+    assert len(q1_clusters) == 2
+    assert all(variants == ("v1", "v2", "v3") for variants in q1_clusters)
