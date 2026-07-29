@@ -246,6 +246,7 @@ RUN-* Spec IDs are Phase K inventions (absent from TDD spec v2). They implement 
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | RUN-001 | `test_stack_config__sae_site_spec__rejects_empty_duplicate_or_unknown_layers` | green | `pixi run --environment test pytest tests/unit/test_stack_config.py::test_stack_config__sae_site_spec__rejects_empty_duplicate_or_unknown_layers -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.models'` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/models/spec.py`, `sae/spec.py`, `stack/config.py`, package `__init__.py` stubs | Layers nonempty/unique/⊆{9,17,22,29}; width/L0 explicit; HookSpec token_scope required |
+| RUN-002 | `test_models__load_pinned_gemma__tokenizer_continuations_match_dec010` | green | `pixi run --environment test-cuda pytest tests/real_model/test_gemma_tokenizer.py::test_models__load_pinned_gemma__tokenizer_continuations_match_dec010 -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.models.load'` | same command → `1 passed` | `src/epistemic_sycophancy/models/load.py`, `tests/fixtures/real_model/gemma3_continuation_token_ids.json`, `docs/decisions.md` | DEC-049 pin; A=[236776], B=[236799]; DEC-050 deps |
 
 ## Status definitions
 
