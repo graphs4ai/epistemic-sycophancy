@@ -13,6 +13,7 @@ from epistemic_sycophancy.stack.config import ExperimentStackConfig
 
 _ALLOWED_SMOKE_SPLITS = frozenset({"feature_selection", "optimization"})
 _ALLOWED_OPTIMIZER_KINDS = frozenset({"projected_adam", "cmaes"})
+_ALLOWED_BUDGET_MATCH_ON = frozenset({"n_objective_evals", "n_forward_equiv"})
 
 
 @dataclass(frozen=True)
@@ -121,8 +122,91 @@ class StudyOptimizerConfig:
 
 
 @dataclass(frozen=True)
+class StudyOptimizeConfig:
+    """Non-smoke optimize budgets (DEC-066 / DEC-068); distinct from smoke max_steps."""
+
+    budget_match_on: str
+    max_steps: int | None = None
+    n_trials: int | None = None
+    population_size: int | None = None
+    n_questions: int | None = None
+    question_ids: tuple[str, ...] | None = None
+
+    def __post_init__(self) -> None:
+        if self.budget_match_on not in _ALLOWED_BUDGET_MATCH_ON:
+            raise InvalidExperimentConfig(
+                "run.optimize.budget_match_on must be one of "
+                f"{sorted(_ALLOWED_BUDGET_MATCH_ON)}; got {self.budget_match_on!r}"
+            )
+        has_adam = self.max_steps is not None
+        has_cma = self.n_trials is not None or self.population_size is not None
+        if has_adam == has_cma:
+            # Exactly one of Adam max_steps or CMA (n_trials+population_size).
+            if not has_adam and not has_cma:
+                raise InvalidExperimentConfig(
+                    "run.optimize requires max_steps (Adam) or "
+                    "n_trials+population_size (CMA); got neither"
+                )
+            raise InvalidExperimentConfig(
+                "run.optimize requires either max_steps (Adam) or "
+                "n_trials+population_size (CMA); got both"
+            )
+        if has_adam:
+            if (
+                not isinstance(self.max_steps, int)
+                or isinstance(self.max_steps, bool)
+                or self.max_steps < 1
+            ):
+                raise InvalidExperimentConfig(
+                    f"run.optimize.max_steps must be a positive int; got {self.max_steps!r}"
+                )
+        else:
+            if (
+                not isinstance(self.n_trials, int)
+                or isinstance(self.n_trials, bool)
+                or self.n_trials < 1
+            ):
+                raise InvalidExperimentConfig(
+                    f"run.optimize.n_trials must be a positive int; got {self.n_trials!r}"
+                )
+            if (
+                not isinstance(self.population_size, int)
+                or isinstance(self.population_size, bool)
+                or self.population_size < 1
+            ):
+                raise InvalidExperimentConfig(
+                    "run.optimize.population_size must be a positive int; "
+                    f"got {self.population_size!r}"
+                )
+
+        has_allowlist = self.question_ids is not None
+        has_n = self.n_questions is not None
+        if has_allowlist and has_n:
+            raise InvalidExperimentConfig(
+                "run.optimize requires either question_ids or n_questions, not both"
+            )
+        if has_allowlist:
+            ids = tuple(str(q) for q in self.question_ids or ())
+            if not ids:
+                raise InvalidExperimentConfig(
+                    "run.optimize.question_ids must be a nonempty sequence when set"
+                )
+            object.__setattr__(self, "question_ids", ids)
+        if has_n:
+            if (
+                not isinstance(self.n_questions, int)
+                or isinstance(self.n_questions, bool)
+                or self.n_questions < 1
+            ):
+                raise InvalidExperimentConfig(
+                    "run.optimize.n_questions must be a positive int; "
+                    f"got {self.n_questions!r}"
+                )
+
+
+@dataclass(frozen=True)
 class StudyRunConfig:
-    """Stage / smoke / optimizer run options (DEC-056)."""
+    """Stage / smoke / optimizer / optimize run options (DEC-056 / DEC-066)."""
 
     artifact_dir: str
     order_regimes: tuple[str, ...]
@@ -130,6 +214,7 @@ class StudyRunConfig:
     prompt_batch_size: int
     smoke: StudySmokeConfig
     optimizer: StudyOptimizerConfig
+    optimize: StudyOptimizeConfig
 
     def __post_init__(self) -> None:
         if self.artifact_dir is None or not str(self.artifact_dir).strip():
@@ -165,6 +250,8 @@ class StudyRunConfig:
             raise InvalidExperimentConfig("run.smoke must be explicit")
         if self.optimizer is None:
             raise InvalidExperimentConfig("run.optimizer must be explicit")
+        if self.optimize is None:
+            raise InvalidExperimentConfig("run.optimize must be explicit")
 
 
 @dataclass(frozen=True)

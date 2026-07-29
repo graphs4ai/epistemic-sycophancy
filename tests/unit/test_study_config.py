@@ -7,6 +7,8 @@ import pytest
 from epistemic_sycophancy.config.schema import ExperimentConfig, InvalidExperimentConfig
 from epistemic_sycophancy.config.study import (
     StudyConfig,
+    StudyOptimizeConfig,
+    StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
     StudySmokeConfig,
@@ -88,6 +90,11 @@ def _valid_run() -> StudyRunConfig:
             adam_microbatch_questions=1,
             max_steps=1,
         ),
+        optimize=StudyOptimizeConfig(
+            budget_match_on="n_objective_evals",
+            max_steps=20,
+            n_questions=4,
+        ),
     )
 
 
@@ -121,6 +128,11 @@ def test_study_config__missing_required_policy_field__raises_invalid_config() ->
                     adam_eps=1e-8,
                     adam_microbatch_questions=1,
                     max_steps=1,
+                ),
+                optimize=StudyOptimizeConfig(
+                    budget_match_on="n_objective_evals",
+                    max_steps=20,
+                    n_questions=4,
                 ),
             ),
         )

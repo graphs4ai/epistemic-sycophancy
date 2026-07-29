@@ -60,3 +60,6 @@ run:
     adam_eps: 1.0e-8
     adam_microbatch_questions: 1
     max_steps: 1
+  optimize:
+    budget_match_on: n_objective_evals
+    max_steps: 50

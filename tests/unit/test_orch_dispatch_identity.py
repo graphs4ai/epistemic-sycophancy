@@ -12,6 +12,7 @@ import torch
 from epistemic_sycophancy.config.schema import ExperimentConfig
 from epistemic_sycophancy.config.study import (
     StudyConfig,
+    StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
     StudySmokeConfig,
@@ -87,6 +88,11 @@ def _study() -> StudyConfig:
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
                 max_steps=1,
+            ),
+            optimize=StudyOptimizeConfig(
+                budget_match_on="n_objective_evals",
+                max_steps=20,
+                n_questions=4,
             ),
         ),
     )

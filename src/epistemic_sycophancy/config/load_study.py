@@ -15,6 +15,7 @@ from epistemic_sycophancy.config.schema import (
 )
 from epistemic_sycophancy.config.study import (
     StudyConfig,
+    StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
     StudySmokeConfig,
@@ -170,12 +171,34 @@ def _parse_optimizer(raw: dict[str, Any]) -> StudyOptimizerConfig:
     return StudyOptimizerConfig(**kwargs)
 
 
+def _parse_optimize(raw: dict[str, Any]) -> StudyOptimizeConfig:
+    kwargs: dict[str, Any] = {
+        "budget_match_on": str(
+            _require_key(raw, "budget_match_on", label="run.optimize")
+        ),
+    }
+    if "max_steps" in raw and raw["max_steps"] is not None:
+        kwargs["max_steps"] = int(raw["max_steps"])
+    if "n_trials" in raw and raw["n_trials"] is not None:
+        kwargs["n_trials"] = int(raw["n_trials"])
+    if "population_size" in raw and raw["population_size"] is not None:
+        kwargs["population_size"] = int(raw["population_size"])
+    if "n_questions" in raw and raw["n_questions"] is not None:
+        kwargs["n_questions"] = int(raw["n_questions"])
+    if "question_ids" in raw and raw["question_ids"] is not None:
+        kwargs["question_ids"] = tuple(str(q) for q in raw["question_ids"])
+    return StudyOptimizeConfig(**kwargs)
+
+
 def _parse_run(raw: dict[str, Any]) -> StudyRunConfig:
     smoke_raw = _require_mapping(
         _require_key(raw, "smoke", label="run"), label="run.smoke"
     )
     opt_raw = _require_mapping(
         _require_key(raw, "optimizer", label="run"), label="run.optimizer"
+    )
+    optimize_raw = _require_mapping(
+        _require_key(raw, "optimize", label="run"), label="run.optimize"
     )
     return StudyRunConfig(
         artifact_dir=str(_require_key(raw, "artifact_dir", label="run")),
@@ -188,6 +211,7 @@ def _parse_run(raw: dict[str, Any]) -> StudyRunConfig:
         prompt_batch_size=int(_require_key(raw, "prompt_batch_size", label="run")),
         smoke=_parse_smoke(smoke_raw),
         optimizer=_parse_optimizer(opt_raw),
+        optimize=_parse_optimize(optimize_raw),
     )
 
 
@@ -235,6 +259,7 @@ def _fingerprint_payload(study: StudyConfig) -> dict[str, Any]:
             feature_ids.append(fid)
     smoke = study.run.smoke
     opt = study.run.optimizer
+    optimize = study.run.optimize
     return {
         "stack": {
             "model": {
@@ -306,6 +331,16 @@ def _fingerprint_payload(study: StudyConfig) -> dict[str, Any]:
                 "adam_eps": opt.adam_eps,
                 "adam_microbatch_questions": opt.adam_microbatch_questions,
                 "cma_seed": opt.cma_seed,
+            },
+            "optimize": {
+                "budget_match_on": optimize.budget_match_on,
+                "max_steps": optimize.max_steps,
+                "n_trials": optimize.n_trials,
+                "population_size": optimize.population_size,
+                "n_questions": optimize.n_questions,
+                "question_ids": list(optimize.question_ids)
+                if optimize.question_ids is not None
+                else None,
             },
         },
     }

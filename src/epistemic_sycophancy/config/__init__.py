@@ -9,6 +9,7 @@ from epistemic_sycophancy.config.frozen import (
 from epistemic_sycophancy.config.schema import ExperimentConfig, InvalidExperimentConfig
 from epistemic_sycophancy.config.study import (
     StudyConfig,
+    StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
     StudySmokeConfig,
@@ -21,6 +22,7 @@ __all__ = [
     "FrozenExperimentConfig",
     "InvalidExperimentConfig",
     "StudyConfig",
+    "StudyOptimizeConfig",
     "StudyOptimizerConfig",
     "StudyRunConfig",
     "StudySmokeConfig",
