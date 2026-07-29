@@ -31,13 +31,71 @@ PIXI_TASK_NAMES: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class StageResult:
-    """Outcome of invoking one staged runner entry point."""
+    """Outcome of invoking one staged runner entry point (ORCH-006)."""
 
     stage: str
     ok: bool
     message: str
     metrics: Mapping[str, Any] = field(default_factory=dict)
     artifacts: Mapping[str, str] = field(default_factory=dict)
+    study_yaml_fingerprint: str = ""
+    model_revision: str = ""
+    sae_revision: str = ""
+    hook_configuration_hash: str = ""
+    layer_set_hash: str = ""
+
+
+def _stage_hash_fields(study: StudyConfig) -> dict[str, str]:
+    """Populate StageResult hash fields from StudyConfig (WIRE-012 / ORCH-006)."""
+    import json
+    from hashlib import sha256
+
+    from epistemic_sycophancy.config.load_study import study_config_fingerprint
+
+    hook_payload = {
+        "token_scope": study.stack.hooks.token_scope,
+        "resolver_id": study.stack.hooks.resolver_id,
+        "k": study.stack.hooks.k,
+    }
+    hook_configuration_hash = sha256(
+        json.dumps(hook_payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    layer_set_hash = sha256(
+        ",".join(str(layer) for layer in study.stack.sae.layers).encode()
+    ).hexdigest()
+    return {
+        "study_yaml_fingerprint": study_config_fingerprint(study),
+        "model_revision": study.stack.model.revision,
+        "sae_revision": (
+            f"{study.stack.sae.release}:{study.stack.sae.width}:{study.stack.sae.l0}"
+        ),
+        "hook_configuration_hash": hook_configuration_hash,
+        "layer_set_hash": layer_set_hash,
+    }
+
+
+def _make_result(
+    *,
+    stage: str,
+    ok: bool,
+    message: str,
+    study: StudyConfig,
+    metrics: Mapping[str, Any] | None = None,
+    artifacts: Mapping[str, str] | None = None,
+) -> StageResult:
+    hashes = _stage_hash_fields(study)
+    return StageResult(
+        stage=stage,
+        ok=ok,
+        message=message,
+        metrics=dict(metrics or {}),
+        artifacts=dict(artifacts or {}),
+        study_yaml_fingerprint=hashes["study_yaml_fingerprint"],
+        model_revision=hashes["model_revision"],
+        sae_revision=hashes["sae_revision"],
+        hook_configuration_hash=hashes["hook_configuration_hash"],
+        layer_set_hash=hashes["layer_set_hash"],
+    )
 
 
 def run_stage(stage: str, *, freeze_status: str) -> StageResult:
@@ -79,13 +137,14 @@ def dispatch_stage(
                 "full_study requires freeze_status='sealed' "
                 f"(got {freeze_status!r}; DEC-055 / DEC-042 / DEC-063)"
             )
-        return StageResult(
+        return _make_result(
             stage=stage,
             ok=True,
             message=(
                 "full_study sealed gate acknowledged; "
                 "corpus expansion deferred to Phase M (DEC-063)"
             ),
+            study=study,
         )
 
     from epistemic_sycophancy.config.load_study import study_config_fingerprint
@@ -109,10 +168,11 @@ def dispatch_stage(
             f"max_abs_diff={identity['max_abs_diff']} "
             f"layers={layers} study_fp={fingerprint[:12]}…"
         )
-        return StageResult(
+        return _make_result(
             stage=stage,
             ok=ok,
             message=message,
+            study=study,
             metrics=metrics,
             artifacts=artifacts,
         )
@@ -138,10 +198,11 @@ def dispatch_stage(
             f"n_q_minus={metrics['n_q_minus']} "
             f"study_fp={fingerprint[:12]}…"
         )
-        return StageResult(
+        return _make_result(
             stage=stage,
             ok=True,
             message=message,
+            study=study,
             metrics=metrics,
             artifacts=artifacts,
         )
@@ -170,10 +231,11 @@ def dispatch_stage(
             f"scale_source={metrics['scale_source']} "
             f"study_fp={fingerprint[:12]}…"
         )
-        return StageResult(
+        return _make_result(
             stage=stage,
             ok=True,
             message=message,
+            study=study,
             metrics=metrics,
             artifacts=artifacts,
         )
@@ -203,16 +265,21 @@ def dispatch_stage(
             f"steps={study.run.optimizer.max_steps} "
             f"study_fp={fingerprint[:12]}…"
         )
-        return StageResult(
+        return _make_result(
             stage=stage,
             ok=True,
             message=message,
+            study=study,
             metrics=metrics,
             artifacts=artifacts,
         )
 
-    message = f"completed {stage}"
-    return StageResult(stage=stage, ok=True, message=message)
+    return _make_result(
+        stage=stage,
+        ok=True,
+        message=f"completed {stage}",
+        study=study,
+    )
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
