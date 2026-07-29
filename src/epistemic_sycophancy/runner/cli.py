@@ -502,15 +502,54 @@ def dispatch_stage(
         ):
             stack = resolve_stack(study_for_opt, stack_loader=stack_loader)
             part_path = Path(study.run.artifact_dir) / "baseline" / "partition_CF.json"
-            if not part_path.is_file():
+            partitions: dict[str, Any]
+            if part_path.is_file():
+                part = json.loads(part_path.read_text(encoding="utf-8"))
+                artifact_plus = frozenset(str(q) for q in part["q_plus"])
+                artifact_minus = frozenset(str(q) for q in part["q_minus"])
+                eligible_set = frozenset(str(q) for q in opt_qids)
+                inter_plus = artifact_plus & eligible_set
+                inter_minus = artifact_minus & eligible_set
+                if inter_plus and inter_minus:
+                    partitions = {"q_plus": inter_plus, "q_minus": inter_minus}
+                else:
+                    # Eligible optimize IDs disjoint from FS baseline: score neutrals
+                    # at β=0 on eligible set for objective partitions (DEC-076 live).
+                    from epistemic_sycophancy.metrics.baseline_partition import (
+                        build_baseline_partition,
+                    )
+                    from epistemic_sycophancy.runner.adapters.margins import (
+                        build_margin_payload,
+                    )
+
+                    m = int(study_for_opt.experiment.coefficient_length)
+                    zero = tuple(0.0 for _ in range(m)) if m else (0.0,)
+                    # Temporary partitions so build_margin_payload can run; replace below.
+                    tmp = {
+                        "q_plus": frozenset(opt_qids[:1] or opt_qids),
+                        "q_minus": frozenset(opt_qids[1:2] or opt_qids),
+                    }
+                    payload0 = build_margin_payload(
+                        study_for_opt,
+                        stack,
+                        beta=zero,
+                        question_ids=opt_qids,
+                        partitions=tmp,
+                    )
+                    built = build_baseline_partition(
+                        order_regime="CF",
+                        neutral_margins=payload0["baseline_neutral_margins"],
+                        epsilon=float(study.experiment.tie_band_epsilon),
+                        tie_policy=str(study.experiment.tie_policy),
+                    )
+                    partitions = {
+                        "q_plus": frozenset(built.q_plus),
+                        "q_minus": frozenset(built.q_minus),
+                    }
+            else:
                 raise ValueError(
                     f"optimize default adapters require baseline partition at {part_path}"
                 )
-            part = json.loads(part_path.read_text(encoding="utf-8"))
-            partitions = {
-                "q_plus": frozenset(part["q_plus"]),
-                "q_minus": frozenset(part["q_minus"]),
-            }
             if objective_fn is None:
                 objective_fn = build_objective_fn(
                     study_for_opt,
