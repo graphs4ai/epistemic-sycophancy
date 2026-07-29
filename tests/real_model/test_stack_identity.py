@@ -80,10 +80,13 @@ def test_stack__multi_layer_hooks_beta_zero__residuals_match_unhooked() -> None:
     selected_keys = tuple((layer, 0) for layer in layers)
     scales = tuple(1.0 for _ in layers)
     beta = tuple(0.0 for _ in layers)
+    encoded = stack.tokenizer([text], return_tensors="pt", padding=True)
+    prompt_lengths = [int(encoded["attention_mask"].sum(dim=1)[0].item())]
     with stack.install_hooks(
         selected_keys=selected_keys,
         scales=scales,
         beta=beta,
+        prompt_lengths=prompt_lengths,
     ):
         hooked = stack.capture_layer_residuals(texts=[text], layers=layers)
 

@@ -95,12 +95,15 @@ class InterventionStack:
         selected_keys: Sequence[tuple[int, int]],
         scales: Sequence[float],
         beta: Sequence[float],
+        prompt_lengths: Sequence[int],
     ) -> Iterator[None]:
-        """Install simultaneous multi-layer hooks for the given β layout."""
-        encoded_lengths = []
-        # Lengths are supplied by callers of score_batch later; for identity we
-        # only need the β=0 short-circuit path.
-        prompt_lengths = encoded_lengths or [1]
+        """Install simultaneous multi-layer hooks for the given β layout.
+
+        ``prompt_lengths`` must be the per-batch prompt token counts (DEC-015);
+        the former ``[1]`` stub is forbidden for nonzero-β token scope.
+        """
+        if not prompt_lengths:
+            raise ValueError("prompt_lengths must be a nonempty sequence")
         with install_multi_layer_hooks(
             model=self.model,
             resolver_id=self.config.hooks.resolver_id,
