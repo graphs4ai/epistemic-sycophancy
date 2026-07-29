@@ -136,6 +136,8 @@ def dispatch_stage(
     objective_fn: Callable[..., Any] | None = None,
     grad_fn: Callable[..., Any] | None = None,
     eval_payload: Mapping[str, Any] | None = None,
+    frozen_config_path: str | None = None,
+    holdout_rows_provider: Callable[[], Any] | None = None,
 ) -> StageResult:
     """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
     if stage not in STAGE_ORDER:
@@ -345,12 +347,29 @@ def dispatch_stage(
         )
 
     if stage == "holdout_eval":
-        # Implemented in ORCH-015.
+        from epistemic_sycophancy.runner.holdout_eval import run_holdout_eval_dispatch
+
+        if frozen_config_path is None or holdout_rows_provider is None:
+            raise ValueError(
+                "holdout_eval requires frozen_config_path and holdout_rows_provider "
+                "(ORCH-015)"
+            )
+        holdout = run_holdout_eval_dispatch(
+            study=study,
+            freeze_status=freeze_status,
+            frozen_config_path=frozen_config_path,
+            holdout_rows_provider=holdout_rows_provider,
+        )
         return _make_result(
             stage=stage,
             ok=True,
-            message=f"completed {stage} (stub pending ORCH)",
+            message=(
+                f"completed holdout_eval: n_rows={holdout['metrics']['n_holdout_rows']} "
+                f"study_fp={fingerprint[:12]}…"
+            ),
             study=study,
+            metrics=dict(holdout["metrics"]),
+            artifacts=dict(holdout["artifacts"]),
         )
 
     return _make_result(
