@@ -211,7 +211,7 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 | REPRO-007 | `test_phase_gate__validation_selection__cannot_reference_holdout_rows` | green | Already satisfied by OPT-010 / DEC-033: first run → `1 passed` | same command → `1 passed`; module suite → `5 passed` | `tests/unit/test_phase_gates.py` | Already satisfied / no production change. |
 | REPRO-001 | `test_phase_gate__result_artifact__includes_required_hashes` | green | `pixi run --environment test pytest tests/unit/test_phase_gates.py::test_phase_gate__result_artifact__includes_required_hashes -q` → `NotImplementedError: build_result_artifact_hashes is not implemented` | same command → `1 passed`; module suite → `6 passed` | `src/epistemic_sycophancy/reproducibility/artifacts.py` | Required hash/ID completeness set. |
 
-Phase I gate (pending final verify after REPRO-001 commit).
+Phase I gate: `pixi run --environment test pytest tests/unit/test_cluster_bootstrap.py tests/property/test_cluster_bootstrap_ci.py tests/unit/test_cross_order.py tests/unit/test_random_features.py tests/unit/test_shuffled_coefficients.py tests/unit/test_controls_parity.py tests/unit/test_phase_gates.py tests/unit/test_baseline_partition.py::test_cross_order_evaluation__uses_evaluation_order_baseline_partition tests/unit/test_model_selection.py -q` → `28 passed`. STAT-001…009, ORDER-X-001…005, CTRL-001…006, REPRO-001/002/004/005/006/007 green; REPRO-003 deferred to Phase J; holdout sealed; DEC-037…042.
 
 ## Status definitions
 
