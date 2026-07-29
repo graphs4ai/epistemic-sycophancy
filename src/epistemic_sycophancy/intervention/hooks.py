@@ -79,3 +79,68 @@ def tag_hook_site(tensor: torch.Tensor, *, hook_site: str) -> torch.Tensor:
 def read_hook_site(tensor: torch.Tensor) -> str | None:
     """Return the hook-site tag if present."""
     return getattr(tensor, "hook_site", None)
+
+
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class RealModelHookContractReport:
+    """REAL-002 hook tensor contract diagnostics."""
+
+    hook_module_name: str
+    activation_shape: tuple[int, ...]
+    activation_dtype: torch.dtype
+    device: torch.device
+    sequence_index_policy: str
+    d_model: int
+    decoder_width: int
+    compatible: bool
+
+
+def inspect_real_model_hook_contract(
+    *,
+    model_id: str,
+    model_revision: str,
+    prompts: Sequence[str],
+    n_features: int,
+    dtype: torch.dtype,
+) -> RealModelHookContractReport:
+    """Load a pinned causal LM and assert residual/hook tensor contracts."""
+    import transformers
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_id, revision=model_revision
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = transformers.AutoModelForCausalLM.from_pretrained(
+        model_id, revision=model_revision
+    )
+    model.eval()
+    d_model = int(model.config.n_embd)
+    hook_module_name = "transformer.h"
+    encoded = tokenizer(list(prompts), return_tensors="pt", padding=True)
+    with torch.no_grad():
+        outputs = model(**encoded, output_hidden_states=True)
+    hidden = outputs.hidden_states[-1]
+    attention = encoded["attention_mask"]
+    lengths = attention.sum(dim=1)
+    # last_non_pad indexing
+    residuals = torch.stack(
+        [hidden[i, int(lengths[i].item()) - 1] for i in range(hidden.shape[0])],
+        dim=0,
+    ).to(dtype=dtype)
+    decoder = torch.randn(n_features, d_model, dtype=dtype)
+    compatible = decoder.shape[1] == residuals.shape[-1] == d_model
+    return RealModelHookContractReport(
+        hook_module_name=hook_module_name,
+        activation_shape=tuple(int(x) for x in residuals.shape),
+        activation_dtype=residuals.dtype,
+        device=residuals.device,
+        sequence_index_policy="last_non_pad",
+        d_model=d_model,
+        decoder_width=int(decoder.shape[1]),
+        compatible=bool(compatible),
+    )
