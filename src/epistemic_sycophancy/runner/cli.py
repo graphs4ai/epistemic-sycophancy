@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -60,10 +60,13 @@ def dispatch_stage(
     stack_loader: Callable[[StudyConfig], Any] | None = None,
     score_fn: Callable[..., Any] | None = None,
     jacobian_fn: Callable[..., Any] | None = None,
+    scale_fn: Callable[..., Any] | None = None,
     split_name_override: str | None = None,
+    optimization_question_ids: Sequence[str] | None = None,
+    validation_question_ids: Sequence[str] | None = None,
+    holdout_question_ids: Sequence[str] | None = None,
 ) -> StageResult:
     """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
-    del jacobian_fn  # wired in ORCH-004
     if stage not in STAGE_ORDER:
         raise ValueError(f"unknown stage {stage!r}; expected one of {STAGE_ORDER}")
     if stage == "full_study":
@@ -139,13 +142,40 @@ def dispatch_stage(
             artifacts=artifacts,
         )
 
-    # Remaining stages still fingerprint-ack until ORCH-004…005.
     if stage == "feature_selection":
-        message = (
-            f"completed feature_selection: study_fp={fingerprint[:12]}… "
-            f"quota={study.experiment.pool_quota_per_list}"
+        from epistemic_sycophancy.runner.fs_dispatch import run_feature_selection_dispatch
+
+        if jacobian_fn is None or scale_fn is None:
+            raise ValueError(
+                "feature_selection requires jacobian_fn and scale_fn injection "
+                "(ORCH-004)"
+            )
+        fs = run_feature_selection_dispatch(
+            study=study,
+            freeze_status=freeze_status,
+            jacobian_fn=jacobian_fn,
+            scale_fn=scale_fn,
+            optimization_question_ids=optimization_question_ids or (),
+            validation_question_ids=validation_question_ids or (),
+            holdout_question_ids=holdout_question_ids or (),
         )
-    elif stage == "opt_smoke":
+        metrics = dict(fs["metrics"])
+        artifacts = dict(fs["artifacts"])
+        message = (
+            f"completed feature_selection: pool_size={metrics['pool_size']} "
+            f"scale_source={metrics['scale_source']} "
+            f"study_fp={fingerprint[:12]}…"
+        )
+        return StageResult(
+            stage=stage,
+            ok=True,
+            message=message,
+            metrics=metrics,
+            artifacts=artifacts,
+        )
+
+    # Remaining stages still fingerprint-ack until ORCH-005.
+    if stage == "opt_smoke":
         message = (
             f"completed opt_smoke: study_fp={fingerprint[:12]}… "
             f"optimizer={study.run.optimizer.kind} steps={study.run.optimizer.max_steps}"
