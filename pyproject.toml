@@ -20,6 +20,11 @@ platforms = [
 epistemic_sycophancy = { path = ".", editable = true }
 
 [tool.pixi.tasks]
+run-identity = "python -m epistemic_sycophancy.runner.cli identity"
+run-baseline = "python -m epistemic_sycophancy.runner.cli baseline_partitions"
+run-fs = "python -m epistemic_sycophancy.runner.cli feature_selection"
+run-opt-smoke = "python -m epistemic_sycophancy.runner.cli opt_smoke"
+run-study = "python -m epistemic_sycophancy.runner.cli full_study --freeze-status sealed"
 
 [tool.pixi.dependencies]
 python = "3.10.*"
