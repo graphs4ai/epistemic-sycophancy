@@ -317,6 +317,14 @@ ORCH-* Spec IDs are Phase M inventions. They wire StudyConfig YAML + injectable 
 | ORCH-019 | `test_real_model_or_unit__freeze_full_study_sealed__validation_metrics_without_holdout` | green | unit freeze→full_study sealed: first run → `1 passed` | same → `1 passed` | `tests/unit/test_phase_m_ship_gate.py` | CPU sealed path |
 | ORCH-020 | `test_phase_m_ship_gate__commands_to_start_first_real_experiment_documented` | green | missing docs/phase_m_ship_gate.md before write | same → `1 passed` | `docs/phase_m_ship_gate.md`, `README.md` | ship commands |
 
+## Phase M.1 — ADAPTERS (YAML-only ASAP)
+
+ORCH-021+ / ADAPT-* wire production adapters so bare CLI `--config` needs no score_fn/jacobian_fn/objective_fn/eval_payload injection. DEC-073…078 recorded before cycles.
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ADAPT-001 | `test_adapters__load_processed_mc0__normalizes_belief_and_order_for_render` | green | `pixi run --environment test pytest tests/unit/test_adapt_corpus_bridge.py::test_adapters__load_processed_mc0__normalizes_belief_and_order_for_render -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.runner.adapters'` | same command → `1 passed` | `runner/adapters/corpus.py`, `runner/adapters/__init__.py`, `tests/fixtures/adapters/*`, `docs/decisions.md` | DEC-078/075; RO via DEC-009; holdout sealed |
+
 Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is wired; holdout gated by DEC-071. Researcher ASAP path documented in `docs/phase_m_ship_gate.md`.
 
 ## Status definitions
