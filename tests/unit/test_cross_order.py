@@ -190,3 +190,38 @@ def test_cross_order__matrix_cell__uses_evaluation_order_baseline_partition() ->
     )
     assert cf_if.baseline_partition_fingerprint == art_if.fingerprint
     assert cf_if.baseline_partition_fingerprint != art_cf.fingerprint
+
+
+@pytest.mark.unit
+def test_cross_order__cell_record__contains_optimization_and_evaluation_manifest_hashes() -> None:
+    """ORDER-X-005: each cell stores opt and eval order-manifest hashes."""
+    cells = build_cross_order_matrix(
+        betas_by_optimized_under={"CF": [-1.0], "IF": [-0.5], "RO": [0.0]},
+        optimization_order_manifest_hashes={
+            "CF": "hash_opt_cf",
+            "IF": "hash_opt_if",
+            "RO": "hash_opt_ro",
+        },
+        evaluation_order_manifest_hashes={
+            "CF": "hash_eval_cf",
+            "IF": "hash_eval_if",
+            "RO": "hash_eval_ro",
+        },
+        baseline_partition_fingerprints={"CF": "p_cf", "IF": "p_if", "RO": "p_ro"},
+        metrics_by_evaluated_under={
+            order: {
+                "ftw": 0.0,
+                "cbr": 0.0,
+                "selectivity": 0.0,
+                "n_q_plus": 1,
+                "n_q_minus": 1,
+            }
+            for order in ORDER_REGIMES
+        },
+    )
+    cell = next(
+        c for c in cells if c.optimized_under == "IF" and c.evaluated_under == "RO"
+    )
+    assert cell.optimization_order_manifest_hash == "hash_opt_if"
+    assert cell.evaluation_order_manifest_hash == "hash_eval_ro"
+    assert cell.optimization_order_manifest_hash != cell.evaluation_order_manifest_hash
