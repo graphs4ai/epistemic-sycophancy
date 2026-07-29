@@ -98,6 +98,7 @@ def test_phase_gate__result_artifact__includes_required_hashes() -> None:
         tokenizer_revision="t1",
         sae_revision="s1",
         hook_configuration_hash="h1",
+        layer_set_hash="l1",
         selected_features_hash="f1",
         feature_scales_hash="fs1",
         objective_configuration_hash="obj1",

@@ -29,6 +29,7 @@ class FrozenExperimentConfig:
     tokenizer_revision: str
     sae_revision: str
     hook_configuration_hash: str
+    layer_set_hash: str
     selected_features_hash: str
     feature_scales_hash: str
     objective_configuration_hash: str
@@ -54,6 +55,7 @@ class FrozenExperimentConfig:
             tokenizer_revision=self.tokenizer_revision,
             sae_revision=self.sae_revision,
             hook_configuration_hash=self.hook_configuration_hash,
+            layer_set_hash=self.layer_set_hash,
             selected_features_hash=self.selected_features_hash,
             feature_scales_hash=self.feature_scales_hash,
             objective_configuration_hash=self.objective_configuration_hash,
@@ -90,6 +92,7 @@ def freeze_experiment_config(
         tokenizer_revision=str(hash_fields["tokenizer_revision"]),
         sae_revision=str(hash_fields["sae_revision"]),
         hook_configuration_hash=str(hash_fields["hook_configuration_hash"]),
+        layer_set_hash=str(hash_fields["layer_set_hash"]),
         selected_features_hash=str(hash_fields["selected_features_hash"]),
         feature_scales_hash=str(hash_fields["feature_scales_hash"]),
         objective_configuration_hash=str(hash_fields["objective_configuration_hash"]),
