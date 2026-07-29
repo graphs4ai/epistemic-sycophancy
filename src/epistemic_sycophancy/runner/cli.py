@@ -303,7 +303,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def run_cli(
+    argv: list[str] | None = None,
+    *,
+    stack_loader: Callable[[StudyConfig], Any] | None = None,
+    **dispatch_kwargs: Any,
+) -> int:
+    """Testable CLI entry: load StudyConfig and dispatch with optional injections."""
     args = build_arg_parser().parse_args(argv)
     if args.config is None:
         raise SystemExit(
@@ -311,10 +317,18 @@ def main(argv: list[str] | None = None) -> int:
         )
     study = load_study_config(Path(args.config))
     result = dispatch_stage(
-        args.stage, study=study, freeze_status=args.freeze_status
+        args.stage,
+        study=study,
+        freeze_status=args.freeze_status,
+        stack_loader=stack_loader,
+        **dispatch_kwargs,
     )
     print(result.message)
     return 0 if result.ok else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    return run_cli(argv)
 
 
 if __name__ == "__main__":

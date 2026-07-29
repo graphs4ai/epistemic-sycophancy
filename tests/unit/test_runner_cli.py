@@ -73,8 +73,8 @@ def test_runner_cli__with_config__dispatches_real_stage_not_ready_stub(
     study_yaml = Path("configs/smokes/layer17_n2.yaml")
     calls: list[str] = []
 
-    def fake_dispatch(stage: str, *, study, freeze_status: str):
-        del study, freeze_status
+    def fake_dispatch(stage: str, *, study, freeze_status: str, **kwargs):
+        del study, freeze_status, kwargs
         calls.append(stage)
         return cli_mod.StageResult(
             stage=stage, ok=True, message=f"completed {stage}"
