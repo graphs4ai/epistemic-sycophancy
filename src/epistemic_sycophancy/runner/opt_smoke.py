@@ -80,3 +80,44 @@ def run_opt_smoke(
         holdout_accessed=False,
         question_ids=tuple(question_ids),
     )
+
+
+def run_opt_smoke_adam_step(
+    *,
+    beta_init: Sequence[float],
+    grad: Sequence[float],
+    adam_lr: float,
+    adam_beta1: float,
+    adam_beta2: float,
+    adam_eps: float,
+    adam_microbatch_questions: int,
+    beta_lower: float,
+    beta_upper: float,
+    max_steps: int,
+) -> tuple[float, ...]:
+    """Run ``max_steps`` ProjectedAdam updates from synthetic grads (WIRE-010)."""
+    import torch
+
+    from epistemic_sycophancy.optimization.projected_adam import ProjectedAdam
+
+    if max_steps < 1:
+        raise ValueError(f"max_steps must be >= 1; got {max_steps!r}")
+    beta = torch.nn.Parameter(
+        torch.tensor(list(beta_init), dtype=torch.float64)
+    )
+    opt = ProjectedAdam(
+        beta=beta,
+        adam_lr=adam_lr,
+        adam_beta1=adam_beta1,
+        adam_beta2=adam_beta2,
+        adam_eps=adam_eps,
+        adam_microbatch_questions=adam_microbatch_questions,
+        beta_lower=beta_lower,
+        beta_upper=beta_upper,
+    )
+    grad_tensor = torch.tensor(list(grad), dtype=torch.float64)
+    for _ in range(max_steps):
+        opt.zero_grad()
+        beta.grad = grad_tensor.clone()
+        opt.step()
+    return tuple(float(x) for x in beta.detach().tolist())

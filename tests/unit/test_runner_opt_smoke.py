@@ -82,3 +82,26 @@ def test_runner__opt_smoke__evaluate_objective_finite_on_study_smoke_subset() ->
     assert math.isfinite(result.l_total)
     # Surrogate Σβ² would be 0.3125; resistance/recovery path differs.
     assert result.l_total != pytest.approx(0.5**2 + 0.25**2)
+
+
+
+
+@pytest.mark.unit
+def test_runner__opt_smoke__one_projected_adam_step_respects_beta_bounds() -> None:
+    """WIRE-010: one ProjectedAdam step stays within [beta_lower, beta_upper]."""
+    from epistemic_sycophancy.runner.opt_smoke import run_opt_smoke_adam_step
+
+    beta_after = run_opt_smoke_adam_step(
+        beta_init=(-0.1, -0.2),
+        grad=(-1.0, -1.0),
+        adam_lr=0.1,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_eps=1e-8,
+        adam_microbatch_questions=1,
+        beta_lower=-2.0,
+        beta_upper=0.0,
+        max_steps=1,
+    )
+    assert len(beta_after) == 2
+    assert all(-2.0 <= float(b) <= 0.0 for b in beta_after)
