@@ -314,8 +314,24 @@ def dispatch_stage(
             artifacts=artifacts,
         )
 
-    if stage in {"freeze", "holdout_eval"}:
-        # Implemented in ORCH-013 / ORCH-015.
+    if stage == "freeze":
+        from epistemic_sycophancy.runner.freeze_stage import run_freeze_dispatch
+
+        frozen = run_freeze_dispatch(study=study)
+        return _make_result(
+            stage=stage,
+            ok=True,
+            message=(
+                f"completed freeze: freeze_status=sealed "
+                f"study_fp={fingerprint[:12]}…"
+            ),
+            study=study,
+            metrics=dict(frozen["metrics"]),
+            artifacts=dict(frozen["artifacts"]),
+        )
+
+    if stage == "holdout_eval":
+        # Implemented in ORCH-015.
         return _make_result(
             stage=stage,
             ok=True,
