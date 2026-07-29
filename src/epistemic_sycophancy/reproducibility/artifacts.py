@@ -13,6 +13,7 @@ REQUIRED_RESULT_HASH_FIELDS: tuple[str, ...] = (
     "sae_revision",
     "hook_configuration_hash",
     "layer_set_hash",
+    "study_yaml_fingerprint",
     "selected_features_hash",
     "feature_scales_hash",
     "objective_configuration_hash",

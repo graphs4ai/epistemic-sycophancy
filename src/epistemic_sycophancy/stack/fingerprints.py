@@ -26,8 +26,9 @@ def build_stack_fingerprint_fields(
     feature_scales_hash: str,
     objective_configuration_hash: str,
     code_commit: str,
+    study_yaml_fingerprint: str,
 ) -> dict[str, str]:
-    """Build REPRO-001 fields including layer_set_hash from the stack pin."""
+    """Build REPRO-001 fields including layer_set_hash and study YAML fingerprint."""
     layer_set_hash = _sha256_hex(",".join(str(layer) for layer in layers))
     hook_configuration_hash = _sha256_hex(
         json.dumps(dict(hook_configuration), sort_keys=True, separators=(",", ":"))
@@ -41,6 +42,7 @@ def build_stack_fingerprint_fields(
         "sae_revision": sae_revision,
         "hook_configuration_hash": hook_configuration_hash,
         "layer_set_hash": layer_set_hash,
+        "study_yaml_fingerprint": study_yaml_fingerprint,
         "selected_features_hash": selected_features_hash,
         "feature_scales_hash": feature_scales_hash,
         "objective_configuration_hash": objective_configuration_hash,
