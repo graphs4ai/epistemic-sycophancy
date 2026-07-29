@@ -106,3 +106,29 @@ def test_phase_gate__result_artifact__includes_required_hashes() -> None:
     for field in REQUIRED_RESULT_HASH_FIELDS:
         assert field in hashes
         assert hashes[field]
+
+
+
+@pytest.mark.unit
+def test_phase_gate__after_holdout_start__configuration_mutation_is_rejected() -> None:
+    """REPRO-003: after holdout start, frozen config mutation is rejected."""
+    from epistemic_sycophancy.config.frozen import (
+        ConfigImmutabilityError,
+        freeze_experiment_config,
+        mark_holdout_started,
+    )
+    from epistemic_sycophancy.reproducibility.artifacts import (
+        REQUIRED_RESULT_HASH_FIELDS,
+    )
+
+    hashes = {name: f"hash-{name}" for name in REQUIRED_RESULT_HASH_FIELDS}
+    frozen = freeze_experiment_config(
+        config_payload={"tau": 1.0, "lambda_n": 0.1},
+        **hashes,
+    )
+    assert frozen.freeze_status == "sealed"
+    assert frozen.holdout_started is False
+    started = mark_holdout_started(frozen)
+    assert started.holdout_started is True
+    with pytest.raises(ConfigImmutabilityError):
+        started.replace_field("tau", 2.0)
