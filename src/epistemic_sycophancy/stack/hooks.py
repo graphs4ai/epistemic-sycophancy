@@ -50,6 +50,19 @@ def _sae_tensor(sae: Any, *names: str) -> torch.Tensor:
     )
 
 
+def _as_encoder_weight(raw: torch.Tensor, *, d_model: int) -> torch.Tensor:
+    """Normalize encoder to [n_features, d_model] (sae-lens W_enc is often [d_in, d_sae])."""
+    if raw.ndim != 2:
+        raise ValueError(f"encoder weight must be 2D; got shape {tuple(raw.shape)}")
+    if raw.shape[1] == d_model:
+        return raw
+    if raw.shape[0] == d_model:
+        return raw.T
+    raise ValueError(
+        f"encoder weight shape {tuple(raw.shape)} incompatible with d_model={d_model}"
+    )
+
+
 def _default_jumprelu_delta(
     *,
     residual: torch.Tensor,
@@ -58,13 +71,16 @@ def _default_jumprelu_delta(
     beta: Sequence[float],
     sae: Any,
 ) -> torch.Tensor:
-    encoder_weight = _sae_tensor(sae, "encoder_weight", "W_enc")
+    d_model = int(residual.shape[-1])
+    encoder_weight = _as_encoder_weight(
+        _sae_tensor(sae, "encoder_weight", "W_enc"), d_model=d_model
+    )
     encoder_bias = _sae_tensor(sae, "encoder_bias", "b_enc")
-    threshold = _sae_tensor(sae, "threshold", "threshold")
-    decoder_weight = _sae_tensor(sae, "decoder_weight", "W_dec")
-    # SaeHandle.decoder_weight may already be detached on the handle.
+    threshold = _sae_tensor(sae, "threshold")
     if hasattr(sae, "decoder_weight") and isinstance(sae.decoder_weight, torch.Tensor):
         decoder_weight = sae.decoder_weight
+    else:
+        decoder_weight = _sae_tensor(sae, "decoder_weight", "W_dec")
     return apply_additive_jumprelu_sae_delta(
         residual=residual,
         selected_indices=selected_indices,

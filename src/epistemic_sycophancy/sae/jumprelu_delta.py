@@ -30,6 +30,9 @@ def apply_additive_jumprelu_sae_delta(
     """Return x' = x + (decode(z') - decode(z)); at β=0 return original x.
 
     Encode uses JumpReLU; selected update uses Phase E ReLU(z+α) (DEC-053).
+
+    Latent algebra runs in float32 when ``residual`` is lower precision so that
+    small α on large latents is not lost to bf16 ULP (WIRE-002).
     """
     beta_tensor = (
         beta
@@ -45,9 +48,22 @@ def apply_additive_jumprelu_sae_delta(
     if not beta_tensor.requires_grad and bool(torch.all(beta_tensor == 0)):
         return residual
 
-    pre = residual @ encoder_weight.T + encoder_bias
-    latents = jumprelu(pre, threshold.to(dtype=residual.dtype, device=residual.device))
-    alphas = scales_tensor * beta_tensor
+    work_dtype = (
+        torch.float32
+        if residual.dtype in (torch.bfloat16, torch.float16)
+        else residual.dtype
+    )
+    residual_w = residual.to(dtype=work_dtype)
+    encoder_weight_w = encoder_weight.to(dtype=work_dtype, device=residual.device)
+    encoder_bias_w = encoder_bias.to(dtype=work_dtype, device=residual.device)
+    threshold_w = threshold.to(dtype=work_dtype, device=residual.device)
+    decoder_weight_w = decoder_weight.to(dtype=work_dtype, device=residual.device)
+    beta_w = beta_tensor.to(dtype=work_dtype, device=residual.device)
+    scales_w = scales_tensor.to(dtype=work_dtype, device=residual.device)
+
+    pre = residual_w @ encoder_weight_w.T + encoder_bias_w
+    latents = jumprelu(pre, threshold_w)
+    alphas = scales_w * beta_w
     alpha_full = torch.zeros_like(latents)
     index = torch.as_tensor(
         list(selected_indices), device=residual.device, dtype=torch.long
@@ -57,6 +73,6 @@ def apply_additive_jumprelu_sae_delta(
     delta = latent_delta_to_residual(
         latents_prime=latents_prime,
         latents=latents,
-        decoder_weight=decoder_weight,
+        decoder_weight=decoder_weight_w,
     )
-    return residual + delta
+    return (residual_w + delta).to(dtype=residual.dtype)
