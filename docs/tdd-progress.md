@@ -202,6 +202,7 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 | CTRL-002 | `test_random_feature_control__has_no_overlap_unless_explicitly_permitted` | green | Already satisfied by DEC-039 exclude-selected default: first run → `1 passed` | same command → `1 passed`; module suite → `2 passed` | `tests/unit/test_random_features.py` | Already satisfied / no production change. |
 | CTRL-003 | `test_random_feature_control__fixed_seed__reproduces_feature_ids` | green | Already satisfied by seeded RNG: first run → `1 passed` | same command → `1 passed`; module suite → `3 passed` | `tests/unit/test_random_features.py` | Already satisfied / no production change. |
 | CTRL-004 | `test_shuffled_coefficient_control__preserves_exact_coefficient_multiset` | green | `pixi run --environment test pytest tests/unit/test_shuffled_coefficients.py::test_shuffled_coefficient_control__preserves_exact_coefficient_multiset -q` → `NotImplementedError: shuffle_coefficients is not implemented` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/controls/shuffled_coefficients.py`, `controls/__init__.py`, `docs/decisions.md` | DEC-040; multiset preserved. |
+| CTRL-005 | `test_shuffled_coefficient_control__nontrivial_vector__changes_at_least_one_feature_assignment` | green | Already satisfied by require_nontrivial path: first run → `1 passed` | same command → `1 passed`; module suite → `2 passed` | `tests/unit/test_shuffled_coefficients.py` | Already satisfied / no production change. |
 
 ## Status definitions
 
