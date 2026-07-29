@@ -233,6 +233,12 @@ Phase I gate: `pixi run --environment test pytest tests/unit/test_cluster_bootst
 | REAL-006 | `test_real_model__objective_trial_smoke__finite_logged_deterministic` | green | `pixi run --environment test pytest tests/real_model/test_objective_smoke.py::test_real_model__objective_trial_smoke__finite_logged_deterministic -q` → `ImportError: cannot import name 'real_model_objective_trial_smoke'` | same command → `1 passed` | `src/epistemic_sycophancy/evaluation/real_model_smoke.py` | finite logged deterministic objective smoke |
 | REAL-007 | `test_real_model__memory_regression__peak_cuda_within_budget` | blocked | `pixi run --environment test pytest tests/real_model/test_memory_regression.py::test_real_model__memory_regression__peak_cuda_within_budget -q` → `Failed: CUDA unavailable; REAL-007 must be recorded blocked (DEC-045), never faked on CPU`; `torch.cuda.is_available()==False` | n/a | `src/epistemic_sycophancy/evaluation/real_model_smoke.py`, `docs/decisions.md` | DEC-045; API implemented; blocked without CUDA |
 
+Phase J gate:
+- Fast: `pixi run --environment test pytest -m "not real_model and not slow and not gpu" -q` → `199 passed, 8 deselected, 1 warning`
+- Real-model: `pixi run --environment test pytest -m "real_model or gpu" -q` → `1 failed, 7 passed, 199 deselected` (REAL-007 blocked: CUDA unavailable / DEC-045; REAL-001…006 + FEAT-030 green)
+
+Phase J complete for this environment: E2E-001…007 green; REPRO-003 green; REAL-001…006 green; REAL-007 blocked pending GPU.
+
 ## Status definitions
 
 - `not_started`: no test written.
