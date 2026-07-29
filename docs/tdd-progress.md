@@ -209,6 +209,9 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 | REPRO-005 | `test_phase_gate__missing_or_mismatched_baseline_partition__blocks_optimization` | green | `pixi run --environment test pytest tests/unit/test_phase_gates.py::test_phase_gate__missing_or_mismatched_baseline_partition__blocks_optimization -q` → `ImportError: cannot import name 'require_baseline_partition_gate'` | same command → `1 passed`; module suite → `3 passed` | `src/epistemic_sycophancy/reproducibility/phase_gates.py` | Missing/mismatched partition blocks opt. |
 | REPRO-006 | `test_phase_gate__feature_selection_artifact__cannot_reference_optimization_validation_or_holdout_rows` | green | `pixi run --environment test pytest tests/unit/test_phase_gates.py::test_phase_gate__feature_selection_artifact__cannot_reference_optimization_validation_or_holdout_rows -q` → `ImportError: cannot import name 'require_feature_selection_split_gate'` | same command → `1 passed`; module suite → `4 passed` | `src/epistemic_sycophancy/reproducibility/phase_gates.py` | Feature artifact ⊆ FS split only. |
 | REPRO-007 | `test_phase_gate__validation_selection__cannot_reference_holdout_rows` | green | Already satisfied by OPT-010 / DEC-033: first run → `1 passed` | same command → `1 passed`; module suite → `5 passed` | `tests/unit/test_phase_gates.py` | Already satisfied / no production change. |
+| REPRO-001 | `test_phase_gate__result_artifact__includes_required_hashes` | green | `pixi run --environment test pytest tests/unit/test_phase_gates.py::test_phase_gate__result_artifact__includes_required_hashes -q` → `NotImplementedError: build_result_artifact_hashes is not implemented` | same command → `1 passed`; module suite → `6 passed` | `src/epistemic_sycophancy/reproducibility/artifacts.py` | Required hash/ID completeness set. |
+
+Phase I gate (pending final verify after REPRO-001 commit).
 
 ## Status definitions
 

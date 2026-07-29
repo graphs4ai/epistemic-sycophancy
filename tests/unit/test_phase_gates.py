@@ -80,3 +80,29 @@ def test_phase_gate__validation_selection__cannot_reference_holdout_rows() -> No
                 }
             ]
         )
+
+
+@pytest.mark.unit
+def test_phase_gate__result_artifact__includes_required_hashes() -> None:
+    """REPRO-001: result artifacts include the required hash/ID completeness set."""
+    from epistemic_sycophancy.reproducibility.artifacts import (
+        REQUIRED_RESULT_HASH_FIELDS,
+        build_result_artifact_hashes,
+    )
+
+    hashes = build_result_artifact_hashes(
+        dataset_manifest_hash="d1",
+        prompt_template_hash="p1",
+        order_manifest_hash="o1",
+        model_revision="m1",
+        tokenizer_revision="t1",
+        sae_revision="s1",
+        hook_configuration_hash="h1",
+        selected_features_hash="f1",
+        feature_scales_hash="fs1",
+        objective_configuration_hash="obj1",
+        code_commit="c1",
+    )
+    for field in REQUIRED_RESULT_HASH_FIELDS:
+        assert field in hashes
+        assert hashes[field]
