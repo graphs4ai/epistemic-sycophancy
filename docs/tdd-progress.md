@@ -335,6 +335,7 @@ ORCH-021+ / ADAPT-* wire production adapters so bare CLI `--config` needs no sco
 | ORCH-029 | `test_dispatch__opt_smoke__builds_margin_payload_beta_and_identity_from_artifacts` | green | `ValueError: opt_smoke requires margin_payload and beta` | same → `1 passed`; ORCH-005 → `1 passed` | `runner/cli.py` | DEC-074/076 artifact defaults |
 | ORCH-030 | `test_dispatch__optimize__builds_objective_grad_from_stack_and_run_optimize_budget` | green | `ValueError: optimize requires identity_passed` | same → `1 passed`; ORCH-009 → `1 passed` | `runner/cli.py` | run.optimize budget; pool load |
 | ORCH-031 | `test_dispatch__full_study__builds_eval_payload_from_best_checkpoint_validation` | green | `ValueError: full_study requires eval_payload` | same → `1 passed`; full_study+eval → `2 passed` | `runner/cli.py`, `runner/adapters/eval_payload.py` | DEC-069; IB/CB sequences |
+| ORCH-032 | `test_cli__run_cli__config_only_no_injector_kwargs_for_baseline` | green | would fail pre-ORCH-027 with score_fn ValueError | `pixi run --environment test pytest tests/unit/test_orch_cli_defaults.py::test_cli__run_cli__config_only_no_injector_kwargs_for_baseline -q` → `1 passed` | `tests/unit/test_orch_cli_defaults.py` | DEC-065 injectors optional |
 
 Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is wired; holdout gated by DEC-071. Researcher ASAP path documented in `docs/phase_m_ship_gate.md`.
 
