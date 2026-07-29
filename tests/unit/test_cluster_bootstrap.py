@@ -218,3 +218,22 @@ def test_cluster_bootstrap__constant_question_effects__produce_zero_width_interv
     )
     width = result.ci_high - result.ci_low
     assert width == pytest.approx(0.0, abs=1e-12)
+
+
+@pytest.mark.unit
+def test_statistics__public_api__does_not_accept_prompt_row_as_default_resampling_unit() -> None:
+    """STAT-008: public statistics API rejects prompt-row as resampling unit."""
+    from epistemic_sycophancy.statistics import sample_question_clusters
+    from epistemic_sycophancy.statistics.cluster_bootstrap import sample_question_clusters as sample_fn
+
+    clusters = {"q1": ("a", "b"), "q2": ("c",)}
+    # Keyword resampling_unit must not default to / accept "prompt_row".
+    with pytest.raises((TypeError, ValueError)):
+        sample_fn(  # type: ignore[call-arg]
+            clusters,
+            n_samples=2,
+            seed=0,
+            resampling_unit="prompt_row",
+        )
+    # Public export is question-cluster sampling only.
+    assert sample_question_clusters is sample_fn
