@@ -2,32 +2,33 @@
 
 Library and experiment scaffolding for **additive SAE interventions** against epistemic sycophancy: sparse-autoencoder steering meant to reduce deference to incorrect beliefs while preserving correction selectivity and baseline truthfulness.
 
-## Phase L — file-driven study runs (WIRE+CONFIG)
+## Phase M — YAML → CLI → optimize → freeze → full_study (final impl)
 
-Author a StudyConfig YAML under `configs/` (stack + experiment + run). Load and validate with `load_study_config`. Dispatch stages via CLI with `--config` (holdout stays sealed until freeze).
+Author a StudyConfig YAML under `configs/` (`stack` + `experiment` + `run`). Smoke gates use `run.smoke` + `run.optimizer.max_steps`. **Non-smoke optimize** uses `run.optimize` budgets (DEC-066); never silently call `opt_smoke`.
 
-```bash
-# Validate / dispatch (CPU unit path uses injectable stages; real Gemma needs test-cuda)
-pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
-  identity --config configs/smokes/layer17_n2.yaml
+Stage order (DEC-072):
 
-pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
-  baseline_partitions --config configs/smokes/layer17_n2.yaml
-
-pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
-  feature_selection --config configs/smokes/layer17_n2.yaml
-
-pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
-  opt_smoke --config configs/smokes/layer17_n2.yaml
+```text
+identity → baseline_partitions → feature_selection → opt_smoke
+→ optimize → freeze → full_study → holdout_eval
 ```
 
-Pixi task aliases (`run-identity`, `run-baseline`, `run-fs`, `run-opt-smoke`) still exist; pass `--config` after `--`:
-
 ```bash
-pixi run --environment test-cuda run-identity -- --config configs/smokes/layer17_n2.yaml
+# ASAP path: single-layer smoke YAML (DEC-067), then first_study 4-layer
+CFG=configs/smokes/layer17_n2.yaml
+
+pixi run --environment test-cuda run-identity -- --config "$CFG"
+pixi run --environment test-cuda run-baseline -- --config "$CFG"
+pixi run --environment test-cuda run-fs -- --config "$CFG"
+pixi run --environment test-cuda run-opt-smoke -- --config "$CFG"
+pixi run --environment test-cuda run-optimize -- --config "$CFG"   # non-smoke
+pixi run --environment test-cuda run-freeze -- --config "$CFG"
+pixi run --environment test-cuda run-study -- --config "$CFG"      # sealed; no holdout
+# holdout only after freeze + explicit unlock (DEC-071):
+# pixi run --environment test-cuda run-holdout -- --config "$CFG" --freeze-status sealed
 ```
 
-**What remains before sealed `full_study` / holdout (Phase M):** write and seal a `FrozenExperimentConfig`, expand beyond smoke `n_questions`, run full FS→opt→val, then unlock holdout. Phase L `full_study` only acknowledges the sealed gate (DEC-063).
+Pixi tasks: `run-identity`, `run-baseline`, `run-fs`, `run-opt-smoke`, `run-optimize`, `run-freeze`, `run-study`, `run-holdout`. The legacy `"stage … ready"` CLI stub is **deprecated**; use `--config` real dispatch.
 
 What you can also run today: the frozen dataset pipeline, Pixi test/lint tasks, and the Python APIs under `src/epistemic_sycophancy/`.
 
