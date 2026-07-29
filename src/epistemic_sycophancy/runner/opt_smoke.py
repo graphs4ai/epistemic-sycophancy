@@ -1,11 +1,12 @@
-"""Tiny optimizer smoke stage (Phase K RUN-012)."""
+"""Tiny optimizer smoke stage (Phase K/L RUN-012 / WIRE-009)."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
+from epistemic_sycophancy.objective.total import evaluate_objective
 from epistemic_sycophancy.reproducibility.holdout import load_holdout_rows
 from epistemic_sycophancy.reproducibility.phase_gates import require_identity_gate
 
@@ -30,8 +31,23 @@ def run_opt_smoke(
     beta: Sequence[float],
     freeze_status: str,
     identity_passed: bool,
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+    ib_margins_by_question: Mapping[object, Sequence[float]],
+    cb_margins_by_question: Mapping[object, Sequence[float]],
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    baseline_neutral_margins: Mapping[object, float],
+    current_neutral_margins: Mapping[object, float],
+    q_plus: Sequence[object],
+    q_minus: Sequence[object],
 ) -> OptSmokeResult:
-    """Evaluate a deterministic finite stand-in objective on a tiny subset."""
+    """Evaluate real ``evaluate_objective`` on a tiny non-holdout subset (DEC-062)."""
     require_identity_gate(identity_passed=identity_passed)
     if split_name.startswith("holdout") or split_name == "holdout_test_behavior":
         load_holdout_rows(freeze_status=freeze_status)
@@ -40,10 +56,26 @@ def run_opt_smoke(
         raise HoldoutAccessError(
             f"opt smoke allows only {sorted(_ALLOWED_SPLITS)}; got {split_name!r}"
         )
-    # Deterministic finite surrogate: sum of squares of beta (β-only).
-    l_total = float(sum(float(b) * float(b) for b in beta))
+    result = evaluate_objective(
+        ib_margins_by_question=ib_margins_by_question,
+        cb_margins_by_question=cb_margins_by_question,
+        baseline_cb_margins=baseline_cb_margins,
+        baseline_neutral_margins=baseline_neutral_margins,
+        current_neutral_margins=current_neutral_margins,
+        q_plus=q_plus,
+        q_minus=q_minus,
+        beta=beta,
+        tau=tau,
+        w_r=w_r,
+        w_u=w_u,
+        delta_n=delta_n,
+        delta_c=delta_c,
+        lambda_n=lambda_n,
+        lambda_c=lambda_c,
+        lambda_beta=lambda_beta,
+    )
     return OptSmokeResult(
-        l_total=l_total,
+        l_total=float(result.l_total),
         split_name=split_name,
         holdout_accessed=False,
         question_ids=tuple(question_ids),
