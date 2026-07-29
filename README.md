@@ -2,7 +2,34 @@
 
 Library and experiment scaffolding for **additive SAE interventions** against epistemic sycophancy: sparse-autoencoder steering meant to reduce deference to incorrect beliefs while preserving correction selectivity and baseline truthfulness.
 
-There is no end-to-end experiment CLI yet. What you can run today is the frozen dataset pipeline, the Pixi test/lint tasks, and the Python APIs under `src/epistemic_sycophancy/`.
+## Phase L — file-driven study runs (WIRE+CONFIG)
+
+Author a StudyConfig YAML under `configs/` (stack + experiment + run). Load and validate with `load_study_config`. Dispatch stages via CLI with `--config` (holdout stays sealed until freeze).
+
+```bash
+# Validate / dispatch (CPU unit path uses injectable stages; real Gemma needs test-cuda)
+pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
+  identity --config configs/smokes/layer17_n2.yaml
+
+pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
+  baseline_partitions --config configs/smokes/layer17_n2.yaml
+
+pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
+  feature_selection --config configs/smokes/layer17_n2.yaml
+
+pixi run --environment test-cuda python -m epistemic_sycophancy.runner.cli \
+  opt_smoke --config configs/smokes/layer17_n2.yaml
+```
+
+Pixi task aliases (`run-identity`, `run-baseline`, `run-fs`, `run-opt-smoke`) still exist; pass `--config` after `--`:
+
+```bash
+pixi run --environment test-cuda run-identity -- --config configs/smokes/layer17_n2.yaml
+```
+
+**What remains before sealed `full_study` / holdout (Phase M):** write and seal a `FrozenExperimentConfig`, expand beyond smoke `n_questions`, run full FS→opt→val, then unlock holdout. Phase L `full_study` only acknowledges the sealed gate (DEC-063).
+
+What you can also run today: the frozen dataset pipeline, Pixi test/lint tasks, and the Python APIs under `src/epistemic_sycophancy/`.
 
 ## How the system works
 
