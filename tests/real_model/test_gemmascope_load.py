@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from epistemic_sycophancy.sae.load import load_sae
+from epistemic_sycophancy.sae.load import load_sae, load_sae_stack
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
 
 _PIN = (
@@ -42,3 +42,28 @@ def test_sae__load_single_layer__d_model_matches_and_decoder_width_recorded() ->
         pin["expected_d_sae"],
         pin["expected_d_in"],
     )
+
+
+@pytest.mark.real_model
+@pytest.mark.slow
+@pytest.mark.gpu
+def test_sae__load_stack__all_four_resid_post_layers_present() -> None:
+    """RUN-004: load_sae_stack yields complete dict for layers {9,17,22,29}."""
+    pin = json.loads(_PIN.read_text())
+    layers = tuple(pin["layers"])
+    spec = SaeSiteSpec(
+        release=pin["release"],
+        site=pin["site"],
+        width=pin["width"],
+        l0=pin["l0"],
+        layers=layers,
+    )
+    stack = load_sae_stack(spec=spec, device="cuda", dtype="bfloat16")
+    assert set(stack.keys()) == set(layers)
+    for layer in layers:
+        handle = stack[layer]
+        assert handle.layer == layer
+        assert handle.sae_id == f"layer_{layer}_{pin['width']}_{pin['l0']}"
+        assert handle.d_in == pin["expected_d_in"]
+        assert handle.d_sae == pin["expected_d_sae"]
+        assert handle.decoder_width == pin["expected_d_in"]

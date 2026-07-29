@@ -69,3 +69,17 @@ def load_sae(
         decoder_weight=decoder,
         sae=sae,
     )
+
+
+def load_sae_stack(
+    *,
+    spec: SaeSiteSpec,
+    device: str = "cuda",
+    dtype: str = "bfloat16",
+) -> dict[int, SaeHandle]:
+    """Load SAEs for every layer in ``spec.layers`` (DEC-051)."""
+    return {
+        layer: load_sae(spec=spec, layer=layer, device=device, dtype=dtype)
+        for layer in spec.layers
+    }
+
