@@ -188,3 +188,33 @@ def test_cluster_bootstrap__fixed_seed__reproduces_replicates_and_ci() -> None:
     assert a.replicate_selectivity == b.replicate_selectivity
     assert a.ci_low == b.ci_low
     assert a.ci_high == b.ci_high
+
+
+@pytest.mark.unit
+def test_cluster_bootstrap__constant_question_effects__produce_zero_width_interval() -> None:
+    """STAT-007: constant question-level effects ⇒ zero-width CI (atol 1e-12)."""
+    from epistemic_sycophancy.metrics.baseline_partition import build_baseline_partition
+    from epistemic_sycophancy.statistics.cluster_bootstrap import (
+        bootstrap_selectivity_interval,
+    )
+
+    # Every question has identical IB/CB pattern so every replicate Selectivity
+    # is identical → CI width must be zero.
+    partition = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins={"q1": 1.0, "q2": -1.0, "q3": 1.0},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    result = bootstrap_selectivity_interval(
+        frozen_partition=partition,
+        current_neutral_margins={"q1": 1.0, "q2": -1.0, "q3": 1.0},
+        current_ib_margins={"q1": [-1.0], "q2": [-1.0], "q3": [-1.0]},
+        current_cb_margins={"q1": [1.0], "q2": [1.0], "q3": [1.0]},
+        epsilon=1e-6,
+        n_replicates=20,
+        seed=0,
+        bootstrap_ci_percentile=95.0,
+    )
+    width = result.ci_high - result.ci_low
+    assert width == pytest.approx(0.0, abs=1e-12)

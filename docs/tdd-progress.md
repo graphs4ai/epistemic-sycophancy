@@ -190,6 +190,7 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 | STAT-004 | `test_cluster_bootstrap__selectivity_interval__recomputes_ftw_and_cbr_in_each_replicate` | green | `pixi run --environment test pytest tests/unit/test_cluster_bootstrap.py::test_cluster_bootstrap__selectivity_interval__recomputes_ftw_and_cbr_in_each_replicate -q` → `ImportError: cannot import name 'bootstrap_selectivity_interval'` | same command → `1 passed`; module suite → `4 passed` | `src/epistemic_sycophancy/statistics/cluster_bootstrap.py` | Per-replicate FTW/CBR → Selectivity; golden 5/12. |
 | STAT-005 | `test_cluster_bootstrap__fixed_seed__reproduces_replicates_and_ci` | green | Already satisfied by STAT-004 seeded API: first run → `1 passed` | same command → `1 passed`; module suite → `5 passed` | `tests/unit/test_cluster_bootstrap.py` | Already satisfied / no production change. |
 | STAT-006 | `test_cluster_bootstrap__percentile_interval__has_ordered_finite_bounds` | green | Already satisfied by DEC-037 percentile CI: first run → `1 passed` | same command → `1 passed` | `tests/property/test_cluster_bootstrap_ci.py` | Already satisfied / no production change; L≤U finite. |
+| STAT-007 | `test_cluster_bootstrap__constant_question_effects__produce_zero_width_interval` | green | Already satisfied by percentile on constant replicates: first run → `1 passed` | same command → `1 passed`; module suite → `6 passed` | `tests/unit/test_cluster_bootstrap.py` | Already satisfied / no production change; width≈0. |
 
 ## Status definitions
 
