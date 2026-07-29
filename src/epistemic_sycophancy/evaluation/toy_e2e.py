@@ -471,3 +471,120 @@ def evaluate_toy_e2e_objective_batched(
         lambda_c=lambda_c,
         lambda_beta=lambda_beta,
     )
+
+
+def _margin_jacobian_at_zero(
+    *,
+    residual: torch.Tensor,
+    truthful_label: str,
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+) -> torch.Tensor:
+    """Return ∂M/∂β_selected at β=0 for one residual."""
+    from epistemic_sycophancy.feature_selection.projected_gradient import (
+        coefficient_jacobian,
+        project_residual_gradient,
+    )
+
+    residual = residual.detach().to(dtype=torch.float64).requires_grad_(True)
+    logits = _HEAD @ residual
+    if truthful_label == "A":
+        margin = logits[0] - logits[1]
+    else:
+        margin = logits[1] - logits[0]
+    residual_grad = torch.autograd.grad(margin, residual)[0]
+    raw = project_residual_gradient(gradient=residual_grad, decoder=_DECODER)
+    latents = torch.relu(residual.detach() @ _ENCODER.T + _ENCODER_BIAS)
+    full_scales = torch.ones(_DECODER.shape[0], dtype=torch.float64)
+    for index, scale in zip(selected_indices, scales):
+        full_scales[index] = float(scale)
+    full_j = coefficient_jacobian(
+        raw_projection=raw,
+        latents=latents,
+        feature_scales=full_scales,
+    )
+    return torch.stack([full_j[index] for index in selected_indices])
+
+
+def run_toy_e2e_projected_adam(
+    *,
+    order_regime: str,
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+    beta0: Sequence[float],
+    n_steps: int,
+    adam_lr: float,
+    adam_beta1: float,
+    adam_beta2: float,
+    adam_eps: float,
+    adam_microbatch_questions: int,
+    beta_lower: float,
+    beta_upper: float,
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+):
+    """Projected Adam on the affine-at-zero DEC-046 margin model (E2E-006)."""
+    from epistemic_sycophancy.optimization.toy_runner import run_projected_adam_affine
+
+    baseline = run_toy_e2e_baseline(order_regime=order_regime)
+    rows = [row for row in build_dec046_corpus() if row.order_regime == order_regime]
+    ib_const: dict[str, list[float]] = {}
+    ib_jac: dict[str, list[torch.Tensor]] = {}
+    cb_const: dict[str, list[float]] = {}
+    cb_jac: dict[str, list[torch.Tensor]] = {}
+    neutral_const: dict[str, float] = {}
+    neutral_jac: dict[str, torch.Tensor] = {}
+    for row in rows:
+        residual = torch.tensor(row.residual_last, dtype=torch.float64)
+        _, _, margin0 = _score_row(row)
+        jac = _margin_jacobian_at_zero(
+            residual=residual,
+            truthful_label=row.truthful_label,
+            selected_indices=selected_indices,
+            scales=scales,
+        )
+        if row.condition == "N":
+            neutral_const[row.question_id] = margin0
+            neutral_jac[row.question_id] = jac
+        elif row.condition == "IB":
+            ib_const.setdefault(row.question_id, []).append(margin0)
+            ib_jac.setdefault(row.question_id, []).append(jac)
+        elif row.condition == "CB":
+            cb_const.setdefault(row.question_id, []).append(margin0)
+            cb_jac.setdefault(row.question_id, []).append(jac)
+    return run_projected_adam_affine(
+        beta0=beta0,
+        n_steps=n_steps,
+        adam_lr=adam_lr,
+        adam_beta1=adam_beta1,
+        adam_beta2=adam_beta2,
+        adam_eps=adam_eps,
+        adam_microbatch_questions=adam_microbatch_questions,
+        beta_lower=beta_lower,
+        beta_upper=beta_upper,
+        question_ids=tuple(baseline.neutral_margins.keys()),
+        ib_margin_const=ib_const,
+        ib_margin_jac=ib_jac,
+        cb_margin_const=cb_const,
+        cb_margin_jac=cb_jac,
+        baseline_cb_margins=baseline.cb_margins,
+        baseline_neutral_margins=baseline.neutral_margins,
+        neutral_margin_const=neutral_const,
+        neutral_margin_jac=neutral_jac,
+        q_plus=baseline.partition.q_plus,
+        q_minus=baseline.partition.q_minus,
+        tau=tau,
+        w_r=w_r,
+        w_u=w_u,
+        delta_n=delta_n,
+        delta_c=delta_c,
+        lambda_n=lambda_n,
+        lambda_c=lambda_c,
+        lambda_beta=lambda_beta,
+    )

@@ -293,3 +293,37 @@ def test_e2e_toy__row_order_and_batch_size__do_not_change_results() -> None:
         assert result.l_total == pytest.approx(reference.l_total, abs=1e-12, rel=1e-12)
         assert result.l_resist == pytest.approx(reference.l_resist, abs=1e-12, rel=1e-12)
         assert result.l_recover == pytest.approx(reference.l_recover, abs=1e-12, rel=1e-12)
+
+
+@pytest.mark.integration
+def test_e2e_toy__projected_adam__reduces_toy_total_loss_without_violating_bounds() -> (
+    None
+):
+    """E2E-006: projected Adam reduces DEC-046 objective and stays in bounds."""
+    from epistemic_sycophancy.evaluation.toy_e2e import run_toy_e2e_projected_adam
+
+    result = run_toy_e2e_projected_adam(
+        order_regime="IF",
+        selected_indices=KNOWN_SELECTED,
+        scales=KNOWN_SCALES,
+        beta0=(0.0, 0.0, 0.0),
+        n_steps=20,
+        adam_lr=0.1,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_eps=1e-8,
+        adam_microbatch_questions=1,
+        beta_lower=-2.0,
+        beta_upper=0.0,
+        tau=1.0,
+        w_r=0.5,
+        w_u=0.5,
+        delta_n=0.1,
+        delta_c=0.1,
+        lambda_n=0.1,
+        lambda_c=0.1,
+        lambda_beta=0.01,
+    )
+    assert result.l_final < result.l_initial
+    assert all(-2.0 <= v <= 0.0 for v in result.beta_final)
+    assert all(-2.0 <= v <= 0.0 for beta in result.beta_trajectory for v in beta)
