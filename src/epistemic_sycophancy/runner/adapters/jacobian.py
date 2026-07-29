@@ -7,25 +7,28 @@ from typing import Any
 
 import torch
 
-from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.config.study import StudyConfig, StudySmokeConfig
 from epistemic_sycophancy.feature_selection.projected_gradient import (
     coefficient_jacobian,
     project_residual_gradient,
     question_macro_jacobian,
 )
-from epistemic_sycophancy.stack.scales import scales_for_layer_feature_keys
+from epistemic_sycophancy.prompts.render import render_mc0_subset
+from epistemic_sycophancy.runner.adapters.fs_batch import compute_fs_projection_batch
 
 
 def build_jacobian_fn(
     study: StudyConfig,
     stack: Any,
+    *,
+    corpus: Sequence[Mapping[str, object]] | None = None,
+    split_question_ids: Mapping[str, Sequence[str]] | None = None,
 ) -> Callable[..., Mapping[tuple[int, int], float]]:
     """Build ``(*, order_regime, question_ids) -> signed J`` via projected formula.
 
-    Unit/toy stacks may expose ``fs_projection_batch`` returning residual
-    gradients, latents, and question_ids for one layer. Production stacks use
-    that same projection math once residual grads + latents are available;
-    ``fs_projection_batch`` is the injectable batch surface for tests (DEC-065).
+    Unit/toy stacks may expose ``fs_projection_batch``. Production stacks use
+    ``compute_fs_projection_batch`` with rendered MC0 prompts when ``corpus`` is
+    provided (ORCH-036).
     """
 
     def jacobian_fn(
@@ -33,20 +36,32 @@ def build_jacobian_fn(
         order_regime: str,
         question_ids: Sequence[str],
     ) -> Mapping[tuple[int, int], float]:
-        del order_regime  # batch provider / corpus path selects prompts by order
         qids = tuple(str(q) for q in question_ids)
         if not qids:
             raise ValueError("jacobian_fn requires nonempty question_ids")
-        if not hasattr(stack, "fs_projection_batch"):
-            raise ValueError(
-                "build_jacobian_fn requires stack.fs_projection_batch for "
-                "residual_gradients/latents (toy inject or production batch helper)"
+
+        if hasattr(stack, "fs_projection_batch"):
+            batch = stack.fs_projection_batch(
+                question_ids=qids,
+                feature_chunk_size=int(study.run.feature_chunk_size),
+                prompt_batch_size=int(study.run.prompt_batch_size),
+                order_regime=order_regime,
             )
-        batch = stack.fs_projection_batch(
-            question_ids=qids,
-            feature_chunk_size=int(study.run.feature_chunk_size),
-            prompt_batch_size=int(study.run.prompt_batch_size),
-        )
+        else:
+            if corpus is None or split_question_ids is None:
+                raise ValueError(
+                    "build_jacobian_fn requires stack.fs_projection_batch or "
+                    "corpus+split_question_ids for production projection (ORCH-036)"
+                )
+            batch = _production_batch(
+                study=study,
+                stack=stack,
+                corpus=corpus,
+                split_question_ids=split_question_ids,
+                order_regime=order_regime,
+                question_ids=qids,
+            )
+
         layer = int(batch["layer"])
         residual_gradients = batch["residual_gradients"]
         latents = batch["latents"]
@@ -60,20 +75,15 @@ def build_jacobian_fn(
             else sae.W_dec
         )
         n_features = int(decoder.shape[0])
-        keys = [(layer, fid) for fid in range(n_features)]
-        scales = scales_for_layer_feature_keys(
-            keys=keys,
-            saes=stack.saes,
-            scale_source="decoder_norm",
-        )
-        feature_scales = torch.tensor(
-            list(scales),
-            dtype=torch.float64,
-            device=residual_gradients.device,
-        )
+        decoder_f64 = decoder.detach().to(dtype=torch.float64)
+        # Full-width decoder norms in one vectorized op (65k ASAP path).
+        feature_scales = torch.linalg.vector_norm(decoder_f64, dim=1)
+        if not bool(torch.all(feature_scales > 0)):
+            bad = int((feature_scales <= 0).nonzero()[0].item())
+            raise ValueError(f"decoder_norm must be > 0; feature_id={bad} got 0")
         raw = project_residual_gradient(
             gradient=residual_gradients.to(dtype=torch.float64),
-            decoder=decoder.to(dtype=torch.float64),
+            decoder=decoder_f64,
             feature_chunk_size=int(study.run.feature_chunk_size),
         )
         per_prompt = coefficient_jacobian(
@@ -84,7 +94,6 @@ def build_jacobian_fn(
         by_question: dict[str, list[torch.Tensor]] = {}
         for row, qid in enumerate(batch_qids):
             by_question.setdefault(qid, []).append(per_prompt[row].detach())
-        # Restrict to requested IDs (equal question weight).
         filtered = {qid: by_question[qid] for qid in qids if qid in by_question}
         missing = set(qids) - set(filtered)
         if missing:
@@ -97,3 +106,44 @@ def build_jacobian_fn(
         }
 
     return jacobian_fn
+
+
+def _production_batch(
+    *,
+    study: StudyConfig,
+    stack: Any,
+    corpus: Sequence[Mapping[str, object]],
+    split_question_ids: Mapping[str, Sequence[str]],
+    order_regime: str,
+    question_ids: Sequence[str],
+) -> dict[str, Any]:
+    smoke = StudySmokeConfig(question_ids=tuple(question_ids))
+    rendered = render_mc0_subset(
+        corpus_rows=corpus,
+        smoke=smoke,
+        split_question_ids=split_question_ids,
+        order_regime=order_regime,
+        belief_condition="N",
+    )
+    # Deduplicate neutrals.
+    uniq = []
+    seen: set[str] = set()
+    for row in rendered:
+        if row.question_id in seen:
+            continue
+        seen.add(row.question_id)
+        uniq.append(row)
+    tok = stack.tokenizer
+    token_a = list(tok.encode(study.experiment.continuation_A, add_special_tokens=False))
+    token_b = list(tok.encode(study.experiment.continuation_B, add_special_tokens=False))
+    layer = int(study.stack.sae.layers[0])
+    return compute_fs_projection_batch(
+        stack,
+        layer=layer,
+        texts=[r.text for r in uniq],
+        question_ids=[r.question_id for r in uniq],
+        continuation_token_ids_A=token_a,
+        continuation_token_ids_B=token_b,
+        truthful_labels=[r.truthful_label for r in uniq],
+        tau=float(study.experiment.tau),
+    )

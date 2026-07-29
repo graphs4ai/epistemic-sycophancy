@@ -75,3 +75,43 @@ def test_real_model__layer17_n2__baseline_writes_partition_without_score_fn(
         payload = json.loads(path.read_text(encoding="utf-8"))
         assert "q_plus" in payload and "q_minus" in payload
         assert payload["n_q_plus"] + payload["n_q_minus"] >= 1
+
+
+@pytest.mark.real_model
+@pytest.mark.slow
+@pytest.mark.gpu
+def test_real_model__layer17_n2__feature_selection_writes_pool_keys(
+    tmp_path: Path,
+) -> None:
+    """ORCH-036: feature_selection writes common_pool with (layer, feature_id)."""
+    _require_cuda()
+    clear_stack_cache()
+    from dataclasses import replace
+
+    from epistemic_sycophancy.config.study import StudySmokeConfig
+
+    study = load_study_config(CFG)
+    study = replace(
+        study,
+        run=replace(
+            study.run,
+            artifact_dir=str(tmp_path / "art"),
+            order_regimes=("CF",),
+            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+        ),
+    )
+    result = dispatch_stage(
+        "feature_selection",
+        study=study,
+        freeze_status="unsealed",
+        jacobian_fn=None,
+        scale_fn=None,
+    )
+    assert result.ok
+    pool_path = Path(result.artifacts["pool"])
+    assert pool_path.is_file()
+    payload = json.loads(pool_path.read_text(encoding="utf-8"))
+    assert payload["pool_size"] >= 1
+    assert payload["scale_source"] == "decoder_norm"
+    assert all(len(pair) == 2 for pair in payload["feature_ids"])
+    assert all(s > 0 for s in payload["feature_scales"])

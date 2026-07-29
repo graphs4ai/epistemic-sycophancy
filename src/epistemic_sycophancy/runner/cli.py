@@ -332,16 +332,20 @@ def dispatch_stage(
         resolved_qids = None
         if jacobian_fn is None or scale_fn is None:
             stack = resolve_stack(study, stack_loader=stack_loader)
-            _corpus, _split_ids, smoke_ids = resolve_corpus_context(
+            corpus, split_ids, smoke_ids = resolve_corpus_context(
                 study,
                 corpus_jsonl_paths=corpus_jsonl_paths,
                 split_manifest_path=split_manifest_path,
                 corpus_root=corpus_root,
             )
-            del _corpus, _split_ids
             resolved_qids = smoke_ids
             if jacobian_fn is None:
-                jacobian_fn = build_jacobian_fn(study, stack)
+                jacobian_fn = build_jacobian_fn(
+                    study,
+                    stack,
+                    corpus=corpus,
+                    split_question_ids=split_ids,
+                )
             if scale_fn is None:
                 scale_fn = build_scale_fn(study, stack)
 
