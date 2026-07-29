@@ -43,3 +43,36 @@ def test_cross_order__selected_interventions__produce_nine_evaluation_cells() ->
     pairs = {(c.optimized_under, c.evaluated_under) for c in cells}
     expected = {(o, e) for o in ORDER_REGIMES for e in ORDER_REGIMES}
     assert pairs == expected
+
+
+@pytest.mark.unit
+def test_cross_order__beta_vector__is_not_refit_during_evaluation() -> None:
+    """ORDER-X-002: cross-order eval copies β; does not mutate or refit it."""
+    betas = {
+        "CF": [-1.0, -0.5],
+        "IF": [-0.8, -0.2],
+        "RO": [-0.3, 0.0],
+    }
+    original = {k: list(v) for k, v in betas.items()}
+    cells = build_cross_order_matrix(
+        betas_by_optimized_under=betas,
+        optimization_order_manifest_hashes={"CF": "a", "IF": "b", "RO": "c"},
+        evaluation_order_manifest_hashes={"CF": "d", "IF": "e", "RO": "f"},
+        baseline_partition_fingerprints={"CF": "p1", "IF": "p2", "RO": "p3"},
+        metrics_by_evaluated_under={
+            order: {
+                "ftw": 0.0,
+                "cbr": 0.0,
+                "selectivity": 0.0,
+                "n_q_plus": 1,
+                "n_q_minus": 1,
+            }
+            for order in ORDER_REGIMES
+        },
+    )
+    # Inputs unchanged after evaluation.
+    assert betas == original
+    # Cell β equals the opt-order vector and is a copy (tuple).
+    for cell in cells:
+        assert cell.beta == tuple(original[cell.optimized_under])
+        assert isinstance(cell.beta, tuple)
