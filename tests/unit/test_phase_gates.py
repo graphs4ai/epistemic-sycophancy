@@ -25,3 +25,23 @@ def test_phase_gate__failed_identity_test__blocks_optimization() -> None:
 
     with pytest.raises(OptimizationBlockedError):
         require_identity_gate(identity_passed=False)
+
+
+@pytest.mark.unit
+def test_phase_gate__missing_or_mismatched_baseline_partition__blocks_optimization() -> None:
+    """REPRO-005: missing or mismatched baseline partition blocks optimization."""
+    from epistemic_sycophancy.reproducibility.phase_gates import (
+        OptimizationBlockedError,
+        require_baseline_partition_gate,
+    )
+
+    with pytest.raises(OptimizationBlockedError):
+        require_baseline_partition_gate(
+            expected_fingerprint="abc",
+            actual_fingerprint=None,
+        )
+    with pytest.raises(OptimizationBlockedError):
+        require_baseline_partition_gate(
+            expected_fingerprint="abc",
+            actual_fingerprint="xyz",
+        )
