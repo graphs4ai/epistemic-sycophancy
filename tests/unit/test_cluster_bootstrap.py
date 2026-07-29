@@ -149,3 +149,42 @@ def test_cluster_bootstrap__selectivity_interval__recomputes_ftw_and_cbr_in_each
     assert result.replicate_selectivity[0] == pytest.approx(
         result.replicate_cbr[0] - result.replicate_ftw[0]
     )
+
+
+@pytest.mark.unit
+def test_cluster_bootstrap__fixed_seed__reproduces_replicates_and_ci() -> None:
+    """STAT-005: explicit seed reproduces replicate metrics and CI bounds."""
+    from tests.fixtures.metrics.golden_behavioral import (
+        GOLDEN_CURRENT_CB_MARGINS,
+        GOLDEN_CURRENT_IB_MARGINS,
+        GOLDEN_CURRENT_NEUTRAL_MARGINS,
+    )
+
+    from epistemic_sycophancy.metrics.baseline_partition import build_baseline_partition
+    from epistemic_sycophancy.statistics.cluster_bootstrap import (
+        bootstrap_selectivity_interval,
+    )
+
+    partition = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins={"q1": 2.0, "q2": -1.0, "q3": 0.5},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    kwargs = dict(
+        frozen_partition=partition,
+        current_neutral_margins=GOLDEN_CURRENT_NEUTRAL_MARGINS,
+        current_ib_margins=GOLDEN_CURRENT_IB_MARGINS,
+        current_cb_margins=GOLDEN_CURRENT_CB_MARGINS,
+        epsilon=1e-6,
+        n_replicates=20,
+        seed=0,
+        bootstrap_ci_percentile=95.0,
+    )
+    a = bootstrap_selectivity_interval(**kwargs)
+    b = bootstrap_selectivity_interval(**kwargs)
+    assert a.replicate_ftw == b.replicate_ftw
+    assert a.replicate_cbr == b.replicate_cbr
+    assert a.replicate_selectivity == b.replicate_selectivity
+    assert a.ci_low == b.ci_low
+    assert a.ci_high == b.ci_high
