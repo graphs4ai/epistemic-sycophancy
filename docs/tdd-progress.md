@@ -282,6 +282,7 @@ CFGFILE-* / WIRE-* Spec IDs are Phase L inventions. They add file-driven StudyCo
 | WIRE-004 | `test_stack_scoring__beta_zero_hooked__margins_match_unhooked_library` | green | `pixi run --environment test pytest ...::test_stack_scoring__beta_zero_hooked__margins_match_unhooked_library -q` → `ImportError: score_batch_through_hooks` | same command → `1 passed`; module → `2 passed` | `stack/scoring.py` | β=0 hooked ≡ unhooked |
 | WIRE-006 | `test_runner__baseline_partition_stage__scores_fs_subset_via_stack` | green | ImportError run_baseline_partition_stage_via_scores | same → 1 passed; module 2 passed | runner/stages.py, docs/decisions.md | DEC-060..063 recorded; score_fn path |
 | WIRE-007 | `test_runner__feature_selection_stage__computes_jacobian_keys_on_tiny_fs_subset` | green | ImportError computed | same → 1 passed; module → 2 passed | `runner/feature_selection.py` | DEC-060 |
+| WIRE-008 | `test_stack__common_pool_scales__decoder_norm_from_sae_metadata` | green | ImportError scales | same → 1 passed | `stack/scales.py` | DEC-061 decoder_norm |
 | WIRE-005 | `test_prompts__render_mc0_subset__from_frozen_corpus_and_smoke_config` | green | `pixi run --environment test pytest ...::test_prompts__render_mc0_subset__from_frozen_corpus_and_smoke_config -q` → would `ModuleNotFoundError: prompts.render` before module | same command → `1 passed` | `prompts/render.py` | DEC-059 smoke subset MC0 render |
 
 ## Status definitions

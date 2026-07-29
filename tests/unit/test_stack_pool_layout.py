@@ -45,3 +45,27 @@ def test_stack__common_pool__feature_keys_and_scales_align_with_cfg_beta_layout(
     for layer, payload in scattered.items():
         assert len(payload.selected_indices) == len(payload.scales) == len(payload.beta)
         assert all(isinstance(i, int) for i in payload.selected_indices)
+
+
+@pytest.mark.unit
+def test_stack__common_pool_scales__decoder_norm_from_sae_metadata() -> None:
+    """WIRE-008: decoder_norm scales from SAE decoder rows (DEC-061)."""
+    import torch
+    from types import SimpleNamespace
+
+    from epistemic_sycophancy.stack.scales import scales_for_layer_feature_keys
+
+    decoder = torch.tensor(
+        [
+            [3.0, 0.0, 0.0],
+            [0.0, 4.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=torch.float64,
+    )
+    saes = {17: SimpleNamespace(decoder_weight=decoder)}
+    keys = ((17, 0), (17, 1))
+    scales = scales_for_layer_feature_keys(
+        keys=keys, saes=saes, scale_source="decoder_norm"
+    )
+    assert scales == (3.0, 4.0)
