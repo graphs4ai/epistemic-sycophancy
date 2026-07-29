@@ -155,10 +155,38 @@ def dispatch_stage(
                 "full_study requires freeze_status='sealed' "
                 f"(got {freeze_status!r}; DEC-055 / DEC-042 / DEC-063)"
             )
+        from epistemic_sycophancy.runner.adapters.eval_payload import build_eval_payload
         from epistemic_sycophancy.runner.full_study import run_full_study_dispatch
+        from epistemic_sycophancy.runner.identity import resolve_stack
+        from epistemic_sycophancy.optimization.checkpoint import load_checkpoint
 
         if eval_payload is None:
-            raise ValueError("full_study requires eval_payload (ORCH-014)")
+            stack = resolve_stack(study, stack_loader=stack_loader)
+            ckpt_path = Path(study.run.artifact_dir) / "optimize" / "best_checkpoint.json"
+            ckpt = load_checkpoint(json.loads(ckpt_path.read_text(encoding="utf-8")))
+            best_beta = tuple(float(x) for x in ckpt["beta"])
+            val_ids = tuple(validation_question_ids or ())
+            if not val_ids:
+                from epistemic_sycophancy.runner.adapters.resolve import (
+                    resolve_corpus_context,
+                )
+
+                _corpus, split_ids, _smoke = resolve_corpus_context(
+                    study,
+                    corpus_jsonl_paths=corpus_jsonl_paths,
+                    split_manifest_path=split_manifest_path,
+                    corpus_root=corpus_root,
+                )
+                del _corpus, _smoke
+                val_ids = tuple(split_ids.get("behavior_validation", ()))
+            eval_payload = build_eval_payload(
+                study,
+                stack,
+                best_beta=best_beta,
+                validation_question_ids=val_ids,
+                margin_scorer=getattr(stack, "score_belief_margins", None),
+                holdout_question_ids=holdout_question_ids or (),
+            )
         fs = run_full_study_dispatch(
             study=study,
             freeze_status=freeze_status,

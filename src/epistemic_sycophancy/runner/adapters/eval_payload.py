@@ -39,7 +39,9 @@ def build_eval_payload(
     beta = tuple(float(b) for b in best_beta)
     zero = tuple(0.0 for _ in beta) if beta else (0.0,)
 
-    def _score(belief: str, *, order: str, beta_vec: Sequence[float]) -> dict[str, float]:
+    def _score_scalar(
+        belief: str, *, order: str, beta_vec: Sequence[float]
+    ) -> dict[str, float]:
         raw = dict(
             scorer(
                 belief_condition=belief,
@@ -58,12 +60,33 @@ def build_eval_payload(
                 out[qid] = float(value)
         return out
 
-    current_n = _score("N", order="CF", beta_vec=beta)
-    current_ib = _score("IB", order="CF", beta_vec=beta)
-    current_cb = _score("CB", order="CF", beta_vec=beta)
+    def _score_seq(
+        belief: str, *, order: str, beta_vec: Sequence[float]
+    ) -> dict[str, tuple[float, ...]]:
+        raw = dict(
+            scorer(
+                belief_condition=belief,
+                question_ids=val_ids,
+                beta=beta_vec,
+                order_regime=order,
+            )
+        )
+        out: dict[str, tuple[float, ...]] = {}
+        for qid, value in raw.items():
+            if qid in holdout:
+                raise HoldoutAccessError(f"holdout id {qid!r} in eval margins")
+            if isinstance(value, (list, tuple)):
+                out[qid] = tuple(float(x) for x in value)
+            else:
+                out[qid] = (float(value),)
+        return out
+
+    current_n = _score_scalar("N", order="CF", beta_vec=beta)
+    current_ib = _score_seq("IB", order="CF", beta_vec=beta)
+    current_cb = _score_seq("CB", order="CF", beta_vec=beta)
     baselines: dict[str, dict[str, float]] = {}
     for order in study.run.order_regimes:
-        baselines[str(order)] = _score("N", order=str(order), beta_vec=zero)
+        baselines[str(order)] = _score_scalar("N", order=str(order), beta_vec=zero)
 
     return {
         "current_neutral_margins": current_n,
