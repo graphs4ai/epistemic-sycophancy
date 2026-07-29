@@ -593,38 +593,86 @@ def dispatch_stage(
                     partitions = {"q_plus": inter_plus, "q_minus": inter_minus}
                 else:
                     # Eligible optimize IDs disjoint from FS baseline: score neutrals
-                    # at β=0 on eligible set for objective partitions (DEC-076 live).
+                    # at β=0, expanding the optimization-split pool until Q+/Q- exist
+                    # (DEC-081). Objective then runs on a non-degenerate eligible set.
                     from epistemic_sycophancy.metrics.baseline_partition import (
                         build_baseline_partition,
                     )
-                    from epistemic_sycophancy.runner.adapters.margins import (
-                        build_margin_payload,
+                    from epistemic_sycophancy.metrics.exceptions import (
+                        DegenerateBaselineError,
                     )
 
+                    corpus_for_ids, split_ids_full, _ = resolve_corpus_context(
+                        study,
+                        corpus_jsonl_paths=corpus_jsonl_paths,
+                        split_manifest_path=split_manifest_path,
+                        corpus_root=corpus_root,
+                    )
+                    del corpus_for_ids, _
+                    full_opt = tuple(
+                        sorted(str(q) for q in split_ids_full.get("optimization", ()))
+                    )
+                    if not full_opt:
+                        raise ValueError(
+                            "optimize rebuild requires nonempty optimization split"
+                        )
                     m = int(study_for_opt.experiment.coefficient_length)
                     zero = tuple(0.0 for _ in range(m)) if m else (0.0,)
-                    # Temporary partitions so build_margin_payload can run; replace below.
-                    tmp = {
-                        "q_plus": frozenset(opt_qids[:1] or opt_qids),
-                        "q_minus": frozenset(opt_qids[1:2] or opt_qids),
-                    }
-                    payload0 = build_margin_payload(
-                        study_for_opt,
-                        stack,
-                        beta=zero,
-                        question_ids=opt_qids,
-                        partitions=tmp,
-                        margin_scorer=margin_scorer,
-                    )
-                    built = build_baseline_partition(
-                        order_regime="CF",
-                        neutral_margins=payload0["baseline_neutral_margins"],
-                        epsilon=float(study.experiment.tie_band_epsilon),
-                        tie_policy=str(study.experiment.tie_policy),
-                    )
+                    grow = list(opt_qids) if opt_qids else list(full_opt[:2])
+                    built = None
+                    while True:
+                        neutrals = {
+                            str(qid): float(val)
+                            for qid, val in dict(
+                                margin_scorer(
+                                    belief_condition="N",
+                                    question_ids=grow,
+                                    beta=zero,
+                                )
+                            ).items()
+                        }
+                        try:
+                            built = build_baseline_partition(
+                                order_regime="CF",
+                                neutral_margins=neutrals,
+                                epsilon=float(study.experiment.tie_band_epsilon),
+                                tie_policy=str(study.experiment.tie_policy),
+                            )
+                        except DegenerateBaselineError:
+                            built = None
+                        if (
+                            built is not None
+                            and built.q_plus
+                            and built.q_minus
+                        ):
+                            break
+                        if len(grow) >= len(full_opt):
+                            raise DegenerateBaselineError(
+                                "optimize eligible set could not form nonempty "
+                                f"Q+ and Q- after expanding to full optimization split "
+                                f"(n={len(full_opt)})"
+                            )
+                        nxt = min(len(full_opt), max(len(grow) * 2, len(grow) + 8))
+                        grow = list(full_opt[:nxt])
+                    assert built is not None
+                    # Eligible set must come from the scored grow pool so N/IB/CB exist.
+                    n_target = max(2, len(opt_qids) if opt_qids else 2)
+                    chosen: list[str] = []
+                    for p_id, m_id in zip(
+                        sorted(built.q_plus), sorted(built.q_minus), strict=False
+                    ):
+                        chosen.extend([p_id, m_id])
+                        if len(chosen) >= n_target:
+                            break
+                    if len(chosen) < 2:
+                        raise DegenerateBaselineError(
+                            "optimize expand found partitions but could not pick "
+                            "one Q+ and one Q- eligible id"
+                        )
+                    opt_qids = tuple(chosen[:n_target])
                     partitions = {
-                        "q_plus": frozenset(built.q_plus),
-                        "q_minus": frozenset(built.q_minus),
+                        "q_plus": frozenset(built.q_plus) & frozenset(opt_qids),
+                        "q_minus": frozenset(built.q_minus) & frozenset(opt_qids),
                     }
             else:
                 raise ValueError(
