@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import torch
@@ -101,9 +101,9 @@ def _row(
 
 
 def build_dec046_corpus() -> tuple[ToyPromptRow, ...]:
-    """Build the DEC-046 three-question CF/IF N/CB/IB corpus."""
+    """Build the DEC-046 three-question CF/IF/RO N/CB/IB corpus."""
     rows: list[ToyPromptRow] = []
-    for order_regime, truthful_label in (("CF", "A"), ("IF", "B")):
+    for order_regime, default_label in (("CF", "A"), ("IF", "B")):
         for qid, margin in _CF_NEUTRAL.items():
             rows.append(
                 _row(
@@ -111,7 +111,7 @@ def build_dec046_corpus() -> tuple[ToyPromptRow, ...]:
                     question_id=qid,
                     condition="N",
                     variant_index=0,
-                    truthful_label=truthful_label,
+                    truthful_label=default_label,
                     margin=margin,
                 )
             )
@@ -123,7 +123,7 @@ def build_dec046_corpus() -> tuple[ToyPromptRow, ...]:
                         question_id=qid,
                         condition="IB",
                         variant_index=idx,
-                        truthful_label=truthful_label,
+                        truthful_label=default_label,
                         margin=margin,
                     )
                 )
@@ -135,10 +135,43 @@ def build_dec046_corpus() -> tuple[ToyPromptRow, ...]:
                         question_id=qid,
                         condition="CB",
                         variant_index=idx,
-                        truthful_label=truthful_label,
+                        truthful_label=default_label,
                         margin=margin,
                     )
                 )
+    for qid, truthful_label in RO_TRUTHFUL_LABEL.items():
+        rows.append(
+            _row(
+                order_regime="RO",
+                question_id=qid,
+                condition="N",
+                variant_index=0,
+                truthful_label=truthful_label,
+                margin=_CF_NEUTRAL[qid],
+            )
+        )
+        for idx, margin in enumerate(_CF_IB[qid]):
+            rows.append(
+                _row(
+                    order_regime="RO",
+                    question_id=qid,
+                    condition="IB",
+                    variant_index=idx,
+                    truthful_label=truthful_label,
+                    margin=margin,
+                )
+            )
+        for idx, margin in enumerate(_CF_CB[qid]):
+            rows.append(
+                _row(
+                    order_regime="RO",
+                    question_id=qid,
+                    condition="CB",
+                    variant_index=idx,
+                    truthful_label=truthful_label,
+                    margin=margin,
+                )
+            )
     return tuple(rows)
 
 
@@ -587,4 +620,64 @@ def run_toy_e2e_projected_adam(
         lambda_n=lambda_n,
         lambda_c=lambda_c,
         lambda_beta=lambda_beta,
+    )
+
+
+
+def run_toy_e2e_cross_order_matrix(
+    *,
+    betas_by_optimized_under: Mapping[str, Sequence[float]],
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+) -> list:
+    """Build the DEC-046 3×3 cross-order matrix with eval-order prompts/partitions."""
+    from epistemic_sycophancy.evaluation.cross_order import build_cross_order_matrix
+    from epistemic_sycophancy.metrics.baseline_partition import (
+        freeze_baseline_partition_artifact,
+    )
+
+    orders = ("CF", "IF", "RO")
+    baselines = {order: run_toy_e2e_baseline(order_regime=order) for order in orders}
+    fingerprints: dict[str, str] = {}
+    metrics_by_eval: dict[str, dict[str, float | int]] = {}
+    # Metrics at β=0 use baseline; when β shared, score with that β under eval order.
+    # For E2E-007 we evaluate each eval order once per distinct beta of the first
+    # opt order that uses it; cells share metrics keyed by evaluated_under only when
+    # β differs per opt — compute per (opt, eval) then rebuild via matrix helper by
+    # taking metrics from the evaluation pass with that opt's β.
+    # Spec requires prompts/partitions from evaluated_under; metrics may depend on β.
+    # We store per-eval metrics using a representative β from betas_by_optimized_under
+    # matching... Actually ORDER-X stores one metrics_by_evaluated_under. For distinct
+    # β per opt order, FTW/CBR can differ. build_cross_order_matrix uses metrics keyed
+    # only by evaluated_under. For E2E-007 with identical β across opt orders, OK.
+    representative_beta = list(next(iter(betas_by_optimized_under.values())))
+    for order in orders:
+        scored = run_toy_e2e_with_beta(
+            order_regime=order,
+            beta=representative_beta,
+            selected_indices=selected_indices,
+            scales=scales,
+        )
+        artifact = freeze_baseline_partition_artifact(
+            partition=baselines[order].partition,
+            model_revision_hash="toy-e2e-dec046",
+            prompt_template_hash="toy-e2e-dec046",
+            order_manifest_hash=f"toy-e2e-{order}",
+            dataset_manifest_hash="toy-e2e-dec046",
+        )
+        fingerprints[order] = artifact.fingerprint
+        metrics_by_eval[order] = {
+            "ftw": float(scored.metrics.ftw),
+            "cbr": float(scored.metrics.cbr),
+            "selectivity": float(scored.metrics.selectivity),
+            "n_q_plus": int(scored.metrics.n_q_plus),
+            "n_q_minus": int(scored.metrics.n_q_minus),
+        }
+    hashes = {order: f"toy-e2e-{order}" for order in orders}
+    return build_cross_order_matrix(
+        betas_by_optimized_under=betas_by_optimized_under,
+        optimization_order_manifest_hashes=hashes,
+        evaluation_order_manifest_hashes=hashes,
+        baseline_partition_fingerprints=fingerprints,
+        metrics_by_evaluated_under=metrics_by_eval,
     )

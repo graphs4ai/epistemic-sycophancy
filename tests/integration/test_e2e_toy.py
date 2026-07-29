@@ -327,3 +327,85 @@ def test_e2e_toy__projected_adam__reduces_toy_total_loss_without_violating_bound
     assert result.l_final < result.l_initial
     assert all(-2.0 <= v <= 0.0 for v in result.beta_final)
     assert all(-2.0 <= v <= 0.0 for beta in result.beta_trajectory for v in beta)
+
+
+@pytest.mark.integration
+def test_e2e_toy__cross_order__uses_correct_prompts_and_partitions_for_all_nine_cells() -> (
+    None
+):
+    """E2E-007: 3×3 matrix uses eval-order prompts and frozen partitions."""
+    from epistemic_sycophancy.evaluation.toy_e2e import run_toy_e2e_cross_order_matrix
+    from epistemic_sycophancy.metrics.baseline_partition import (
+        freeze_baseline_partition_artifact,
+    )
+
+    betas = {
+        "CF": list(KNOWN_BETA),
+        "IF": list(KNOWN_BETA),
+        "RO": list(KNOWN_BETA),
+    }
+    cells = run_toy_e2e_cross_order_matrix(
+        betas_by_optimized_under=betas,
+        selected_indices=KNOWN_SELECTED,
+        scales=KNOWN_SCALES,
+    )
+    assert len(cells) == 9
+    baselines = {
+        order: run_toy_e2e_baseline(order_regime=order) for order in ("CF", "IF", "RO")
+    }
+    for cell in cells:
+        eval_baseline = baselines[cell.evaluated_under]
+        assert cell.n_q_plus == len(eval_baseline.partition.q_plus)
+        assert cell.n_q_minus == len(eval_baseline.partition.q_minus)
+        assert cell.beta == tuple(betas[cell.optimized_under])
+        expected_fp = freeze_baseline_partition_artifact(
+            partition=eval_baseline.partition,
+            model_revision_hash="toy-e2e-dec046",
+            prompt_template_hash="toy-e2e-dec046",
+            order_manifest_hash=f"toy-e2e-{cell.evaluated_under}",
+            dataset_manifest_hash="toy-e2e-dec046",
+        ).fingerprint
+        assert cell.baseline_partition_fingerprint == expected_fp
+        assert cell.evaluation_order_manifest_hash == f"toy-e2e-{cell.evaluated_under}"
+        assert cell.optimization_order_manifest_hash == f"toy-e2e-{cell.optimized_under}"
+
+
+@pytest.mark.integration
+def test_e2e_toy__cross_order__uses_correct_prompts_and_partitions_for_all_nine_cells() -> (
+    None
+):
+    """E2E-007: 3×3 matrix uses eval-order prompts and frozen partitions."""
+    from epistemic_sycophancy.evaluation.toy_e2e import run_toy_e2e_cross_order_matrix
+    from epistemic_sycophancy.metrics.baseline_partition import (
+        freeze_baseline_partition_artifact,
+    )
+
+    betas = {
+        "CF": list(KNOWN_BETA),
+        "IF": list(KNOWN_BETA),
+        "RO": list(KNOWN_BETA),
+    }
+    cells = run_toy_e2e_cross_order_matrix(
+        betas_by_optimized_under=betas,
+        selected_indices=KNOWN_SELECTED,
+        scales=KNOWN_SCALES,
+    )
+    assert len(cells) == 9
+    baselines = {
+        order: run_toy_e2e_baseline(order_regime=order) for order in ("CF", "IF", "RO")
+    }
+    for cell in cells:
+        eval_baseline = baselines[cell.evaluated_under]
+        assert cell.n_q_plus == len(eval_baseline.partition.q_plus)
+        assert cell.n_q_minus == len(eval_baseline.partition.q_minus)
+        assert cell.beta == tuple(betas[cell.optimized_under])
+        expected_fp = freeze_baseline_partition_artifact(
+            partition=eval_baseline.partition,
+            model_revision_hash="toy-e2e-dec046",
+            prompt_template_hash="toy-e2e-dec046",
+            order_manifest_hash=f"toy-e2e-{cell.evaluated_under}",
+            dataset_manifest_hash="toy-e2e-dec046",
+        ).fingerprint
+        assert cell.baseline_partition_fingerprint == expected_fp
+        assert cell.evaluation_order_manifest_hash == f"toy-e2e-{cell.evaluated_under}"
+        assert cell.optimization_order_manifest_hash == f"toy-e2e-{cell.optimized_under}"
