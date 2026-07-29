@@ -115,11 +115,18 @@ class InterventionStack:
             yield
 
 
-def load_stack(cfg: ExperimentStackConfig) -> InterventionStack:
+def load_stack(
+    cfg: ExperimentStackConfig,
+    *,
+    _load_model: Any | None = None,
+    _load_sae_stack: Any | None = None,
+) -> InterventionStack:
     """Load model + SAE stack from config (config-only layer selection)."""
-    loaded = load_model(cfg.model)
+    load_model_fn = _load_model or load_model
+    load_sae_stack_fn = _load_sae_stack or load_sae_stack
+    loaded = load_model_fn(cfg.model)
     device = "cuda" if loaded.device.type == "cuda" else "cpu"
-    saes = load_sae_stack(
+    saes = load_sae_stack_fn(
         spec=cfg.sae,
         device=device,
         dtype=cfg.model.dtype,

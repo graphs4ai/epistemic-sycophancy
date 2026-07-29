@@ -1,0 +1,18 @@
+# First-study default stack pin (DEC-049 / DEC-051 / RUN-015).
+# Changing layers/model is config-only — same load_stack path.
+model:
+  hf_id: google/gemma-3-4b-it
+  revision: 093f9f388b31de276ce2de164bdc2081324b9767
+  tokenizer_revision: 093f9f388b31de276ce2de164bdc2081324b9767
+  dtype: bfloat16
+  device_policy: cuda_required
+sae:
+  release: gemma-scope-2-4b-it-res
+  site: resid_post
+  width: width_65k
+  l0: l0_medium
+  layers: [9, 17, 22, 29]
+hooks:
+  token_scope: last_prompt_token
+  resolver_id: gemma3_resid_post
+  k: null
