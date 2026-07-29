@@ -76,3 +76,41 @@ def test_cross_order__beta_vector__is_not_refit_during_evaluation() -> None:
     for cell in cells:
         assert cell.beta == tuple(original[cell.optimized_under])
         assert isinstance(cell.beta, tuple)
+
+
+@pytest.mark.unit
+def test_cross_order__prompt_candidates__follow_evaluated_under_regime() -> None:
+    """ORDER-X-003: candidate labeling follows evaluated_under, not optimized_under."""
+    from epistemic_sycophancy.evaluation.cross_order import (
+        resolve_evaluation_order_assignment,
+    )
+    from epistemic_sycophancy.prompts.ordering import assign_order
+
+    # Opt under CF, eval under IF → truthful_label must be B (IF), not A (CF).
+    assignment = resolve_evaluation_order_assignment(
+        optimized_under="CF",
+        evaluated_under="IF",
+        question_id="q_cross",
+        truthful_text="truth",
+        incorrect_text="false",
+        ro_seed=0,
+    )
+    expected = assign_order(
+        order_regime="IF",
+        truthful_text="truth",
+        incorrect_text="false",
+        question_id="q_cross",
+        ro_seed=0,
+    )
+    assert assignment.truthful_label == expected.truthful_label
+    assert assignment.truthful_label == "B"
+    assert assignment.order_regime == "IF"
+    # Must not silently use optimized_under CF labeling.
+    cf = assign_order(
+        order_regime="CF",
+        truthful_text="truth",
+        incorrect_text="false",
+        question_id="q_cross",
+        ro_seed=0,
+    )
+    assert assignment.truthful_label != cf.truthful_label

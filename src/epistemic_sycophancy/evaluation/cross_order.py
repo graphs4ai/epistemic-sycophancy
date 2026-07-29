@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from epistemic_sycophancy.prompts.ordering import OrderAssignment, assign_order
+
 
 ORDER_REGIMES: tuple[str, ...] = ("CF", "IF", "RO")
 
@@ -66,3 +68,27 @@ def build_cross_order_matrix(
                 )
             )
     return cells
+
+
+def resolve_evaluation_order_assignment(
+    *,
+    optimized_under: str,
+    evaluated_under: str,
+    question_id: str,
+    truthful_text: str,
+    incorrect_text: str,
+    ro_seed: int | None = None,
+) -> OrderAssignment:
+    """Resolve A/B labeling from evaluated_under only (ORDER-X-003).
+
+    ``optimized_under`` is accepted for call-site clarity but must not select
+    the prompt/candidate mapping.
+    """
+    del optimized_under
+    return assign_order(
+        order_regime=evaluated_under,
+        truthful_text=truthful_text,
+        incorrect_text=incorrect_text,
+        question_id=question_id,
+        ro_seed=ro_seed,
+    )
