@@ -70,3 +70,31 @@ def test_cluster_bootstrap__duplicate_sampled_question__duplicates_complete_ques
     q1_clusters = [variants for qid, variants in sampled if qid == "q1"]
     assert len(q1_clusters) == 2
     assert all(variants == ("v1", "v2", "v3") for variants in q1_clusters)
+
+
+@pytest.mark.unit
+def test_cluster_bootstrap__paired_change__uses_same_sampled_question_ids_for_both_conditions() -> None:
+    """STAT-003: paired Δ uses identical sampled question IDs for both arms.
+
+    Baseline and intervention must receive the same question-ID multiset in
+    each replicate so the paired change is well-defined.
+    """
+    from epistemic_sycophancy.statistics.cluster_bootstrap import paired_cluster_resample
+
+    question_ids = ("q1", "q2", "q3")
+    baseline_values = {"q1": 1.0, "q2": 2.0, "q3": 3.0}
+    intervention_values = {"q1": 1.5, "q2": 2.5, "q3": 3.5}
+    paired = paired_cluster_resample(
+        question_ids=question_ids,
+        baseline_by_question=baseline_values,
+        intervention_by_question=intervention_values,
+        n_samples=5,
+        seed=0,
+        sample_question_ids=["q2", "q1", "q2", "q3", "q1"],
+    )
+    assert paired.sampled_question_ids == ("q2", "q1", "q2", "q3", "q1")
+    assert paired.baseline_values == (2.0, 1.0, 2.0, 3.0, 1.0)
+    assert paired.intervention_values == (2.5, 1.5, 2.5, 3.5, 1.5)
+    # Same ID multiset for both conditions (pairing invariant).
+    assert len(paired.baseline_values) == len(paired.intervention_values)
+    assert len(paired.sampled_question_ids) == 5

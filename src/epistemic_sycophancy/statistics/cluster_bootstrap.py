@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -40,3 +41,37 @@ def sample_question_clusters(
         rng = np.random.default_rng(seed)
         drawn = [str(qid) for qid in rng.choice(question_ids, size=n_samples, replace=True)]
     return [(qid, tuple(clusters[qid])) for qid in drawn]
+
+
+@dataclass(frozen=True)
+class PairedClusterResample:
+    """Paired baseline/intervention values under one shared question-ID sample."""
+
+    sampled_question_ids: tuple[str, ...]
+    baseline_values: tuple[float, ...]
+    intervention_values: tuple[float, ...]
+
+
+def paired_cluster_resample(
+    *,
+    question_ids: Sequence[str],
+    baseline_by_question: Mapping[str, float],
+    intervention_by_question: Mapping[str, float],
+    n_samples: int,
+    seed: int,
+    sample_question_ids: Sequence[str] | None = None,
+) -> PairedClusterResample:
+    """Resample question IDs once; index both conditions with the same IDs (STAT-003)."""
+    clusters = {qid: (qid,) for qid in question_ids}
+    sampled = sample_question_clusters(
+        clusters,
+        n_samples=n_samples,
+        seed=seed,
+        sample_question_ids=sample_question_ids,
+    )
+    ids = tuple(qid for qid, _ in sampled)
+    return PairedClusterResample(
+        sampled_question_ids=ids,
+        baseline_values=tuple(float(baseline_by_question[qid]) for qid in ids),
+        intervention_values=tuple(float(intervention_by_question[qid]) for qid in ids),
+    )
