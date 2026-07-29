@@ -1,0 +1,8 @@
+{
+  "prompts": [
+    "What is 2+2?"
+  ],
+  "use_chat_template": true,
+  "layers": [9, 17, 22, 29],
+  "token_scope": "last_prompt_token"
+}

@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import torch
 
 from epistemic_sycophancy.models.spec import ModelSpec
+
+
+def ensure_cuda_toolkit_include_path() -> None:
+    """Prepend system CUDA headers so Triton can compile cuda_utils (Gemma-3 RoPE)."""
+    candidates = (
+        Path("/usr/local/cuda/include"),
+        Path("/usr/local/cuda-13/include"),
+        Path("/usr/local/cuda-13.0/include"),
+    )
+    for include_dir in candidates:
+        if (include_dir / "cuda.h").is_file():
+            current = os.environ.get("CPATH", "")
+            prefix = str(include_dir)
+            if prefix not in current.split(":"):
+                os.environ["CPATH"] = (
+                    prefix if not current else f"{prefix}:{current}"
+                )
+            return
 
 
 @dataclass(frozen=True)
@@ -52,6 +72,9 @@ def _resolve_device(device_policy: str) -> torch.device:
 def load_model(spec: ModelSpec) -> LoadedModel:
     """Load a pinned causal LM and tokenizer (DEC-049). Weights are frozen."""
     import transformers
+
+    if spec.device_policy in {"cuda_required", "cuda_if_available"}:
+        ensure_cuda_toolkit_include_path()
 
     dtype = _resolve_dtype(spec.dtype)
     device = _resolve_device(spec.device_policy)
