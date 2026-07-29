@@ -356,3 +356,41 @@ def evaluate_toy_e2e_objective(
         lambda_c=lambda_c,
         lambda_beta=lambda_beta,
     )
+
+
+def toy_e2e_prompt_coefficient_jacobian(
+    *,
+    prompt_id: str,
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+) -> list[float]:
+    """Exact local ∂φ(M)/∂β on one DEC-046 prompt at β=0 (selected features)."""
+    from epistemic_sycophancy.feature_selection.projected_gradient import (
+        coefficient_jacobian,
+        project_residual_gradient,
+    )
+
+    rows = {row.prompt_id: row for row in build_dec046_corpus()}
+    try:
+        row = rows[prompt_id]
+    except KeyError as exc:
+        raise KeyError(f"unknown DEC-046 prompt_id={prompt_id!r}") from exc
+    residual = torch.tensor(row.residual_last, dtype=torch.float64, requires_grad=True)
+    logits = _HEAD @ residual
+    if row.truthful_label == "A":
+        margin = logits[0] - logits[1]
+    else:
+        margin = logits[1] - logits[0]
+    loss = torch.nn.functional.softplus(-margin)
+    residual_grad = torch.autograd.grad(loss, residual)[0]
+    raw = project_residual_gradient(gradient=residual_grad, decoder=_DECODER)
+    latents = torch.relu(residual.detach() @ _ENCODER.T + _ENCODER_BIAS)
+    full_scales = torch.ones(_DECODER.shape[0], dtype=torch.float64)
+    for index, scale in zip(selected_indices, scales):
+        full_scales[index] = float(scale)
+    full_j = coefficient_jacobian(
+        raw_projection=raw,
+        latents=latents,
+        feature_scales=full_scales,
+    )
+    return [float(full_j[index].item()) for index in selected_indices]

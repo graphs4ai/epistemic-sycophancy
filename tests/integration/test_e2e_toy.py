@@ -164,3 +164,99 @@ def test_e2e_toy__known_beta__matches_hand_computed_latents_delta_logits_and_obj
     assert objective.l_total == pytest.approx(
         GOLDEN_KNOWN_BETA_L_TOTAL, abs=1e-12, rel=1e-12
     )
+
+
+@pytest.mark.integration
+def test_e2e_toy__projected_gradient__matches_autograd_and_finite_difference() -> None:
+    """E2E-004: projected J on DEC-046 prompt matches autograd and one-sided FD."""
+    import torch
+
+    from epistemic_sycophancy.evaluation.toy_e2e import (
+        toy_e2e_prompt_coefficient_jacobian,
+    )
+
+    prompt_id = "CF:q1:N:0"
+    selected = KNOWN_SELECTED
+    scales = KNOWN_SCALES
+    projected = toy_e2e_prompt_coefficient_jacobian(
+        prompt_id=prompt_id,
+        selected_indices=selected,
+        scales=scales,
+    )
+    autograd_j, fd_j = _reference_autograd_and_fd_jacobian(
+        prompt_id=prompt_id,
+        selected_indices=selected,
+        scales=scales,
+    )
+    assert projected == pytest.approx(autograd_j, abs=1e-8, rel=1e-6)
+    assert projected == pytest.approx(fd_j, abs=1e-6, rel=1e-6)
+
+
+def _reference_autograd_and_fd_jacobian(
+    *,
+    prompt_id: str,
+    selected_indices: tuple[int, ...],
+    scales: tuple[float, ...],
+) -> tuple[list[float], list[float]]:
+    """Independent autograd + DEC-021 one-sided FD for the E2E prompt loss."""
+    import torch
+
+    from epistemic_sycophancy.evaluation.toy_e2e import build_dec046_corpus
+    from epistemic_sycophancy.intervention.sae_delta import apply_additive_sae_delta
+
+    row = next(r for r in build_dec046_corpus() if r.prompt_id == prompt_id)
+    residual = torch.tensor(row.residual_last, dtype=torch.float64)
+    w_dec = torch.tensor([[1.0, 0.0], [0.0, 2.0], [1.0, 1.0]], dtype=torch.float64)
+    w_enc = torch.tensor(
+        [[0.5, 0.0], [0.0, 0.25], [0.25, 0.25]], dtype=torch.float64
+    )
+    b_enc = torch.tensor([0.1, -0.2, 0.05], dtype=torch.float64)
+    head = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float64)
+    scales_t = torch.tensor(list(scales), dtype=torch.float64)
+    for param in (w_dec, w_enc, b_enc, head, scales_t):
+        param.requires_grad_(False)
+
+    beta = torch.zeros(len(selected_indices), dtype=torch.float64, requires_grad=True)
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=list(selected_indices),
+        scales=scales_t,
+        beta=beta,
+        encoder_weight=w_enc,
+        encoder_bias=b_enc,
+        decoder_weight=w_dec,
+    )
+    logits = head @ intervened
+    margin = logits[0] - logits[1]
+    loss = torch.nn.functional.softplus(-margin)
+    autograd_j = torch.autograd.grad(loss, beta)[0]
+
+    # Activity guard for FD (DEC-021).
+    latents = torch.relu(residual @ w_enc.T + b_enc)
+    fd_step = 1e-8
+    for idx, scale in zip(selected_indices, scales):
+        if float(latents[idx]) > 0:
+            assert fd_step * float(scale) < float(latents[idx])
+
+    def loss_at(beta_vec: list[float]) -> float:
+        with torch.no_grad():
+            intervened = apply_additive_sae_delta(
+                residual=residual,
+                selected_indices=list(selected_indices),
+                scales=list(scales),
+                beta=beta_vec,
+                encoder_weight=w_enc,
+                encoder_bias=b_enc,
+                decoder_weight=w_dec,
+            )
+            logits = head @ intervened
+            margin = logits[0] - logits[1]
+            return float(torch.nn.functional.softplus(-margin).item())
+
+    base = loss_at([0.0] * len(selected_indices))
+    fd_j: list[float] = []
+    for j in range(len(selected_indices)):
+        beta_m = [0.0] * len(selected_indices)
+        beta_m[j] = -fd_step
+        fd_j.append((loss_at(beta_m) - base) / (-fd_step))
+    return [float(v) for v in autograd_j.tolist()], fd_j
