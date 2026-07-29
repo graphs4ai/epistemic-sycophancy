@@ -114,3 +114,79 @@ def test_cross_order__prompt_candidates__follow_evaluated_under_regime() -> None
         ro_seed=0,
     )
     assert assignment.truthful_label != cf.truthful_label
+
+
+@pytest.mark.unit
+def test_cross_order__matrix_cell__uses_evaluation_order_baseline_partition() -> None:
+    """ORDER-X-004: matrix cell fingerprint matches evaluation-order partition.
+
+    Opt under CF, eval under IF → use Q+_IF / Q-_IF fingerprint (BASE-004).
+    """
+    from epistemic_sycophancy.metrics.baseline_partition import (
+        build_baseline_partition,
+        freeze_baseline_partition_artifact,
+        select_partition_for_evaluation,
+    )
+
+    partition_cf = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins={"q1": 1.0, "q2": -1.0},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    partition_if = build_baseline_partition(
+        order_regime="IF",
+        neutral_margins={"q1": -1.0, "q2": 1.0},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    art_cf = freeze_baseline_partition_artifact(
+        partition=partition_cf,
+        model_revision_hash="m",
+        prompt_template_hash="p",
+        order_manifest_hash="cf",
+        dataset_manifest_hash="d",
+    )
+    art_if = freeze_baseline_partition_artifact(
+        partition=partition_if,
+        model_revision_hash="m",
+        prompt_template_hash="p",
+        order_manifest_hash="if",
+        dataset_manifest_hash="d",
+    )
+    selected = select_partition_for_evaluation(
+        partitions_by_order={"CF": partition_cf, "IF": partition_if, "RO": partition_cf},
+        optimization_order="CF",
+        evaluation_order="IF",
+    )
+    assert selected is partition_if
+
+    cells = build_cross_order_matrix(
+        betas_by_optimized_under={
+            "CF": [-1.0],
+            "IF": [-0.5],
+            "RO": [0.0],
+        },
+        optimization_order_manifest_hashes={"CF": "ocf", "IF": "oif", "RO": "oro"},
+        evaluation_order_manifest_hashes={"CF": "ecf", "IF": "eif", "RO": "ero"},
+        baseline_partition_fingerprints={
+            "CF": art_cf.fingerprint,
+            "IF": art_if.fingerprint,
+            "RO": art_cf.fingerprint,
+        },
+        metrics_by_evaluated_under={
+            order: {
+                "ftw": 0.0,
+                "cbr": 0.0,
+                "selectivity": 0.0,
+                "n_q_plus": 1,
+                "n_q_minus": 1,
+            }
+            for order in ORDER_REGIMES
+        },
+    )
+    cf_if = next(
+        c for c in cells if c.optimized_under == "CF" and c.evaluated_under == "IF"
+    )
+    assert cf_if.baseline_partition_fingerprint == art_if.fingerprint
+    assert cf_if.baseline_partition_fingerprint != art_cf.fingerprint
