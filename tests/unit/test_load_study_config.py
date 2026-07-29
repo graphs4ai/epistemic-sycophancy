@@ -1,4 +1,4 @@
-"""load_study_config fingerprint round-trip (Phase L CFGFILE-002 / DEC-057)."""
+"""load_study_config tests (Phase L CFGFILE-002/003)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,10 @@ from epistemic_sycophancy.config.load_study import (
     study_config_fingerprint,
 )
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_FIRST_STUDY = (
+    _REPO_ROOT / "configs" / "first_study_gemma3_4b_resid_post_65k_medium.yaml"
+)
 
 _MINIMAL_STUDY_YAML = """\
 stack:
@@ -96,3 +100,21 @@ def test_load_study_config__identical_files__stable_fingerprint_round_trip(
     assert study_a.stack.sae.layers == (17,)
     assert study_a.experiment.pool_quota_per_list == 8
     assert study_a.run.optimizer.kind == "projected_adam"
+
+
+@pytest.mark.unit
+def test_load_study_config__first_study_yaml__loads_stack_experiment_and_run() -> None:
+    """CFGFILE-003: first_study YAML is a full StudyConfig (DEC-058)."""
+    study = load_study_config(_FIRST_STUDY)
+    assert study.stack.model.hf_id == "google/gemma-3-4b-it"
+    assert study.stack.sae.layers == (9, 17, 22, 29)
+    assert study.stack.hooks.token_scope == "last_prompt_token"
+    assert study.experiment.tie_policy == "merge_into_q_minus"
+    assert study.experiment.pool_quota_per_list == 8
+    assert study.run.smoke.n_questions == 2
+    assert study.run.smoke.split == "feature_selection"
+    assert study.run.optimizer.kind == "projected_adam"
+    text = _FIRST_STUDY.read_text(encoding="utf-8")
+    assert "stack:" in text
+    assert "experiment:" in text
+    assert "run:" in text
