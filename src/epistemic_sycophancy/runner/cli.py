@@ -1,10 +1,12 @@
-"""Staged CLI entry points for Phase K/L experiment runs (DEC-055 / WIRE-011)."""
+"""Staged CLI entry points for Phase K/L/M experiment runs (DEC-055 / DEC-072)."""
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from epistemic_sycophancy.config.load_study import load_study_config
 from epistemic_sycophancy.config.study import StudyConfig
@@ -34,6 +36,8 @@ class StageResult:
     stage: str
     ok: bool
     message: str
+    metrics: Mapping[str, Any] = field(default_factory=dict)
+    artifacts: Mapping[str, str] = field(default_factory=dict)
 
 
 def run_stage(stage: str, *, freeze_status: str) -> StageResult:
@@ -53,8 +57,9 @@ def dispatch_stage(
     *,
     study: StudyConfig,
     freeze_status: str,
+    stack_loader: Callable[[StudyConfig], Any] | None = None,
 ) -> StageResult:
-    """Dispatch a real stage using validated StudyConfig (WIRE-011 / DEC-063)."""
+    """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
     if stage not in STAGE_ORDER:
         raise ValueError(f"unknown stage {stage!r}; expected one of {STAGE_ORDER}")
     if stage == "full_study":
@@ -72,17 +77,37 @@ def dispatch_stage(
             ),
         )
 
-    # Real stage entry: record study fingerprint + stack identity for audit.
     from epistemic_sycophancy.config.load_study import study_config_fingerprint
 
     fingerprint = study_config_fingerprint(study)
     layers = list(study.stack.sae.layers)
+
     if stage == "identity":
+        from epistemic_sycophancy.runner.identity import resolve_stack, run_identity_stage
+
+        stack = resolve_stack(study, stack_loader=stack_loader)
+        identity = run_identity_stage(study=study, stack=stack)
+        ok = bool(identity["identity_passed"])
+        metrics = {
+            "identity_passed": identity["identity_passed"],
+            "max_abs_diff": identity["max_abs_diff"],
+        }
+        artifacts = dict(identity["artifacts"])
         message = (
-            f"completed identity: study_fp={fingerprint[:12]}… "
-            f"layers={layers} (β=0 short-circuit path)"
+            f"completed identity: identity_passed={ok} "
+            f"max_abs_diff={identity['max_abs_diff']} "
+            f"layers={layers} study_fp={fingerprint[:12]}…"
         )
-    elif stage == "baseline_partitions":
+        return StageResult(
+            stage=stage,
+            ok=ok,
+            message=message,
+            metrics=metrics,
+            artifacts=artifacts,
+        )
+
+    # Remaining stages still fingerprint-ack until ORCH-003…005.
+    if stage == "baseline_partitions":
         message = (
             f"completed baseline_partitions: study_fp={fingerprint[:12]}… "
             f"smoke={study.run.smoke!r}"

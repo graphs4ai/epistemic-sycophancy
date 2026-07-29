@@ -290,6 +290,14 @@ CFGFILE-* / WIRE-* Spec IDs are Phase L inventions. They add file-driven StudyCo
 | WIRE-013 | `test_phase_l_gate__yaml_to_finite_objective_contract_documented` | green | gate helper missing before module | same → 1 passed | `tests/unit/test_phase_l_gate.py`, `README.md` | Phase L gate; DEC-063 |
 | WIRE-005 | `test_prompts__render_mc0_subset__from_frozen_corpus_and_smoke_config` | green | `pixi run --environment test pytest ...::test_prompts__render_mc0_subset__from_frozen_corpus_and_smoke_config -q` → would `ModuleNotFoundError: prompts.render` before module | same command → `1 passed` | `prompts/render.py` | DEC-059 smoke subset MC0 render |
 
+## Phase M — ORCH (SHIP / final impl)
+
+ORCH-* Spec IDs are Phase M inventions. They wire StudyConfig YAML + injectable stages into a complete CLI path (smoke → optimize → freeze → full_study → holdout). Do not renumber Phase L.
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-001 | `test_dispatch__identity__beta_zero_identity_on_smoke_prompts_returns_structured_stage_result` | green | `pixi run --environment test pytest tests/unit/test_orch_dispatch_identity.py::test_dispatch__identity__beta_zero_identity_on_smoke_prompts_returns_structured_stage_result -q` → `TypeError: dispatch_stage() got an unexpected keyword argument 'stack_loader'` | same command → `1 passed`; `tests/unit/test_runner_cli.py` → `3 passed` | `runner/identity.py`, `runner/cli.py`, `docs/decisions.md` | DEC-064/065; real β=0 identity; structured metrics |
+
 ## Status definitions
 
 - `not_started`: no test written.
