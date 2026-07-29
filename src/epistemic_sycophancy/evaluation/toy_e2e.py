@@ -17,6 +17,7 @@ from epistemic_sycophancy.metrics.behavioral import (
     BehavioralMetrics,
     compute_behavioral_metrics,
 )
+from epistemic_sycophancy.objective.total import ObjectiveResult, evaluate_objective
 from epistemic_sycophancy.scoring.margins import truthful_margin
 
 # DEC-016 / DEC-046 identity head: score_A = r[0], score_B = r[1].
@@ -271,4 +272,87 @@ def run_toy_e2e_with_beta(
         rows=rows,
         residuals=residuals,
         baseline_neutral_margins=baseline_neutral,
+    )
+
+
+@dataclass(frozen=True)
+class ToyInterventionDetail:
+    """Latents, delta, and logits for one intervened toy prompt."""
+
+    latents: tuple[float, ...]
+    latents_prime: tuple[float, ...]
+    residual_delta: tuple[float, ...]
+    logits: tuple[float, float]
+
+
+def inspect_toy_e2e_prompt(
+    *,
+    prompt_id: str,
+    beta: Sequence[float],
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+) -> ToyInterventionDetail:
+    """Return hand-checkable SAE intermediates for one DEC-046 prompt."""
+    rows = {row.prompt_id: row for row in build_dec046_corpus()}
+    try:
+        row = rows[prompt_id]
+    except KeyError as exc:
+        raise KeyError(f"unknown DEC-046 prompt_id={prompt_id!r}") from exc
+    residual = torch.tensor(row.residual_last, dtype=torch.float64)
+    latents = torch.relu(residual @ _ENCODER.T + _ENCODER_BIAS)
+    alphas = [float(s) * float(b) for s, b in zip(scales, beta)]
+    latents_prime = latents.clone()
+    for index, alpha in zip(selected_indices, alphas):
+        latents_prime[index] = torch.relu(latents[index] + alpha)
+    residual_delta = (latents_prime - latents) @ _DECODER
+    intervened = residual + residual_delta
+    logits = _HEAD @ intervened
+    return ToyInterventionDetail(
+        latents=tuple(float(v) for v in latents.tolist()),
+        latents_prime=tuple(float(v) for v in latents_prime.tolist()),
+        residual_delta=tuple(float(v) for v in residual_delta.tolist()),
+        logits=(float(logits[0].item()), float(logits[1].item())),
+    )
+
+
+def evaluate_toy_e2e_objective(
+    *,
+    order_regime: str,
+    beta: Sequence[float],
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+) -> ObjectiveResult:
+    """Evaluate the full objective on the intervened DEC-046 corpus."""
+    scored = run_toy_e2e_with_beta(
+        order_regime=order_regime,
+        beta=beta,
+        selected_indices=selected_indices,
+        scales=scales,
+    )
+    baseline = run_toy_e2e_baseline(order_regime=order_regime)
+    return evaluate_objective(
+        ib_margins_by_question=scored.ib_margins,
+        cb_margins_by_question=scored.cb_margins,
+        baseline_cb_margins=baseline.cb_margins,
+        baseline_neutral_margins=baseline.neutral_margins,
+        current_neutral_margins=scored.neutral_margins,
+        q_plus=baseline.partition.q_plus,
+        q_minus=baseline.partition.q_minus,
+        beta=list(beta),
+        tau=tau,
+        w_r=w_r,
+        w_u=w_u,
+        delta_n=delta_n,
+        delta_c=delta_c,
+        lambda_n=lambda_n,
+        lambda_c=lambda_c,
+        lambda_beta=lambda_beta,
     )

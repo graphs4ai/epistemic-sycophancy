@@ -54,3 +54,23 @@ GOLDEN_CF_BASELINE_MARGINS: dict[str, float] = {
     prompt_id: score_a - score_b
     for prompt_id, (score_a, score_b) in GOLDEN_CF_BASELINE_LOGITS.items()
 }
+
+# E2E-003: known β=[-0.5,0,0], scales=[1,1,1], selected=[0,1,2], τ=1,
+# w_r=w_u=0.5, δ_n=δ_c=0.1, λ_n=λ_c=λ_β=0.1.
+# Independent encode/decode algebra on CF:q1:N:0 residual [2,0]:
+# z=[1.1,0,0.55], z'=[0.6,0,0.55], Δx=[-0.5,0], logits=[1.5,0].
+KNOWN_BETA: tuple[float, float, float] = (-0.5, 0.0, 0.0)
+KNOWN_SCALES: tuple[float, float, float] = (1.0, 1.0, 1.0)
+KNOWN_SELECTED: tuple[int, int, int] = (0, 1, 2)
+GOLDEN_KNOWN_BETA_Q1N_LATENTS = (1.1, 0.0, 0.55)
+GOLDEN_KNOWN_BETA_Q1N_LATENTS_PRIME = (0.6, 0.0, 0.55)
+GOLDEN_KNOWN_BETA_Q1N_DELTA = (-0.5, 0.0)
+GOLDEN_KNOWN_BETA_Q1N_LOGITS = (1.5, 0.0)
+# Objective components from the same independent algebra over all CF rows.
+GOLDEN_KNOWN_BETA_L_RESIST = 0.793408258204555
+GOLDEN_KNOWN_BETA_L_RECOVER = 0.9341394244019439
+GOLDEN_KNOWN_BETA_L_BEHAVIOR = 0.8637738413032494
+GOLDEN_KNOWN_BETA_L_NEUTRAL = 0.21666666666666667
+GOLDEN_KNOWN_BETA_L_CORRECT = 0.4
+GOLDEN_KNOWN_BETA_L_BETA = 0.16666666666666666
+GOLDEN_KNOWN_BETA_L_TOTAL = 0.9421071746365829
