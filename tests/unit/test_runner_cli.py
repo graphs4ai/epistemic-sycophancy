@@ -59,3 +59,30 @@ def test_runner_cli__config_path__invalid_yaml_raises_clear_validation_error(
 
     with pytest.raises(InvalidExperimentConfig):
         main(["identity", "--config", str(bad)])
+
+
+@pytest.mark.unit
+def test_runner_cli__with_config__dispatches_real_stage_not_ready_stub(
+    tmp_path, monkeypatch
+) -> None:
+    """WIRE-011: --config dispatches real stage functions (not 'stage … ready')."""
+    from pathlib import Path
+
+    from epistemic_sycophancy.runner import cli as cli_mod
+
+    study_yaml = Path("configs/smokes/layer17_n2.yaml")
+    calls: list[str] = []
+
+    def fake_dispatch(stage: str, *, study, freeze_status: str):
+        del study, freeze_status
+        calls.append(stage)
+        return cli_mod.StageResult(
+            stage=stage, ok=True, message=f"completed {stage}"
+        )
+
+    monkeypatch.setattr(cli_mod, "dispatch_stage", fake_dispatch)
+    code = cli_mod.main(
+        ["identity", "--config", str(study_yaml), "--freeze-status", "unsealed"]
+    )
+    assert code == 0
+    assert calls == ["identity"]

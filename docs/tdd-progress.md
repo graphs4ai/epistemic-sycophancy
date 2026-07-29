@@ -285,6 +285,7 @@ CFGFILE-* / WIRE-* Spec IDs are Phase L inventions. They add file-driven StudyCo
 | WIRE-008 | `test_stack__common_pool_scales__decoder_norm_from_sae_metadata` | green | ImportError scales | same → 1 passed | `stack/scales.py` | DEC-061 decoder_norm |
 | WIRE-009 | `test_runner__opt_smoke__evaluate_objective_finite_on_study_smoke_subset` | green | replaced Σβ² path | same → 1 passed; module → 2 passed | `runner/opt_smoke.py` | DEC-062 real evaluate_objective |
 | WIRE-010 | `test_runner__opt_smoke__one_projected_adam_step_respects_beta_bounds` | green | ImportError adam_step | same → 1 passed; module → 3 passed | `runner/opt_smoke.py` | DEC-062 ProjectedAdam |
+| WIRE-011 | `test_runner_cli__with_config__dispatches_real_stage_not_ready_stub` | green | AttributeError dispatch_stage | same → 1 passed; module → 3 passed | `runner/cli.py` | DEC-063; --config required |
 | WIRE-005 | `test_prompts__render_mc0_subset__from_frozen_corpus_and_smoke_config` | green | `pixi run --environment test pytest ...::test_prompts__render_mc0_subset__from_frozen_corpus_and_smoke_config -q` → would `ModuleNotFoundError: prompts.render` before module | same command → `1 passed` | `prompts/render.py` | DEC-059 smoke subset MC0 render |
 
 ## Status definitions
