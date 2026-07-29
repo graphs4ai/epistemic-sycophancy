@@ -333,3 +333,101 @@ def real_model_objective_trial_smoke(
         question_ids=tuple(str(q) for q in question_ids),
         trial_record=trial,
     )
+
+
+@dataclass(frozen=True)
+class RealModelMemoryReport:
+    """REAL-007 peak CUDA memory for baseline / hooked / Adam-backward."""
+
+    baseline_peak_bytes: int
+    hooked_peak_bytes: int
+    adam_backward_peak_bytes: int
+
+
+def real_model_peak_cuda_memory(
+    *,
+    model_id: str,
+    model_revision: str,
+    prompt: str,
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+    seed: int = 0,
+) -> RealModelMemoryReport:
+    """Record peak CUDA allocated bytes for three REAL-007 phases (DEC-045)."""
+    if not torch.cuda.is_available():
+        raise RuntimeError(
+            "CUDA unavailable; REAL-007 cannot run (DEC-045). "
+            "Record blocked — do not substitute CPU."
+        )
+
+    import transformers
+
+    device = torch.device("cuda")
+    dtype = torch.float32
+    torch.cuda.reset_peak_memory_stats(device)
+    torch.manual_seed(seed)
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_id, revision=model_revision
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = transformers.AutoModelForCausalLM.from_pretrained(
+        model_id, revision=model_revision
+    ).to(device)
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad_(False)
+
+    encoded = tokenizer([prompt], return_tensors="pt", padding=True)
+    encoded = {k: v.to(device) for k, v in encoded.items()}
+    with torch.no_grad():
+        outputs = model(**encoded, output_hidden_states=True)
+    baseline_peak = int(torch.cuda.max_memory_allocated(device))
+
+    torch.cuda.reset_peak_memory_stats(device)
+    d_model = int(model.config.n_embd)
+    length = int(encoded["attention_mask"].sum(dim=1)[0].item())
+    residual = outputs.hidden_states[-1][0, length - 1].detach().to(dtype=dtype)
+    n_features = max(max(selected_indices) + 1, 8)
+    decoder = torch.randn(n_features, d_model, dtype=dtype, device=device)
+    encoder = torch.randn(n_features, d_model, dtype=dtype, device=device)
+    encoder_bias = torch.zeros(n_features, dtype=dtype, device=device)
+    head = torch.randn(2, d_model, dtype=dtype, device=device)
+    for param in (decoder, encoder, encoder_bias, head):
+        param.requires_grad_(False)
+    beta0 = torch.zeros(len(selected_indices), dtype=dtype, device=device)
+    with torch.no_grad():
+        _ = apply_additive_sae_delta(
+            residual=residual,
+            selected_indices=list(selected_indices),
+            scales=list(scales),
+            beta=beta0,
+            encoder_weight=encoder,
+            encoder_bias=encoder_bias,
+            decoder_weight=decoder,
+        )
+    hooked_peak = int(torch.cuda.max_memory_allocated(device))
+
+    torch.cuda.reset_peak_memory_stats(device)
+    beta = torch.zeros(
+        len(selected_indices), dtype=dtype, device=device, requires_grad=True
+    )
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=list(selected_indices),
+        scales=list(scales),
+        beta=beta,
+        encoder_weight=encoder,
+        encoder_bias=encoder_bias,
+        decoder_weight=decoder,
+    )
+    logits = head @ intervened
+    loss = torch.nn.functional.softplus(-(logits[0] - logits[1]))
+    loss.backward()
+    adam_peak = int(torch.cuda.max_memory_allocated(device))
+    return RealModelMemoryReport(
+        baseline_peak_bytes=baseline_peak,
+        hooked_peak_bytes=hooked_peak,
+        adam_backward_peak_bytes=adam_peak,
+    )
