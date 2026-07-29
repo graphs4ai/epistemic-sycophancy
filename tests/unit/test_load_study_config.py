@@ -136,3 +136,27 @@ def test_load_study_config__layers_one_vs_four__same_loader_no_code_fork(
     assert study_one.stack.sae.layers == (17,)
     assert study_four.stack.sae.layers == (9, 17, 22, 29)
     assert study_one.stack.model.hf_id == study_four.stack.model.hf_id
+
+
+@pytest.mark.unit
+def test_load_study_config__smoke_preset__explicit_n_or_allowlist(
+    tmp_path: Path,
+) -> None:
+    """CFGFILE-005: smoke preset YAML + allowlist XOR n/split/seed (DEC-059)."""
+    smoke_path = _REPO_ROOT / "configs" / "smokes" / "layer17_n2.yaml"
+    study = load_study_config(smoke_path)
+    assert study.stack.sae.layers == (17,)
+    assert study.run.smoke.n_questions == 2
+    assert study.run.smoke.split == "feature_selection"
+    assert study.run.smoke.seed == 0
+    assert study.run.smoke.question_ids is None
+
+    allowlist_yaml = _MINIMAL_STUDY_YAML.replace(
+        "  smoke:\n    n_questions: 2\n    split: feature_selection\n    seed: 0\n",
+        "  smoke:\n    question_ids: [q_a, q_b]\n",
+    )
+    path = tmp_path / "allowlist.yaml"
+    path.write_text(allowlist_yaml, encoding="utf-8")
+    allowlisted = load_study_config(path)
+    assert allowlisted.run.smoke.question_ids == ("q_a", "q_b")
+    assert allowlisted.run.smoke.n_questions is None
