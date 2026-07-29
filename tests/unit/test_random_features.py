@@ -40,3 +40,17 @@ def test_random_feature_control__has_no_overlap_unless_explicitly_permitted() ->
     )
     assert len(with_overlap) == len(selected)
     assert set(with_overlap).issubset({0, 1, 2})
+
+
+@pytest.mark.unit
+def test_random_feature_control__fixed_seed__reproduces_feature_ids() -> None:
+    """CTRL-003: fixed seed reproduces the random feature ID list."""
+    kwargs = dict(
+        n_features=20,
+        selected_feature_ids=[1, 5, 9],
+        control_seed=0,
+        allow_overlap=False,
+    )
+    a = sample_random_features(**kwargs)
+    b = sample_random_features(**kwargs)
+    assert a == b

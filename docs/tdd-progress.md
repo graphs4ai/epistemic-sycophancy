@@ -200,6 +200,7 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 | ORDER-X-005 | `test_cross_order__cell_record__contains_optimization_and_evaluation_manifest_hashes` | green | Already satisfied by DEC-041 cell schema: first run → `1 passed` | same command → `1 passed`; module suite → `5 passed` | `tests/unit/test_cross_order.py` | Already satisfied / no production change. |
 | CTRL-001 | `test_random_feature_control__matches_selected_feature_count` | green | `pixi run --environment test pytest tests/unit/test_random_features.py::test_random_feature_control__matches_selected_feature_count -q` → `NotImplementedError: sample_random_features is not implemented` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/controls/random_features.py`, `controls/__init__.py`, `docs/decisions.md` | DEC-039; |random|==|selected|. |
 | CTRL-002 | `test_random_feature_control__has_no_overlap_unless_explicitly_permitted` | green | Already satisfied by DEC-039 exclude-selected default: first run → `1 passed` | same command → `1 passed`; module suite → `2 passed` | `tests/unit/test_random_features.py` | Already satisfied / no production change. |
+| CTRL-003 | `test_random_feature_control__fixed_seed__reproduces_feature_ids` | green | Already satisfied by seeded RNG: first run → `1 passed` | same command → `1 passed`; module suite → `3 passed` | `tests/unit/test_random_features.py` | Already satisfied / no production change. |
 
 ## Status definitions
 
