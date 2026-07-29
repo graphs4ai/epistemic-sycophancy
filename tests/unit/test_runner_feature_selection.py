@@ -36,3 +36,44 @@ def test_runner__feature_selection_stage__emits_per_layer_keys_for_one_order() -
             component_jacobians=fake_component_maps,
             freeze_status="unsealed",
         )
+
+
+@pytest.mark.unit
+def test_runner__feature_selection_stage__computes_jacobian_keys_on_tiny_fs_subset() -> None:
+    """WIRE-007: jacobian_fn computes (layer, feature_id) on FS only (DEC-060)."""
+    from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
+    from epistemic_sycophancy.runner.feature_selection import (
+        run_feature_selection_stage_computed,
+    )
+
+    seen: list[tuple[str, tuple[str, ...]]] = []
+
+    def jacobian_fn(*, order_regime: str, question_ids: tuple[str, ...]):
+        seen.append((order_regime, question_ids))
+        return {(17, 3): 1.5, (17, 1): 0.25}
+
+    result = run_feature_selection_stage_computed(
+        order_regime="CF",
+        split_name="feature_selection",
+        question_ids=("q1", "q2"),
+        jacobian_fn=jacobian_fn,
+        freeze_status="unsealed",
+        optimization_question_ids=("q10",),
+        validation_question_ids=("q20",),
+        holdout_question_ids=("q99",),
+    )
+    assert seen == [("CF", ("q1", "q2"))]
+    assert set(result.signed_jacobians) == {(17, 3), (17, 1)}
+    assert all(isinstance(k, tuple) and len(k) == 2 for k in result.signed_jacobians)
+
+    with pytest.raises(HoldoutAccessError):
+        run_feature_selection_stage_computed(
+            order_regime="CF",
+            split_name="optimization",
+            question_ids=("q10",),
+            jacobian_fn=jacobian_fn,
+            freeze_status="unsealed",
+            optimization_question_ids=("q10",),
+            validation_question_ids=("q20",),
+            holdout_question_ids=("q99",),
+        )
