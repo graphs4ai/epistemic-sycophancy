@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -343,16 +344,63 @@ def dispatch_stage(
         )
 
     if stage == "opt_smoke":
+        from epistemic_sycophancy.runner.adapters.identity_gate import (
+            resolve_identity_passed,
+        )
+        from epistemic_sycophancy.runner.adapters.margins import build_margin_payload
+        from epistemic_sycophancy.runner.adapters.pool import (
+            load_common_pool_artifact,
+            study_with_selected_pool,
+        )
+        from epistemic_sycophancy.runner.identity import resolve_stack
         from epistemic_sycophancy.runner.opt_smoke_dispatch import run_opt_smoke_dispatch
 
-        if margin_payload is None or beta is None:
-            raise ValueError(
-                "opt_smoke requires margin_payload and beta (ORCH-005)"
+        study_for_opt = study
+        if study.experiment.coefficient_length < 1:
+            pool_path = (
+                Path(study.run.artifact_dir) / "feature_selection" / "common_pool.json"
             )
+            pool = load_common_pool_artifact(pool_path)
+            study_for_opt = study_with_selected_pool(study, pool)
+
         if identity_passed is None:
-            raise ValueError("opt_smoke requires identity_passed (ORCH-005)")
+            identity_passed = resolve_identity_passed(study_for_opt)
+
+        if margin_payload is None or beta is None:
+            stack = resolve_stack(study_for_opt, stack_loader=stack_loader)
+            m = int(study_for_opt.experiment.coefficient_length)
+            if m < 1:
+                raise ValueError("opt_smoke requires selected pool (coefficient_length>=1)")
+            if beta is None:
+                beta = tuple(0.0 for _ in range(m))
+            if margin_payload is None:
+                part_path = (
+                    Path(study.run.artifact_dir) / "baseline" / "partition_CF.json"
+                )
+                if not part_path.is_file():
+                    raise ValueError(
+                        f"opt_smoke default adapters require baseline partition at {part_path}"
+                    )
+                part = json.loads(part_path.read_text(encoding="utf-8"))
+                partitions = {
+                    "q_plus": frozenset(part["q_plus"]),
+                    "q_minus": frozenset(part["q_minus"]),
+                }
+                smoke_ids = (
+                    tuple(study.run.smoke.question_ids)
+                    if study.run.smoke.question_ids is not None
+                    else tuple(sorted(partitions["q_plus"] | partitions["q_minus"]))
+                )
+                margin_payload = build_margin_payload(
+                    study_for_opt,
+                    stack,
+                    beta=beta,
+                    question_ids=smoke_ids,
+                    partitions=partitions,
+                )
+
         smoke = run_opt_smoke_dispatch(
-            study=study,
+            study=study_for_opt,
             freeze_status=freeze_status,
             identity_passed=bool(identity_passed),
             margin_payload=margin_payload,
