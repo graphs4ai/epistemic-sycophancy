@@ -118,3 +118,21 @@ def test_load_study_config__first_study_yaml__loads_stack_experiment_and_run() -
     assert "stack:" in text
     assert "experiment:" in text
     assert "run:" in text
+
+
+@pytest.mark.unit
+def test_load_study_config__layers_one_vs_four__same_loader_no_code_fork(
+    tmp_path: Path,
+) -> None:
+    """CFGFILE-004: layers:[17] vs [9,17,22,29] via same load_study_config."""
+    one = _MINIMAL_STUDY_YAML
+    four = _MINIMAL_STUDY_YAML.replace("layers: [17]", "layers: [9, 17, 22, 29]")
+    path_one = tmp_path / "one.yaml"
+    path_four = tmp_path / "four.yaml"
+    path_one.write_text(one, encoding="utf-8")
+    path_four.write_text(four, encoding="utf-8")
+    study_one = load_study_config(path_one)
+    study_four = load_study_config(path_four)
+    assert study_one.stack.sae.layers == (17,)
+    assert study_four.stack.sae.layers == (9, 17, 22, 29)
+    assert study_one.stack.model.hf_id == study_four.stack.model.hf_id
