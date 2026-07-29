@@ -425,17 +425,82 @@ def dispatch_stage(
         )
 
     if stage == "optimize":
+        from epistemic_sycophancy.runner.adapters.identity_gate import (
+            resolve_identity_passed,
+        )
+        from epistemic_sycophancy.runner.adapters.objective import (
+            build_grad_fn,
+            build_objective_fn,
+        )
+        from epistemic_sycophancy.runner.adapters.pool import (
+            load_common_pool_artifact,
+            study_with_selected_pool,
+        )
+        from epistemic_sycophancy.runner.adapters.resolve import resolve_corpus_context
+        from epistemic_sycophancy.runner.identity import resolve_stack
         from epistemic_sycophancy.runner.optimize import run_optimize_dispatch
 
+        study_for_opt = study
+        if study.experiment.coefficient_length < 1:
+            pool_path = (
+                Path(study.run.artifact_dir) / "feature_selection" / "common_pool.json"
+            )
+            pool = load_common_pool_artifact(pool_path)
+            study_for_opt = study_with_selected_pool(study, pool)
+
         if identity_passed is None:
-            raise ValueError("optimize requires identity_passed (ORCH-009)")
-        if objective_fn is None:
-            raise ValueError("optimize requires objective_fn injection (ORCH-009)")
+            identity_passed = resolve_identity_passed(study_for_opt)
+
+        opt_qids = tuple(optimization_question_ids or ())
+        if not opt_qids:
+            _corpus, split_ids, _smoke = resolve_corpus_context(
+                study,
+                corpus_jsonl_paths=corpus_jsonl_paths,
+                split_manifest_path=split_manifest_path,
+                corpus_root=corpus_root,
+            )
+            del _corpus, _smoke
+            from epistemic_sycophancy.runner.adapters.corpus import (
+                resolve_optimize_coverage_ids,
+            )
+
+            opt_qids = resolve_optimize_coverage_ids(
+                optimize=study.run.optimize,
+                split_question_ids=split_ids,
+            )
+
+        if objective_fn is None or (
+            grad_fn is None and study.run.optimizer.kind == "projected_adam"
+        ):
+            stack = resolve_stack(study_for_opt, stack_loader=stack_loader)
+            part_path = Path(study.run.artifact_dir) / "baseline" / "partition_CF.json"
+            if not part_path.is_file():
+                raise ValueError(
+                    f"optimize default adapters require baseline partition at {part_path}"
+                )
+            part = json.loads(part_path.read_text(encoding="utf-8"))
+            partitions = {
+                "q_plus": frozenset(part["q_plus"]),
+                "q_minus": frozenset(part["q_minus"]),
+            }
+            if objective_fn is None:
+                objective_fn = build_objective_fn(
+                    study_for_opt,
+                    stack,
+                    partitions=partitions,
+                )
+            if grad_fn is None and study.run.optimizer.kind == "projected_adam":
+                grad_fn = build_grad_fn(
+                    study_for_opt,
+                    stack,
+                    partitions=partitions,
+                )
+
         opt_result = run_optimize_dispatch(
-            study=study,
+            study=study_for_opt,
             freeze_status=freeze_status,
             identity_passed=bool(identity_passed),
-            optimization_question_ids=optimization_question_ids or (),
+            optimization_question_ids=opt_qids,
             objective_fn=objective_fn,
             grad_fn=grad_fn,
             beta_init=beta,

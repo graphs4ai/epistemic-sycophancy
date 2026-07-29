@@ -333,6 +333,7 @@ ORCH-021+ / ADAPT-* wire production adapters so bare CLI `--config` needs no sco
 | ORCH-027 | `test_dispatch__baseline_partitions__builds_score_fn_when_none` | green | `TypeError: ... unexpected keyword argument 'corpus_jsonl_paths'` | `pixi run --environment test pytest tests/unit/test_orch_dispatch_baseline_default.py::test_dispatch__baseline_partitions__builds_score_fn_when_none -q` → `1 passed`; ORCH-003 → `1 passed` | `runner/cli.py`, `runner/baseline.py`, `runner/adapters/resolve.py` | DEC-075/077; multi-order |
 | ORCH-028 | `test_dispatch__feature_selection__builds_jacobian_scale_and_persists_pool_for_optimize` | green | `ValueError: feature_selection requires jacobian_fn and scale_fn injection` | same → `1 passed`; ORCH-004 → `1 passed` | `runner/cli.py`, `runner/adapters/pool.py` | DEC-073 pool overlay |
 | ORCH-029 | `test_dispatch__opt_smoke__builds_margin_payload_beta_and_identity_from_artifacts` | green | `ValueError: opt_smoke requires margin_payload and beta` | same → `1 passed`; ORCH-005 → `1 passed` | `runner/cli.py` | DEC-074/076 artifact defaults |
+| ORCH-030 | `test_dispatch__optimize__builds_objective_grad_from_stack_and_run_optimize_budget` | green | `ValueError: optimize requires identity_passed` | same → `1 passed`; ORCH-009 → `1 passed` | `runner/cli.py` | run.optimize budget; pool load |
 
 Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is wired; holdout gated by DEC-071. Researcher ASAP path documented in `docs/phase_m_ship_gate.md`.
 
