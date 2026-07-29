@@ -113,3 +113,89 @@ def score_real_model_batch(
         margins=tuple(margins),
         labels=tuple(labels),
     )
+
+
+@dataclass(frozen=True)
+class RealModelGradViabilityReport:
+    """REAL-005 β-only backward diagnostics."""
+
+    beta_grad_finite: bool
+    model_params_require_grad: bool
+    sae_params_require_grad: bool
+    model_grads_all_none: bool
+    sae_grads_all_none: bool
+
+
+def real_model_beta_backward_viability(
+    *,
+    model_id: str,
+    model_revision: str,
+    prompt: str,
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+    seed: int = 0,
+    dtype: torch.dtype = torch.float32,
+) -> RealModelGradViabilityReport:
+    """Run one backward to β; model/SAE parameters stay frozen (REAL-005)."""
+    import transformers
+
+    torch.manual_seed(seed)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_id, revision=model_revision
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = transformers.AutoModelForCausalLM.from_pretrained(
+        model_id, revision=model_revision
+    )
+    model.eval()
+    for param in model.parameters():
+        param.requires_grad_(False)
+    d_model = int(model.config.n_embd)
+    encoded = tokenizer([prompt], return_tensors="pt", padding=True)
+    with torch.no_grad():
+        outputs = model(**encoded, output_hidden_states=True)
+    hidden = outputs.hidden_states[-1]
+    length = int(encoded["attention_mask"].sum(dim=1)[0].item())
+    residual = hidden[0, length - 1].detach().to(dtype=dtype)
+
+    torch.manual_seed(seed)
+    n_features = max(max(selected_indices) + 1, 8)
+    decoder = torch.randn(n_features, d_model, dtype=dtype)
+    encoder = torch.randn(n_features, d_model, dtype=dtype)
+    encoder_bias = torch.zeros(n_features, dtype=dtype)
+    head = torch.randn(2, d_model, dtype=dtype)
+    for param in (decoder, encoder, encoder_bias, head):
+        param.requires_grad_(False)
+
+    beta = torch.zeros(len(selected_indices), dtype=dtype, requires_grad=True)
+    intervened = apply_additive_sae_delta(
+        residual=residual,
+        selected_indices=list(selected_indices),
+        scales=list(scales),
+        beta=beta,
+        encoder_weight=encoder,
+        encoder_bias=encoder_bias,
+        decoder_weight=decoder,
+    )
+    logits = head @ intervened
+    margin = logits[0] - logits[1]
+    loss = torch.nn.functional.softplus(-margin)
+    loss.backward()
+
+    beta_grad = beta.grad
+    beta_grad_finite = bool(
+        beta_grad is not None and torch.isfinite(beta_grad).all().item()
+    )
+    model_params_require_grad = any(p.requires_grad for p in model.parameters())
+    sae_params = (decoder, encoder, encoder_bias, head)
+    sae_params_require_grad = any(p.requires_grad for p in sae_params)
+    model_grads_all_none = all(p.grad is None for p in model.parameters())
+    sae_grads_all_none = all(p.grad is None for p in sae_params)
+    return RealModelGradViabilityReport(
+        beta_grad_finite=beta_grad_finite,
+        model_params_require_grad=model_params_require_grad,
+        sae_params_require_grad=sae_params_require_grad,
+        model_grads_all_none=model_grads_all_none,
+        sae_grads_all_none=sae_grads_all_none,
+    )
