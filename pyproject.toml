@@ -76,3 +76,6 @@ markers = [
     "slow: long-running tests",
     "gpu: tests that require a GPU",
 ]
+
+[dependency-groups]
+cuda = ["sae-lens>=6.47.0,<7"]

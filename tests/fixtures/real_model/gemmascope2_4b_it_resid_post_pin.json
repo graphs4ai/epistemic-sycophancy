@@ -1,0 +1,16 @@
+{
+  "release": "gemma-scope-2-4b-it-res",
+  "hf_repo": "google/gemma-scope-2-4b-it",
+  "hf_revision": "3e94b68be95290aada5b7525cf431d3040f81bb1",
+  "site": "resid_post",
+  "width": "width_65k",
+  "l0": "l0_medium",
+  "layers": [9, 17, 22, 29],
+  "sae_id_template": "layer_{L}_width_65k_l0_medium",
+  "layer_9_sae_id": "layer_9_width_65k_l0_medium",
+  "expected_d_in": 2560,
+  "expected_d_sae": 65536,
+  "model_hidden_size": 2560,
+  "architecture": "JumpReLUSAE",
+  "derivation": "sae-lens 6.47 pretrained directory + independent SAE.from_pretrained probe (DEC-051)"
+}
