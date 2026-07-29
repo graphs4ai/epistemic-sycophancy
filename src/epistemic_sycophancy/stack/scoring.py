@@ -85,3 +85,42 @@ def score_batch_with_lm_logits(
         margins=tuple(margins),
         truthful_labels=tuple(truthful_labels),
     )
+
+
+def score_batch_through_hooks(
+    *,
+    model: Any,
+    tokenizer: Any,
+    prompts: Sequence[str],
+    continuation_token_ids_A: Sequence[int],
+    continuation_token_ids_B: Sequence[int],
+    truthful_labels: Sequence[str],
+    device: torch.device,
+    install_hooks_cm: Any | None = None,
+) -> StackScoreBatch:
+    """Score A/B under an optional hooks context manager (β=0 ≡ unhooked).
+
+    When ``install_hooks_cm`` is None, behaves identically to
+    ``score_batch_with_lm_logits``. Callers pass
+    ``stack.install_hooks(... )`` (or equivalent) for hooked scoring.
+    """
+    if install_hooks_cm is None:
+        return score_batch_with_lm_logits(
+            model=model,
+            tokenizer=tokenizer,
+            prompts=prompts,
+            continuation_token_ids_A=continuation_token_ids_A,
+            continuation_token_ids_B=continuation_token_ids_B,
+            truthful_labels=truthful_labels,
+            device=device,
+        )
+    with install_hooks_cm:
+        return score_batch_with_lm_logits(
+            model=model,
+            tokenizer=tokenizer,
+            prompts=prompts,
+            continuation_token_ids_A=continuation_token_ids_A,
+            continuation_token_ids_B=continuation_token_ids_B,
+            truthful_labels=truthful_labels,
+            device=device,
+        )

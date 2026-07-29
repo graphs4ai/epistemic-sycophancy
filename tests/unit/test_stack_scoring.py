@@ -79,3 +79,42 @@ def test_stack__score_batch__truthful_margins_match_library_api() -> None:
     assert results.margins[1] == pytest.approx(expected_1)
     assert results.score_a[0] == pytest.approx(score_a)
     assert results.score_b[0] == pytest.approx(score_b)
+
+
+@pytest.mark.unit
+def test_stack_scoring__beta_zero_hooked__margins_match_unhooked_library() -> None:
+    """WIRE-004: β=0 hooked score_batch margins match unhooked library path."""
+    from epistemic_sycophancy.stack.scoring import score_batch_through_hooks
+
+    vocab_logits = torch.tensor([2.0, -1.0, 0.0], dtype=torch.float64)
+    model = _ToyCausalLM(vocab_logits)
+
+    class _Tok:
+        def __call__(self, texts, return_tensors="pt", padding=True):
+            batch = len(texts)
+            return {
+                "input_ids": torch.zeros(batch, 3, dtype=torch.long),
+                "attention_mask": torch.ones(batch, 3, dtype=torch.long),
+            }
+
+    unhooked = score_batch_with_lm_logits(
+        model=model,
+        tokenizer=_Tok(),
+        prompts=["p1", "p2"],
+        continuation_token_ids_A=[0],
+        continuation_token_ids_B=[1],
+        truthful_labels=("A", "B"),
+        device=torch.device("cpu"),
+    )
+    hooked = score_batch_through_hooks(
+        model=model,
+        tokenizer=_Tok(),
+        prompts=["p1", "p2"],
+        continuation_token_ids_A=[0],
+        continuation_token_ids_B=[1],
+        truthful_labels=("A", "B"),
+        device=torch.device("cpu"),
+        install_hooks_cm=None,  # no-op / identity hooks
+    )
+    assert hooked.margins == unhooked.margins
+    assert hooked.score_a == unhooked.score_a
