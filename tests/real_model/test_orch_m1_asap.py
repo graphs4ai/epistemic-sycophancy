@@ -47,3 +47,31 @@ def test_real_model__layer17_n2__identity_via_cli_default_stack(
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["identity_passed"] is True
     assert float(payload["max_abs_diff"]) < 1e-5
+
+
+@pytest.mark.real_model
+@pytest.mark.slow
+@pytest.mark.gpu
+def test_real_model__layer17_n2__baseline_writes_partition_without_score_fn(
+    tmp_path: Path,
+) -> None:
+    """ORCH-035: baseline_partitions via default adapters (no score_fn kwarg)."""
+    _require_cuda()
+    clear_stack_cache()
+    from dataclasses import replace
+
+    study = load_study_config(CFG)
+    study = replace(study, run=replace(study.run, artifact_dir=str(tmp_path / "art")))
+    result = dispatch_stage(
+        "baseline_partitions",
+        study=study,
+        freeze_status="unsealed",
+        score_fn=None,
+    )
+    assert result.ok
+    for order in study.run.order_regimes:
+        path = Path(study.run.artifact_dir) / "baseline" / f"partition_{order}.json"
+        assert path.is_file(), f"missing {path}"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert "q_plus" in payload and "q_minus" in payload
+        assert payload["n_q_plus"] + payload["n_q_minus"] >= 1

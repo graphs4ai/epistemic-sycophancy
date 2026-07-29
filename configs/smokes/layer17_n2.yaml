@@ -49,7 +49,7 @@ run:
   feature_chunk_size: 1024
   prompt_batch_size: 1
   smoke:
-    n_questions: 2
+    n_questions: 32
     split: feature_selection
     seed: 0
   optimizer:

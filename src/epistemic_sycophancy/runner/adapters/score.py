@@ -54,25 +54,27 @@ def build_score_fn(
             )
         if not selected:
             return {}
+        # Deduplicate same-hash neutrals before scoring (DEC-006 / DEC-079).
+        uniq: list[Any] = []
+        seen: set[str] = set()
+        for row in selected:
+            if row.question_id in seen:
+                continue
+            seen.add(row.question_id)
+            uniq.append(row)
         batch = score_batch_through_hooks(
             model=stack.model,
             tokenizer=stack.tokenizer,
-            prompts=[row.text for row in selected],
+            prompts=[row.text for row in uniq],
             continuation_token_ids_A=token_a,
             continuation_token_ids_B=token_b,
-            truthful_labels=tuple(row.truthful_label for row in selected),
+            truthful_labels=tuple(row.truthful_label for row in uniq),
             device=stack.device,
             install_hooks_cm=install_hooks_cm,
         )
-        # One neutral row per question under a fixed order/belief.
-        out: dict[str, float] = {}
-        for row, margin in zip(selected, batch.margins, strict=True):
-            if row.question_id in out:
-                raise ValueError(
-                    f"duplicate margin for question_id={row.question_id!r} "
-                    f"order={order_regime!r} belief={belief_condition!r}"
-                )
-            out[row.question_id] = float(margin)
-        return out
+        return {
+            row.question_id: float(margin)
+            for row, margin in zip(uniq, batch.margins, strict=True)
+        }
 
     return score_fn
