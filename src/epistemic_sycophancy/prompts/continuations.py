@@ -75,3 +75,26 @@ def encode_continuations(
         "A": list(tokenizer.encode(contract.continuation_A)),
         "B": list(tokenizer.encode(contract.continuation_B)),
     }
+
+
+
+def encode_continuation_token_ids(
+    *,
+    continuation: str,
+    tokenizer_name: str,
+    tokenizer_revision: str,
+) -> list[int]:
+    """Encode one continuation string under a pinned tokenizer (DEC-010/043)."""
+    if continuation not in {"A", "B"}:
+        raise InvalidContinuationContract(
+            f"DEC-010 continuations must be 'A' or 'B'; got {continuation!r}"
+        )
+    if tokenizer_name == "epistemic_sycophancy.ascii_letter":
+        tokenizer = load_ascii_letter_tokenizer(revision=tokenizer_revision)
+        return list(tokenizer.encode(continuation))
+    import transformers
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        tokenizer_name, revision=tokenizer_revision
+    )
+    return list(tokenizer.encode(continuation, add_special_tokens=False))
