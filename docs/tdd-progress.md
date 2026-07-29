@@ -192,6 +192,7 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 | STAT-006 | `test_cluster_bootstrap__percentile_interval__has_ordered_finite_bounds` | green | Already satisfied by DEC-037 percentile CI: first run → `1 passed` | same command → `1 passed` | `tests/property/test_cluster_bootstrap_ci.py` | Already satisfied / no production change; L≤U finite. |
 | STAT-007 | `test_cluster_bootstrap__constant_question_effects__produce_zero_width_interval` | green | Already satisfied by percentile on constant replicates: first run → `1 passed` | same command → `1 passed`; module suite → `6 passed` | `tests/unit/test_cluster_bootstrap.py` | Already satisfied / no production change; width≈0. |
 | STAT-008 | `test_statistics__public_api__does_not_accept_prompt_row_as_default_resampling_unit` | green | Already satisfied: unexpected `resampling_unit=` → TypeError; first run → `1 passed` | same command → `1 passed`; module suite → `7 passed` | `tests/unit/test_cluster_bootstrap.py` | Already satisfied / no production change; no prompt-row unit. |
+| STAT-009 | `test_cluster_bootstrap__conditional_metrics__retain_or_recompute_valid_denominators` | green | Already satisfied by STAT-004 invalid-replicate path: first run → `1 passed` | same command → `1 passed`; module suite → `8 passed` | `docs/decisions.md`, `tests/unit/test_cluster_bootstrap.py` | DEC-038; already satisfied / no production change. |
 
 ## Status definitions
 

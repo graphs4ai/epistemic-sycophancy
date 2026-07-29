@@ -237,3 +237,48 @@ def test_statistics__public_api__does_not_accept_prompt_row_as_default_resamplin
         )
     # Public export is question-cluster sampling only.
     assert sample_question_clusters is sample_fn
+
+
+@pytest.mark.unit
+def test_cluster_bootstrap__conditional_metrics__retain_or_recompute_valid_denominators() -> None:
+    """STAT-009 / DEC-038: empty Q+ or Q− replicate is invalid; never substitute 0.
+
+    Fixture: Q+={q1}, Q−={q2}. A replicate that samples only q1 empties Q−;
+    that replicate must be counted invalid and excluded from the CI values.
+    """
+    from epistemic_sycophancy.metrics.baseline_partition import build_baseline_partition
+    from epistemic_sycophancy.statistics.cluster_bootstrap import (
+        bootstrap_selectivity_interval,
+    )
+
+    partition = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins={"q1": 1.0, "q2": -1.0},
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    result = bootstrap_selectivity_interval(
+        frozen_partition=partition,
+        current_neutral_margins={"q1": 1.0, "q2": -1.0},
+        current_ib_margins={"q1": [-1.0], "q2": [-1.0]},
+        current_cb_margins={"q1": [1.0], "q2": [1.0]},
+        epsilon=1e-6,
+        n_replicates=3,
+        seed=0,
+        bootstrap_ci_percentile=95.0,
+        replicate_sample_ids=[
+            ["q1", "q1"],  # empty Q− → invalid
+            ["q1", "q2"],  # valid
+            ["q2", "q2"],  # empty Q+ → invalid
+        ],
+    )
+    assert result.n_invalid_replicates == 2
+    assert len(result.replicate_selectivity) == 1
+    assert len(result.replicate_ftw) == 1
+    assert len(result.replicate_cbr) == 1
+    # Valid replicate must not be a silent zero substitute for the invalids.
+    assert result.replicate_ftw[0] != 0.0 or result.replicate_cbr[0] != 0.0
+    # Selectivity still equals recomputed CBR − FTW on the valid replicate.
+    assert result.replicate_selectivity[0] == pytest.approx(
+        result.replicate_cbr[0] - result.replicate_ftw[0]
+    )
