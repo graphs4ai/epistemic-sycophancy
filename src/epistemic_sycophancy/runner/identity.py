@@ -26,10 +26,14 @@ def resolve_stack(
 ) -> Any:
     """Lazy-load and cache InterventionStack for this process (DEC-064/065)."""
     fingerprint = study_config_fingerprint(study)
+    if stack_loader is not None:
+        # Explicit injection always wins (unit tests; DEC-065).
+        stack = stack_loader(study)
+        _STACK_CACHE[fingerprint] = stack
+        return stack
     if fingerprint in _STACK_CACHE:
         return _STACK_CACHE[fingerprint]
-    loader = stack_loader if stack_loader is not None else _default_stack_loader
-    stack = loader(study)
+    stack = _default_stack_loader(study)
     _STACK_CACHE[fingerprint] = stack
     return stack
 

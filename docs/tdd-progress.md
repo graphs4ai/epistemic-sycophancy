@@ -297,6 +297,8 @@ ORCH-* Spec IDs are Phase M inventions. They wire StudyConfig YAML + injectable 
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | ORCH-001 | `test_dispatch__identity__beta_zero_identity_on_smoke_prompts_returns_structured_stage_result` | green | `pixi run --environment test pytest tests/unit/test_orch_dispatch_identity.py::test_dispatch__identity__beta_zero_identity_on_smoke_prompts_returns_structured_stage_result -q` → `TypeError: dispatch_stage() got an unexpected keyword argument 'stack_loader'` | same command → `1 passed`; `tests/unit/test_runner_cli.py` → `3 passed` | `runner/identity.py`, `runner/cli.py`, `docs/decisions.md` | DEC-064/065; real β=0 identity; structured metrics |
+| ORCH-002 | `test_dispatch__identity_failure__sets_ok_false_and_blocks_require_identity_gate` | green | Already satisfied by ORCH-001 `ok=identity_passed`: first run → `1 passed` | same → `1 passed`; module → `2 passed` | `tests/unit/test_orch_dispatch_identity.py` | Already satisfied / no production change |
+| ORCH-003 | `test_dispatch__baseline_partitions__writes_fs_only_partition_artifact_holdout_sealed` | green | `pixi run --environment test pytest tests/unit/test_orch_dispatch_baseline.py::test_dispatch__baseline_partitions__writes_fs_only_partition_artifact_holdout_sealed -q` → `TypeError: ... unexpected keyword argument 'score_fn'` | same → `1 passed`; identity+cli+stages → `8 passed` | `runner/baseline.py`, `runner/cli.py`, `runner/identity.py` | DEC-070 baseline/; score_fn injection |
 
 ## Status definitions
 

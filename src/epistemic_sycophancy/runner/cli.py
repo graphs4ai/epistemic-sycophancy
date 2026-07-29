@@ -58,8 +58,12 @@ def dispatch_stage(
     study: StudyConfig,
     freeze_status: str,
     stack_loader: Callable[[StudyConfig], Any] | None = None,
+    score_fn: Callable[..., Any] | None = None,
+    jacobian_fn: Callable[..., Any] | None = None,
+    split_name_override: str | None = None,
 ) -> StageResult:
     """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
+    del jacobian_fn  # wired in ORCH-004
     if stage not in STAGE_ORDER:
         raise ValueError(f"unknown stage {stage!r}; expected one of {STAGE_ORDER}")
     if stage == "full_study":
@@ -106,13 +110,37 @@ def dispatch_stage(
             artifacts=artifacts,
         )
 
-    # Remaining stages still fingerprint-ack until ORCH-003…005.
     if stage == "baseline_partitions":
-        message = (
-            f"completed baseline_partitions: study_fp={fingerprint[:12]}… "
-            f"smoke={study.run.smoke!r}"
+        from epistemic_sycophancy.runner.baseline import run_baseline_dispatch
+
+        if score_fn is None:
+            raise ValueError(
+                "baseline_partitions requires score_fn injection or stack scoring "
+                "(ORCH-003); pass score_fn for unit tests"
+            )
+        baseline = run_baseline_dispatch(
+            study=study,
+            freeze_status=freeze_status,
+            score_fn=score_fn,
+            split_name=split_name_override,
         )
-    elif stage == "feature_selection":
+        metrics = dict(baseline["metrics"])
+        artifacts = dict(baseline["artifacts"])
+        message = (
+            f"completed baseline_partitions: n_q_plus={metrics['n_q_plus']} "
+            f"n_q_minus={metrics['n_q_minus']} "
+            f"study_fp={fingerprint[:12]}…"
+        )
+        return StageResult(
+            stage=stage,
+            ok=True,
+            message=message,
+            metrics=metrics,
+            artifacts=artifacts,
+        )
+
+    # Remaining stages still fingerprint-ack until ORCH-004…005.
+    if stage == "feature_selection":
         message = (
             f"completed feature_selection: study_fp={fingerprint[:12]}… "
             f"quota={study.experiment.pool_quota_per_list}"
