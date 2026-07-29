@@ -294,18 +294,34 @@ def dispatch_stage(
         )
 
     if stage == "feature_selection":
+        from epistemic_sycophancy.runner.adapters.jacobian import build_jacobian_fn
+        from epistemic_sycophancy.runner.adapters.resolve import resolve_corpus_context
+        from epistemic_sycophancy.runner.adapters.scales import build_scale_fn
         from epistemic_sycophancy.runner.fs_dispatch import run_feature_selection_dispatch
+        from epistemic_sycophancy.runner.identity import resolve_stack
 
+        resolved_qids = None
         if jacobian_fn is None or scale_fn is None:
-            raise ValueError(
-                "feature_selection requires jacobian_fn and scale_fn injection "
-                "(ORCH-004)"
+            stack = resolve_stack(study, stack_loader=stack_loader)
+            _corpus, _split_ids, smoke_ids = resolve_corpus_context(
+                study,
+                corpus_jsonl_paths=corpus_jsonl_paths,
+                split_manifest_path=split_manifest_path,
+                corpus_root=corpus_root,
             )
+            del _corpus, _split_ids
+            resolved_qids = smoke_ids
+            if jacobian_fn is None:
+                jacobian_fn = build_jacobian_fn(study, stack)
+            if scale_fn is None:
+                scale_fn = build_scale_fn(study, stack)
+
         fs = run_feature_selection_dispatch(
             study=study,
             freeze_status=freeze_status,
             jacobian_fn=jacobian_fn,
             scale_fn=scale_fn,
+            question_ids=resolved_qids,
             optimization_question_ids=optimization_question_ids or (),
             validation_question_ids=validation_question_ids or (),
             holdout_question_ids=holdout_question_ids or (),
