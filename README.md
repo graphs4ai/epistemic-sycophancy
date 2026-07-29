@@ -4,7 +4,11 @@ Library and experiment scaffolding for **additive SAE interventions** against ep
 
 ## Phase M — YAML → CLI → optimize → freeze → full_study (final impl)
 
-Author a StudyConfig YAML under `configs/` (`stack` + `experiment` + `run`). Smoke gates use `run.smoke` + `run.optimizer.max_steps`. **Non-smoke optimize** uses `run.optimize` budgets (DEC-066); never silently call `opt_smoke`.
+Author a StudyConfig YAML under `configs/` (`stack` + `experiment` + `run`).
+**Phase M.1:** bare `--config` runs ASAP **without injector kwargs** — production
+adapters build `score_fn` / Jacobians / objective from the stack + processed corpus.
+Smoke gates use `run.smoke` + `run.optimizer.max_steps`. **Non-smoke optimize** uses
+`run.optimize` budgets (DEC-066); never silently call `opt_smoke`.
 
 Stage order (DEC-072):
 
@@ -15,6 +19,7 @@ identity → baseline_partitions → feature_selection → opt_smoke
 
 ```bash
 # ASAP path: single-layer smoke YAML (DEC-067), then first_study 4-layer
+# YAML-only: no score_fn / jacobian_fn / objective_fn injection
 CFG=configs/smokes/layer17_n2.yaml
 
 pixi run --environment test-cuda run-identity -- --config "$CFG"
@@ -27,6 +32,9 @@ pixi run --environment test-cuda run-study -- --config "$CFG"      # sealed; no 
 # holdout only after freeze + explicit unlock (DEC-071):
 # pixi run --environment test-cuda run-holdout -- --config "$CFG" --freeze-status sealed
 ```
+
+See [`docs/phase_m_ship_gate.md`](docs/phase_m_ship_gate.md) for adapter defaults,
+artifact layout, and ORCH-034…038 real_model gates (`test-cuda`).
 
 Pixi tasks: `run-identity`, `run-baseline`, `run-fs`, `run-opt-smoke`, `run-optimize`, `run-freeze`, `run-study`, `run-holdout`. The legacy `"stage … ready"` CLI stub is **deprecated**; use `--config` real dispatch.
 
