@@ -135,27 +135,41 @@ def dispatch_stage(
     adam_grad: Sequence[float] | None = None,
     objective_fn: Callable[..., Any] | None = None,
     grad_fn: Callable[..., Any] | None = None,
+    eval_payload: Mapping[str, Any] | None = None,
 ) -> StageResult:
     """Dispatch a real stage using validated StudyConfig (WIRE-011 / ORCH-001)."""
     if stage not in STAGE_ORDER:
         raise ValueError(f"unknown stage {stage!r}; expected one of {STAGE_ORDER}")
+
+    from epistemic_sycophancy.config.load_study import study_config_fingerprint
+
     if stage == "full_study":
         if freeze_status != "sealed":
             raise HoldoutAccessError(
                 "full_study requires freeze_status='sealed' "
                 f"(got {freeze_status!r}; DEC-055 / DEC-042 / DEC-063)"
             )
+        from epistemic_sycophancy.runner.full_study import run_full_study_dispatch
+
+        if eval_payload is None:
+            raise ValueError("full_study requires eval_payload (ORCH-014)")
+        fs = run_full_study_dispatch(
+            study=study,
+            freeze_status=freeze_status,
+            eval_payload=eval_payload,
+            holdout_question_ids=holdout_question_ids or (),
+        )
         return _make_result(
             stage=stage,
             ok=True,
             message=(
-                "full_study sealed gate acknowledged; "
-                "corpus expansion deferred to Phase M (DEC-063)"
+                f"completed full_study: n_cells={fs['metrics']['n_cells']} "
+                f"study_fp={study_config_fingerprint(study)[:12]}…"
             ),
             study=study,
+            metrics=dict(fs["metrics"]),
+            artifacts=dict(fs["artifacts"]),
         )
-
-    from epistemic_sycophancy.config.load_study import study_config_fingerprint
 
     fingerprint = study_config_fingerprint(study)
     layers = list(study.stack.sae.layers)
@@ -336,15 +350,6 @@ def dispatch_stage(
             stage=stage,
             ok=True,
             message=f"completed {stage} (stub pending ORCH)",
-            study=study,
-        )
-
-    if stage == "full_study":
-        # Body in ORCH-014; sealed gate already handled above when freeze_status set.
-        return _make_result(
-            stage=stage,
-            ok=True,
-            message=f"completed {stage}",
             study=study,
         )
 
