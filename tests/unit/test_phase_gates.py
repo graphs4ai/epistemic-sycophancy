@@ -13,3 +13,15 @@ def test_phase_gate__before_freeze__holdout_loader_raises_access_error() -> None
     """REPRO-002: before frozen config, holdout loader raises HoldoutAccessError."""
     with pytest.raises(HoldoutAccessError):
         load_holdout_rows(freeze_status="unfrozen")
+
+
+@pytest.mark.unit
+def test_phase_gate__failed_identity_test__blocks_optimization() -> None:
+    """REPRO-004: failed SAE identity suite blocks optimization entry."""
+    from epistemic_sycophancy.reproducibility.phase_gates import (
+        OptimizationBlockedError,
+        require_identity_gate,
+    )
+
+    with pytest.raises(OptimizationBlockedError):
+        require_identity_gate(identity_passed=False)
