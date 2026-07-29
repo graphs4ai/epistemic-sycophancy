@@ -264,6 +264,14 @@ RUN-* Spec IDs are Phase K inventions (absent from TDD spec v2). They implement 
 
 Phase K gate (partial): InterventionStack loads Gemma-3-4B-IT + GemmaScope2 on {9,17,22,29}; β=0 identity green (RUN-006); staged CLI exists (RUN-013). Holdout remains sealed until freeze.
 
+## Phase L — WIRE+CONFIG (CFGFILE-* / WIRE-*)
+
+CFGFILE-* / WIRE-* Spec IDs are Phase L inventions. They add file-driven StudyConfig YAML and wire Phase K scaffolding into a runnable Gemma path; they do not renumber Phase K RUN-*.
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| CFGFILE-001 | `test_study_config__missing_required_policy_field__raises_invalid_config` | green | `pixi run --environment test pytest tests/unit/test_study_config.py::test_study_config__missing_required_policy_field__raises_invalid_config -q` → `ModuleNotFoundError: No module named 'epistemic_sycophancy.config.study'` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/config/study.py`, `config/__init__.py`, `docs/decisions.md` | DEC-056; StudyConfig = stack+experiment+run; CFG-006 |
+
 ## Status definitions
 
 - `not_started`: no test written.
