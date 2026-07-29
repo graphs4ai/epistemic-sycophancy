@@ -213,6 +213,12 @@ Phase H gate: `pixi run --environment test pytest tests/unit/test_optimizer_obje
 
 Phase I gate: `pixi run --environment test pytest tests/unit/test_cluster_bootstrap.py tests/property/test_cluster_bootstrap_ci.py tests/unit/test_cross_order.py tests/unit/test_random_features.py tests/unit/test_shuffled_coefficients.py tests/unit/test_controls_parity.py tests/unit/test_phase_gates.py tests/unit/test_baseline_partition.py::test_cross_order_evaluation__uses_evaluation_order_baseline_partition tests/unit/test_model_selection.py -q` → `28 passed`. STAT-001…009, ORDER-X-001…005, CTRL-001…006, REPRO-001/002/004/005/006/007 green; REPRO-003 deferred to Phase J; holdout sealed; DEC-037…042.
 
+## Phase J — Toy E2E, REPRO-003, Real-Model Smoke
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| E2E-001 | `test_e2e_toy__baseline__matches_hand_computed_logits_margins_partitions_and_metrics` | green | `pixi run --environment test pytest tests/integration/test_e2e_toy.py::test_e2e_toy__baseline__matches_hand_computed_logits_margins_partitions_and_metrics -q` → `NotImplementedError: run_toy_e2e_baseline is not implemented` | same command → `1 passed`; module suite → `1 passed` | `src/epistemic_sycophancy/evaluation/toy_e2e.py`, `evaluation/__init__.py`, `docs/decisions.md`, `tests/fixtures/e2e/` | DEC-046; CF baseline goldens §13.1/§14 |
+
 ## Status definitions
 
 - `not_started`: no test written.
