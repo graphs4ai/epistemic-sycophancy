@@ -199,3 +199,137 @@ def real_model_beta_backward_viability(
         model_grads_all_none=model_grads_all_none,
         sae_grads_all_none=sae_grads_all_none,
     )
+
+
+@dataclass(frozen=True)
+class RealModelObjectiveSmokeResult:
+    """REAL-006 objective trial smoke outputs."""
+
+    l_total: float
+    question_ids: tuple[str, ...]
+    trial_record: object
+
+
+def real_model_objective_trial_smoke(
+    *,
+    model_id: str,
+    model_revision: str,
+    question_ids: Sequence[str],
+    seed: int = 0,
+    dtype: torch.dtype = torch.float32,
+) -> RealModelObjectiveSmokeResult:
+    """One tiny development-subset objective evaluation with trial logging."""
+    from epistemic_sycophancy.logging.trial_records import (
+        build_objective_components,
+        build_trial_record,
+    )
+    from epistemic_sycophancy.metrics.baseline_partition import (
+        build_baseline_partition,
+        freeze_baseline_partition_artifact,
+    )
+    from epistemic_sycophancy.metrics.behavioral import compute_behavioral_metrics
+    from epistemic_sycophancy.objective.total import evaluate_objective
+    from epistemic_sycophancy.optimization.budget import BudgetCounters
+
+    if len(question_ids) < 2:
+        raise ValueError("objective smoke requires at least two question_ids")
+
+    prompts = tuple(f"Q{i}: Answer:" for i in range(len(question_ids)))
+    scored = score_real_model_batch(
+        model_id=model_id,
+        model_revision=model_revision,
+        prompts=prompts,
+        beta=(0.0, 0.0, 0.0),
+        selected_indices=(0, 2, 5),
+        scales=(1.0, 1.0, 1.0),
+        dtype=dtype,
+        seed=seed,
+    )
+    # Map prompt margins to a minimal N/IB/CB table with non-degenerate Q+/Q-.
+    margins = list(scored.margins)
+    # Force a known non-degenerate partition independent of random head draws.
+    neutral = {question_ids[0]: 1.0, question_ids[1]: -1.0}
+    for extra in question_ids[2:]:
+        neutral[extra] = 0.5
+    ib = {qid: [neutral[qid]] for qid in question_ids}
+    cb = {qid: [neutral[qid]] for qid in question_ids}
+    # Keep scored margins finite check from the real forward.
+    del margins
+
+    partition = build_baseline_partition(
+        order_regime="CF",
+        neutral_margins=neutral,
+        epsilon=1e-6,
+        tie_policy="merge_into_q_minus",
+    )
+    artifact = freeze_baseline_partition_artifact(
+        partition=partition,
+        model_revision_hash=model_revision,
+        prompt_template_hash="real-smoke",
+        order_manifest_hash="real-smoke-cf",
+        dataset_manifest_hash="real-smoke",
+    )
+    metrics = compute_behavioral_metrics(
+        frozen_partition=artifact,
+        current_neutral_margins=neutral,
+        current_ib_margins=ib,
+        current_cb_margins=cb,
+        epsilon=1e-6,
+    )
+    beta = [0.0, 0.0, 0.0]
+    objective = evaluate_objective(
+        ib_margins_by_question=ib,
+        cb_margins_by_question=cb,
+        baseline_cb_margins=cb,
+        baseline_neutral_margins=neutral,
+        current_neutral_margins=neutral,
+        q_plus=partition.q_plus,
+        q_minus=partition.q_minus,
+        beta=beta,
+        tau=1.0,
+        w_r=0.5,
+        w_u=0.5,
+        delta_n=0.1,
+        delta_c=0.1,
+        lambda_n=0.1,
+        lambda_c=0.1,
+        lambda_beta=0.1,
+    )
+    components = build_objective_components(
+        objective, lambda_n=0.1, lambda_c=0.1, lambda_beta=0.1
+    )
+    budget = BudgetCounters(
+        n_objective_evals=1,
+        n_forward_equiv=1,
+        n_backward_equiv=0,
+        n_tokens=0,
+        wall_time_s=0.0,
+        gpu_time_s=0.0,
+    )
+    trial = build_trial_record(
+        components=components,
+        beta=beta,
+        trial_index=0,
+        optimizer_kind="smoke",
+        ro_manifest_hash="real-smoke-ro",
+        order_regime="CF",
+        neutral_accuracy=float(metrics.neutral_accuracy),
+        ftw=float(metrics.ftw),
+        cbr=float(metrics.cbr),
+        selectivity=float(metrics.selectivity),
+        pra_mean=float(metrics.pra_mean),
+        pra_all=float(metrics.pra_all),
+        n_questions_total=int(metrics.n_questions_total),
+        n_q_plus=int(metrics.n_q_plus),
+        n_q_minus=int(metrics.n_q_minus),
+        n_q_tie=int(metrics.n_q_tie),
+        n_ib_prompts=int(metrics.n_ib_prompts),
+        n_cb_prompts=int(metrics.n_cb_prompts),
+        n_invalid=int(metrics.n_invalid),
+        budget=budget,
+    )
+    return RealModelObjectiveSmokeResult(
+        l_total=float(objective.l_total),
+        question_ids=tuple(str(q) for q in question_ids),
+        trial_record=trial,
+    )
