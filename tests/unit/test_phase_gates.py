@@ -62,3 +62,21 @@ def test_phase_gate__feature_selection_artifact__cannot_reference_optimization_v
             validation_question_ids={"q_val"},
             holdout_question_ids={"q_hold"},
         )
+
+
+@pytest.mark.unit
+def test_phase_gate__validation_selection__cannot_reference_holdout_rows() -> None:
+    """REPRO-007: checkpoint/behavior selection cannot see holdout metrics."""
+    from epistemic_sycophancy.optimization.selection import select_best_checkpoint
+
+    with pytest.raises(HoldoutAccessError):
+        select_best_checkpoint(
+            [
+                {
+                    "checkpoint_id": "c1",
+                    "trial_index": 0,
+                    "l_total": 1.0,
+                    "holdout_l_total": 0.1,
+                }
+            ]
+        )
