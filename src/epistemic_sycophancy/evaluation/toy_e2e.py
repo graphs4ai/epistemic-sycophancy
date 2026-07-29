@@ -394,3 +394,80 @@ def toy_e2e_prompt_coefficient_jacobian(
         feature_scales=full_scales,
     )
     return [float(full_j[index].item()) for index in selected_indices]
+
+
+def evaluate_toy_e2e_objective_batched(
+    *,
+    order_regime: str,
+    beta: Sequence[float],
+    selected_indices: Sequence[int],
+    scales: Sequence[float],
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+    batch_size: int,
+    row_permutation: Sequence[int] | None = None,
+) -> ObjectiveResult:
+    """Evaluate objective after optional row permutation and chunked scoring."""
+    if batch_size < 1:
+        raise ValueError(f"batch_size must be positive; got {batch_size!r}")
+    rows = [row for row in build_dec046_corpus() if row.order_regime == order_regime]
+    if row_permutation is not None:
+        if len(row_permutation) != len(rows):
+            raise ValueError("row_permutation length must match corpus rows")
+        rows = [rows[index] for index in row_permutation]
+    baseline_neutral = {
+        row.question_id: _score_row(row)[2]
+        for row in build_dec046_corpus()
+        if row.order_regime == order_regime and row.condition == "N"
+    }
+    baseline = run_toy_e2e_baseline(order_regime=order_regime)
+    current_neutral: dict[str, float] = {}
+    ib_margins: dict[str, list[float]] = {}
+    cb_margins: dict[str, list[float]] = {}
+    for start in range(0, len(rows), batch_size):
+        chunk = rows[start : start + batch_size]
+        for row in chunk:
+            original = torch.tensor(row.residual_last, dtype=torch.float64)
+            intervened = apply_additive_sae_delta(
+                residual=original,
+                selected_indices=list(selected_indices),
+                scales=list(scales),
+                beta=list(beta),
+                encoder_weight=_ENCODER,
+                encoder_bias=_ENCODER_BIAS,
+                decoder_weight=_DECODER,
+            )
+            _, _, margin = _score_residual(
+                intervened, truthful_label=row.truthful_label
+            )
+            if row.condition == "N":
+                current_neutral[row.question_id] = margin
+            elif row.condition == "IB":
+                ib_margins.setdefault(row.question_id, []).append(margin)
+            elif row.condition == "CB":
+                cb_margins.setdefault(row.question_id, []).append(margin)
+    del baseline_neutral  # partitions come from frozen baseline
+    return evaluate_objective(
+        ib_margins_by_question=ib_margins,
+        cb_margins_by_question=cb_margins,
+        baseline_cb_margins=baseline.cb_margins,
+        baseline_neutral_margins=baseline.neutral_margins,
+        current_neutral_margins=current_neutral,
+        q_plus=baseline.partition.q_plus,
+        q_minus=baseline.partition.q_minus,
+        beta=list(beta),
+        tau=tau,
+        w_r=w_r,
+        w_u=w_u,
+        delta_n=delta_n,
+        delta_c=delta_c,
+        lambda_n=lambda_n,
+        lambda_c=lambda_c,
+        lambda_beta=lambda_beta,
+    )

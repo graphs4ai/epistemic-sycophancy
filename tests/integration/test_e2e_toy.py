@@ -260,3 +260,36 @@ def _reference_autograd_and_fd_jacobian(
         beta_m[j] = -fd_step
         fd_j.append((loss_at(beta_m) - base) / (-fd_step))
     return [float(v) for v in autograd_j.tolist()], fd_j
+
+
+@pytest.mark.integration
+def test_e2e_toy__row_order_and_batch_size__do_not_change_results() -> None:
+    """E2E-005: permuting rows or changing batch size leaves objective unchanged."""
+    from epistemic_sycophancy.evaluation.toy_e2e import (
+        evaluate_toy_e2e_objective,
+        evaluate_toy_e2e_objective_batched,
+    )
+
+    kwargs = dict(
+        order_regime="CF",
+        beta=KNOWN_BETA,
+        selected_indices=KNOWN_SELECTED,
+        scales=KNOWN_SCALES,
+        tau=1.0,
+        w_r=0.5,
+        w_u=0.5,
+        delta_n=0.1,
+        delta_c=0.1,
+        lambda_n=0.1,
+        lambda_c=0.1,
+        lambda_beta=0.1,
+    )
+    reference = evaluate_toy_e2e_objective(**kwargs)
+    permuted = evaluate_toy_e2e_objective_batched(
+        **kwargs, row_permutation=(3, 0, 5, 1, 2, 4, 6, 7, 8, 9, 10, 11, 12, 13), batch_size=14
+    )
+    batched = evaluate_toy_e2e_objective_batched(**kwargs, batch_size=3)
+    for result in (permuted, batched):
+        assert result.l_total == pytest.approx(reference.l_total, abs=1e-12, rel=1e-12)
+        assert result.l_resist == pytest.approx(reference.l_resist, abs=1e-12, rel=1e-12)
+        assert result.l_recover == pytest.approx(reference.l_recover, abs=1e-12, rel=1e-12)
