@@ -1,4 +1,4 @@
-"""Feature-selection orchestration (ORCH-004 / DEC-060 / DEC-061)."""
+"""Feature-selection orchestration (ORCH-004 / DEC-060 / DEC-061 / DEC-085)."""
 
 from __future__ import annotations
 
@@ -9,12 +9,15 @@ from typing import Any
 
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.feature_selection.components import COMPONENT_CONDITION
 from epistemic_sycophancy.feature_selection.pool import build_common_feature_pool
 from epistemic_sycophancy.runner.feature_selection import (
     run_feature_selection_stage_computed,
 )
 
-_COMPONENTS = ("resistance", "recovery", "neutral_preservation", "correct_belief")
+# Canonical §11.2 names (DEC-085); must match components.py.
+_COMPONENTS = tuple(COMPONENT_CONDITION.keys())
+_BEHAVIOR_COMPONENTS = ("resistance", "recovery")
 _ORDERS = ("CF", "IF", "RO")
 
 
@@ -29,7 +32,7 @@ def run_feature_selection_dispatch(
     validation_question_ids: Sequence[str] = (),
     holdout_question_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Compute order Jacobians, build pool with decoder_norm scales, write artifact."""
+    """Compute per-component order Jacobians, build pool, write artifact."""
     smoke = study.run.smoke
     if question_ids is not None:
         qids = tuple(str(q) for q in question_ids)
@@ -44,36 +47,46 @@ def run_feature_selection_dispatch(
     regimes = tuple(study.run.order_regimes) or ("CF",)
     lists: dict[tuple[str, str], dict[tuple[int, int], float]] = {}
     for order in regimes:
-        stage = run_feature_selection_stage_computed(
-            order_regime=order,
-            split_name="feature_selection",
-            question_ids=qids,
-            jacobian_fn=jacobian_fn,
-            freeze_status=freeze_status,
-            optimization_question_ids=optimization_question_ids,
-            validation_question_ids=validation_question_ids,
-            holdout_question_ids=holdout_question_ids,
-        )
-        # Replicate signed map across components for pool union (DEC-019 lists).
         for component in _COMPONENTS:
+            stage = run_feature_selection_stage_computed(
+                order_regime=order,
+                split_name="feature_selection",
+                question_ids=qids,
+                jacobian_fn=lambda *, order_regime, question_ids, _c=component: (
+                    jacobian_fn(
+                        order_regime=order_regime,
+                        question_ids=question_ids,
+                        component=_c,
+                    )
+                ),
+                freeze_status=freeze_status,
+                optimization_question_ids=optimization_question_ids,
+                validation_question_ids=validation_question_ids,
+                holdout_question_ids=holdout_question_ids,
+            )
             lists[(order, component)] = dict(stage.signed_jacobians)
     # Fill missing order/component slots with empty maps so pool API is stable.
     for order in _ORDERS:
         for component in _COMPONENTS:
             lists.setdefault((order, component), {})
 
-    # Provisional keys for scales: union of positive Jacobians seen.
+    # DEC-019: only resistance/recovery nominate into the common pool.
+    behavior_lists = {
+        key: scores
+        for key, scores in lists.items()
+        if key[1] in _BEHAVIOR_COMPONENTS
+    }
     provisional_keys = sorted(
         {
             key
-            for scores in lists.values()
+            for scores in behavior_lists.values()
             for key, value in scores.items()
             if float(value) > 0.0
         }
     )
     scales_map = dict(scale_fn(provisional_keys))
     pool = build_common_feature_pool(
-        lists_by_order_and_component=lists,
+        lists_by_order_and_component=behavior_lists,
         feature_scales=scales_map,
         pool_quota_per_list=int(study.experiment.pool_quota_per_list),
     )
@@ -83,7 +96,7 @@ def run_feature_selection_dispatch(
     path = out_dir / "common_pool.json"
     payload = {
         "feature_ids": [[layer, fid] for layer, fid in pool.feature_ids],
-            "feature_scales": list(pool.scales),
+        "feature_scales": list(pool.scales),
         "pool_size": len(pool.feature_ids),
         "scale_source": "decoder_norm",
         "study_yaml_fingerprint": fingerprint,
@@ -93,6 +106,7 @@ def run_feature_selection_dispatch(
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return {
         "pool": pool,
+        "component_jacobians": lists,
         "metrics": {
             "pool_size": len(pool.feature_ids),
             "scale_source": "decoder_norm",

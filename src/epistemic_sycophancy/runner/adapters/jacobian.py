@@ -28,43 +28,51 @@ def build_jacobian_fn(
     corpus: Sequence[Mapping[str, object]] | None = None,
     split_question_ids: Mapping[str, Sequence[str]] | None = None,
 ) -> Callable[..., Mapping[tuple[int, int], float]]:
-    """Build ``(*, order_regime, question_ids) -> signed J`` via projected formula.
+    """Build ``(*, order_regime, question_ids, component=) -> signed J``.
 
     Unit/toy stacks may expose ``fs_projection_batch``. Production stacks use
-    ``compute_fs_projection_batch`` with rendered MC0 prompts when ``corpus`` is
-    provided (ORCH-036).
+    multi-condition render + ``selection_component_prompts`` (DEC-085).
     """
 
     def jacobian_fn(
         *,
         order_regime: str,
         question_ids: Sequence[str],
+        component: str = "resistance",
     ) -> Mapping[tuple[int, int], float]:
         qids = tuple(str(q) for q in question_ids)
         if not qids:
             raise ValueError("jacobian_fn requires nonempty question_ids")
 
         if hasattr(stack, "fs_projection_batch"):
-            batch = stack.fs_projection_batch(
-                question_ids=qids,
-                feature_chunk_size=int(study.run.feature_chunk_size),
-                prompt_batch_size=int(study.run.prompt_batch_size),
-                order_regime=order_regime,
-            )
+            batch_kwargs: dict[str, Any] = {
+                "question_ids": qids,
+                "feature_chunk_size": int(study.run.feature_chunk_size),
+                "prompt_batch_size": int(study.run.prompt_batch_size),
+                "order_regime": order_regime,
+            }
+            # Toy injectors may ignore component; production fakes may use it.
+            try:
+                batch = stack.fs_projection_batch(**batch_kwargs, component=component)
+            except TypeError:
+                batch = stack.fs_projection_batch(**batch_kwargs)
         else:
             if corpus is None or split_question_ids is None:
                 raise ValueError(
                     "build_jacobian_fn requires stack.fs_projection_batch or "
                     "corpus+split_question_ids for production projection (ORCH-036)"
                 )
-            batch = _production_batch(
+            batch = _production_component_batch(
                 study=study,
                 stack=stack,
                 corpus=corpus,
                 split_question_ids=split_question_ids,
                 order_regime=order_regime,
                 question_ids=qids,
+                component=component,
             )
+            if batch is None:
+                return {}
 
         layer = int(batch["layer"])
         residual_gradients = batch["residual_gradients"]
@@ -168,7 +176,31 @@ def select_fs_component_prompt_rows(
     )
 
 
-def _production_batch(
+def _load_fs_partition(
+    *,
+    study: StudyConfig,
+    order_regime: str,
+) -> BaselinePartition:
+    """Load frozen FS-split baseline partition for ``order_regime`` (DEC-085)."""
+    import json
+    from pathlib import Path
+
+    path = Path(study.run.artifact_dir) / "baseline" / f"partition_{order_regime}.json"
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"FS component Jacobians require frozen partition at {path}"
+        )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return BaselinePartition(
+        order_regime=str(payload.get("order_regime", order_regime)),
+        q_plus=frozenset(str(q) for q in payload["q_plus"]),
+        q_minus=frozenset(str(q) for q in payload["q_minus"]),
+        q_tie=frozenset(str(q) for q in payload.get("q_tie", ())),
+        n_q_tie=int(payload.get("n_q_tie", len(payload.get("q_tie", ())))),
+    )
+
+
+def _production_component_batch(
     *,
     study: StudyConfig,
     stack: Any,
@@ -176,7 +208,9 @@ def _production_batch(
     split_question_ids: Mapping[str, Sequence[str]],
     order_regime: str,
     question_ids: Sequence[str],
-) -> dict[str, Any]:
+    component: str,
+) -> dict[str, Any] | None:
+    """Render N/IB/CB, select component rows, project φ grads (DEC-085)."""
     smoke = StudySmokeConfig(question_ids=tuple(question_ids))
     by_condition = render_fs_multi_condition_rows(
         corpus_rows=corpus,
@@ -184,9 +218,14 @@ def _production_batch(
         split_question_ids=split_question_ids,
         order_regime=order_regime,
     )
-    # FSC-001: multi-condition rows available; until component wiring (FSC-002+)
-    # the projection batch still uses the neutral subset for the single-map path.
-    uniq = list(by_condition["N"])
+    partition = _load_fs_partition(study=study, order_regime=order_regime)
+    selected = select_fs_component_prompt_rows(
+        component=component,
+        by_condition=by_condition,
+        partition=partition,
+    )
+    if not selected:
+        return None
     tok = stack.tokenizer
     token_a = list(tok.encode(study.experiment.continuation_A, add_special_tokens=False))
     token_b = list(tok.encode(study.experiment.continuation_B, add_special_tokens=False))
@@ -194,10 +233,10 @@ def _production_batch(
     return compute_fs_projection_batch(
         stack,
         layer=layer,
-        texts=[r.text for r in uniq],
-        question_ids=[r.question_id for r in uniq],
+        texts=[r.text for r in selected],
+        question_ids=[r.question_id for r in selected],
         continuation_token_ids_A=token_a,
         continuation_token_ids_B=token_b,
-        truthful_labels=[r.truthful_label for r in uniq],
+        truthful_labels=[r.truthful_label for r in selected],
         tau=float(study.experiment.tau),
     )
