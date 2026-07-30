@@ -7,8 +7,36 @@ from typing import Any
 
 import torch
 
+from epistemic_sycophancy.feature_selection.projected_gradient import (
+    question_macro_prompt_weights,
+)
 from epistemic_sycophancy.sae.jumprelu_delta import jumprelu
 from epistemic_sycophancy.stack.resolver import resolve_resid_post_module
+
+
+def weighted_component_residual_grads(
+    *,
+    prompt_losses: torch.Tensor,
+    residual: torch.Tensor,
+    question_ids: Sequence[object],
+) -> torch.Tensor:
+    """Backward §11.3 weighted scalar once: Σ_p w_p φ_p with w_p=1/(|Q|·|B_q|).
+
+    Returns ∂(weighted loss)/∂residual. Callers must not re-apply prompt weights
+    after projection (FSC-003 / FEAT-014); use ``sum_coefficient_jacobians``.
+    """
+    if prompt_losses.ndim != 1:
+        raise ValueError(
+            f"prompt_losses must be rank-1 [batch]; got {tuple(prompt_losses.shape)}"
+        )
+    if prompt_losses.shape[0] != len(question_ids):
+        raise ValueError("prompt_losses length must match question_ids")
+    weights = question_macro_prompt_weights(question_ids=question_ids).to(
+        dtype=prompt_losses.dtype, device=prompt_losses.device
+    )
+    weighted = (weights * prompt_losses).sum()
+    grads = torch.autograd.grad(weighted, residual, retain_graph=False)[0]
+    return grads
 
 
 def compute_fs_projection_batch(
@@ -21,11 +49,14 @@ def compute_fs_projection_batch(
     continuation_token_ids_B: Sequence[int],
     truthful_labels: Sequence[str],
     tau: float,
+    use_question_macro_weights: bool = True,
 ) -> dict[str, Any]:
     """Return residual grads + JumpReLU latents for one layer (last prompt token).
 
-    Loss is mean logistic margin loss φ(M)=softplus(-M/τ) so ∂ℓ/∂x is defined
-    through LM logits (DEC-060 ranking uses projected coefficient Jacobian).
+    Loss is logistic margin loss φ(M)=softplus(-M/τ). When
+    ``use_question_macro_weights`` is True (default, DEC-085 / FSC-003), the
+    scalar is Σ_p w_p φ_p with w_p=1/(|Q|·|B_q|) so downstream aggregation must
+    **sum** per-prompt Jacobians (not apply question-macro again).
     """
     if len(texts) != len(question_ids) or len(texts) != len(truthful_labels):
         raise ValueError("texts, question_ids, and truthful_labels must align")
@@ -84,8 +115,16 @@ def compute_fs_projection_batch(
         losses.append(torch.nn.functional.softplus(-diff / float(tau)))
 
     last_residual = torch.stack(last_rows, dim=0)
-    loss = torch.stack(losses).mean()
-    grads = torch.autograd.grad(loss, residual, retain_graph=False)[0]
+    prompt_losses = torch.stack(losses)
+    if use_question_macro_weights:
+        grads = weighted_component_residual_grads(
+            prompt_losses=prompt_losses,
+            residual=residual,
+            question_ids=question_ids,
+        )
+    else:
+        loss = prompt_losses.mean()
+        grads = torch.autograd.grad(loss, residual, retain_graph=False)[0]
     residual_grads = []
     for i in range(batch):
         if attention is not None:
@@ -115,4 +154,5 @@ def compute_fs_projection_batch(
         "residual_gradients": residual_gradients.to(dtype=torch.float64),
         "latents": latents.to(dtype=torch.float64),
         "question_ids": [str(q) for q in question_ids],
+        "weights_applied": bool(use_question_macro_weights),
     }

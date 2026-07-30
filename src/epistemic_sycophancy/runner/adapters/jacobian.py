@@ -95,16 +95,20 @@ def build_jacobian_fn(
             latents=latents.to(dtype=torch.float64),
             feature_scales=feature_scales,
         )
-        by_question: dict[str, list[torch.Tensor]] = {}
-        for row, qid in enumerate(batch_qids):
-            by_question.setdefault(qid, []).append(per_prompt[row].detach())
-        filtered = {qid: by_question[qid] for qid in qids if qid in by_question}
-        missing = set(qids) - set(filtered)
-        if missing:
-            raise ValueError(
-                f"jacobian_fn missing projection rows for question_ids={sorted(missing)}"
-            )
-        macro = question_macro_jacobian(filtered)
+        if batch.get("weights_applied"):
+            # §11.3 / FSC-003: weights already in residual grads — sum once.
+            macro = per_prompt.sum(dim=0)
+        else:
+            by_question: dict[str, list[torch.Tensor]] = {}
+            for row, qid in enumerate(batch_qids):
+                by_question.setdefault(qid, []).append(per_prompt[row].detach())
+            filtered = {qid: by_question[qid] for qid in qids if qid in by_question}
+            missing = set(qids) - set(filtered)
+            if missing:
+                raise ValueError(
+                    f"jacobian_fn missing projection rows for question_ids={sorted(missing)}"
+                )
+            macro = question_macro_jacobian(filtered)
         return {
             (layer, fid): float(macro[fid].item()) for fid in range(n_features)
         }
