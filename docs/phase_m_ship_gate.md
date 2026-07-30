@@ -48,7 +48,8 @@ Verified on `pixi run --environment test-cuda`:
 | ORCH-037 | opt_smoke finite `l_total` via live belief-margin adapters |
 | ORCH-038 | optimize writes `best_checkpoint.json` via `run.optimize` budget |
 | GRAD-007 | toy/integration: `build_grad_fn` + projected Adam moves β from 0 |
-| GRAD-008 | real `layer17_n2` optimize: ≥1 `|β_i|>0` in trials (**required**; DEC-084 loud zero-grad is failure / blocked, not green — GRAD-011) |
+| GRAD-008 | real `layer17_n2` optimize: ≥1 `|β_i|>0` in trials (**required**; DEC-084 loud zero-grad is failure, not green — GRAD-011). Unblocked by multi-condition FS (FSC-009). |
+| FSC-009 | real `layer17_n2`: FS pool features active on ≥1 FS IB and ≥1 FS CB; then optimize moves β |
 
 ### GRAD-FIX (DEC-084) — re-run optimize after fix
 
@@ -59,8 +60,18 @@ GRAD-FIX, **re-run** `run-optimize` (and prefer deleting stale
 **Failure criterion:** flat all-zero β for every step with constant `l_total` is
 **not** success evidence (pre-fix `artifacts/smokes/layer17_n2/optimize/trials.jsonl`
 is obsolete). Accept only: β moves within bounds. A loud DEC-084 identically-zero /
-non-finite grad error is a **failure diagnosis** (blocked pending FS-COMPONENTS), not a
-green gate (GRAD-011).
+non-finite grad error is a **failure diagnosis**, not a green gate (GRAD-011).
+
+### FS-COMPONENTS (DEC-085) — re-run feature_selection before optimize
+
+Production feature selection ranks **four** components from **N, IB, and CB** on the
+FS split (resistance=IB∩Q+, recovery=CB∩Q−, neutral/correct surrogates). Pool
+nomination remains DEC-019 (resistance/recovery only). Artifacts use
+`schema_version: 2` with nominator provenance.
+
+**Stale pools:** neutral-only / v1 `feature_selection/common_pool.json` files are
+**rejected** on load. Always **re-run** `run-fs` before `run-optimize` after this
+fix (or after any FS change). Do not reuse pre-FS-COMPONENTS pools.
 
 Unit e2e without injectors (fake `stack_loader` only): ORCH-033.
 
