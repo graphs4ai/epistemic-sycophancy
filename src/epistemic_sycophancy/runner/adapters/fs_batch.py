@@ -7,11 +7,31 @@ from typing import Any
 
 import torch
 
+from epistemic_sycophancy.feature_selection.components import (
+    COMPONENT_CONDITION,
+    logistic_preservation_surrogate,
+)
 from epistemic_sycophancy.feature_selection.projected_gradient import (
     question_macro_prompt_weights,
 )
 from epistemic_sycophancy.sae.jumprelu_delta import jumprelu
 from epistemic_sycophancy.stack.resolver import resolve_resid_post_module
+
+
+def fs_component_margin_loss(
+    *,
+    margin: torch.Tensor,
+    tau: float,
+    component: str,
+) -> torch.Tensor:
+    """Per-prompt FS component loss: φ(M)=softplus(-M/τ) for all four (DEC-085).
+
+    Preservation components must use this logistic surrogate, never the
+    baseline-relative hinges (FEAT-011/012 / FSC-004).
+    """
+    if component not in COMPONENT_CONDITION:
+        raise ValueError(f"unknown FS component {component!r}")
+    return logistic_preservation_surrogate(margin=margin, tau=tau)
 
 
 def weighted_component_residual_grads(
