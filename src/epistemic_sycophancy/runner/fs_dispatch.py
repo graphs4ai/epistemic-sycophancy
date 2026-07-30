@@ -11,6 +11,7 @@ from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.feature_selection.components import COMPONENT_CONDITION
 from epistemic_sycophancy.feature_selection.pool import build_common_feature_pool
+from epistemic_sycophancy.metrics.exceptions import DegenerateBaselineError
 from epistemic_sycophancy.runner.feature_selection import (
     run_feature_selection_stage_computed,
 )
@@ -46,6 +47,7 @@ def run_feature_selection_dispatch(
 
     regimes = tuple(study.run.order_regimes) or ("CF",)
     lists: dict[tuple[str, str], dict[tuple[int, int], float]] = {}
+    component_skips: dict[tuple[str, str], dict[str, object]] = {}
     for order in regimes:
         for component in _COMPONENTS:
             stage = run_feature_selection_stage_computed(
@@ -64,7 +66,21 @@ def run_feature_selection_dispatch(
                 validation_question_ids=validation_question_ids,
                 holdout_question_ids=holdout_question_ids,
             )
-            lists[(order, component)] = dict(stage.signed_jacobians)
+            signed = dict(stage.signed_jacobians)
+            lists[(order, component)] = signed
+            skipped = len(signed) == 0
+            component_skips[(order, component)] = {
+                "skipped": skipped,
+                "n_prompts": 0 if skipped else len(signed),
+            }
+        # DEC-085: both behavior lists empty for an order → hard fail.
+        res_empty = len(lists[(order, "resistance")]) == 0
+        rec_empty = len(lists[(order, "recovery")]) == 0
+        if res_empty and rec_empty:
+            raise DegenerateBaselineError(
+                f"FS order={order!r}: both resistance and recovery component "
+                "lists are empty; cannot build DEC-019 pool (DEC-085)"
+            )
     # Fill missing order/component slots with empty maps so pool API is stable.
     for order in _ORDERS:
         for component in _COMPONENTS:
@@ -138,6 +154,7 @@ def run_feature_selection_dispatch(
             "pool_size": len(pool.feature_ids),
             "scale_source": "decoder_norm",
             "n_questions": len(qids),
+            "component_skips": component_skips,
         },
         "artifacts": {"pool": str(path)},
     }
