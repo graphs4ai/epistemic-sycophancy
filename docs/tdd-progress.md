@@ -356,6 +356,12 @@ Phase M.1 **ready to roll**: YAML-only ASAP on `configs/smokes/layer17_n2.yaml` 
 
 Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is wired; holdout gated by DEC-071. Researcher ASAP path documented in `docs/phase_m_ship_gate.md`.
 
+## GRAD-FIX (live ∂M/∂β for projected Adam)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| DEC-084 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Authority=projected `coefficient_jacobian`; pool-scoped m; refresh each step; CF N/IB/CB; loud zero-grad; post-step trials loss |
+
 ## Status definitions
 
 - `not_started`: no test written.
