@@ -91,7 +91,6 @@ def run_optimize_dispatch(
         )
         for step in range(int(optimize.max_steps)):
             current = tuple(float(x) for x in beta_param.detach().tolist())
-            loss = float(objective_fn(current, eligible))
             grad = grad_fn(current, eligible)
             adam.zero_grad()
             beta_param.grad = torch.tensor(list(grad), dtype=torch.float64)
@@ -100,6 +99,8 @@ def run_optimize_dispatch(
             for b in updated:
                 if not (exp.beta_lower <= b <= exp.beta_upper):
                     raise ValueError(f"β out of bounds after step: {updated}")
+            # DEC-084 / GRAD-006: log loss at the logged (post-step) β.
+            loss = float(objective_fn(updated, eligible))
             trials.append(
                 {
                     "trial_index": step,
