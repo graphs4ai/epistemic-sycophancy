@@ -114,10 +114,23 @@ def test_dispatch__optimize__builds_objective_grad_from_stack_and_run_optimize_b
     (art / "feature_selection" / "common_pool.json").write_text(
         json.dumps(
             {
+                "schema_version": 2,
                 "feature_ids": [[17, 1]],
                 "feature_scales": [1.0],
                 "pool_size": 1,
                 "scale_source": "decoder_norm",
+                "provenance": {
+                    "17:1": {
+                        "nominators": [
+                            {
+                                "order": "CF",
+                                "component": "resistance",
+                                "signed_jacobian": 1.0,
+                            }
+                        ],
+                        "surrogates": {},
+                    }
+                },
             }
         )
         + "\n",

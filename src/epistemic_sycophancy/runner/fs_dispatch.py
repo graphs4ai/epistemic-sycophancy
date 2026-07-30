@@ -94,7 +94,33 @@ def run_feature_selection_dispatch(
     out_dir = Path(study.run.artifact_dir) / "feature_selection"
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "common_pool.json"
+    provenance: dict[str, dict[str, object]] = {}
+    for layer, fid in pool.feature_ids:
+        key = f"{layer}:{fid}"
+        nominators: list[dict[str, object]] = []
+        for (order, component), scores in behavior_lists.items():
+            if (layer, fid) in scores and float(scores[(layer, fid)]) > 0.0:
+                nominators.append(
+                    {
+                        "order": order,
+                        "component": component,
+                        "signed_jacobian": float(scores[(layer, fid)]),
+                    }
+                )
+        surrogates: dict[str, float] = {}
+        for surr in ("neutral_surrogate", "correct_surrogate"):
+            # Prefer CF annotation when present; else first nonempty order.
+            value = None
+            for order in regimes:
+                scores = lists.get((order, surr), {})
+                if (layer, fid) in scores:
+                    value = float(scores[(layer, fid)])
+                    break
+            if value is not None:
+                surrogates[surr] = value
+        provenance[key] = {"nominators": nominators, "surrogates": surrogates}
     payload = {
+        "schema_version": 2,
         "feature_ids": [[layer, fid] for layer, fid in pool.feature_ids],
         "feature_scales": list(pool.scales),
         "pool_size": len(pool.feature_ids),
@@ -102,6 +128,7 @@ def run_feature_selection_dispatch(
         "study_yaml_fingerprint": fingerprint,
         "question_ids": list(qids),
         "split_name": "feature_selection",
+        "provenance": provenance,
     }
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return {

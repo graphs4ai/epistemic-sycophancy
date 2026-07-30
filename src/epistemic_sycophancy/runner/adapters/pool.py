@@ -11,8 +11,24 @@ from epistemic_sycophancy.feature_selection.pool import CommonFeaturePool
 
 
 def load_common_pool_artifact(path: str | Path) -> CommonFeaturePool:
-    """Load ``common_pool.json`` written by feature_selection dispatch."""
+    """Load ``common_pool.json`` written by feature_selection dispatch.
+
+    DEC-085 / FSC-006: require ``schema_version: 2`` with provenance. Stale
+    neutral-only (v1) pools are rejected so optimize forces a re-``run-fs``.
+    """
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    version = payload.get("schema_version")
+    if version != 2:
+        raise ValueError(
+            f"stale common_pool artifact at {path}: schema_version={version!r} "
+            "(require 2 with nominator provenance); re-run feature_selection "
+            "(run-fs) before optimize (DEC-085)"
+        )
+    if "provenance" not in payload:
+        raise ValueError(
+            f"stale common_pool artifact at {path}: missing provenance; "
+            "re-run feature_selection (run-fs) before optimize (DEC-085)"
+        )
     feature_ids = tuple(
         (int(pair[0]), int(pair[1])) for pair in payload["feature_ids"]
     )

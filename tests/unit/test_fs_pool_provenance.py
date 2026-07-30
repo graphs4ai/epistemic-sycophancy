@@ -1,4 +1,4 @@
-"""ORCH-029: opt_smoke builds margin_payload/beta/identity from artifacts."""
+"""FSC-006: pool artifact schema v2 with nominator provenance; reject stale v1."""
 
 from __future__ import annotations
 
@@ -16,13 +16,13 @@ from epistemic_sycophancy.config.study import (
     StudySmokeConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
-from epistemic_sycophancy.runner.cli import dispatch_stage
-from epistemic_sycophancy.runner.identity import clear_stack_cache
+from epistemic_sycophancy.runner.adapters.pool import load_common_pool_artifact
+from epistemic_sycophancy.runner.fs_dispatch import run_feature_selection_dispatch
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
 from epistemic_sycophancy.stack.config import ExperimentStackConfig, HookSpec
 
 
-def _study(*, artifact_dir: str, coefficient_length: int = 1) -> StudyConfig:
+def _study(artifact_dir: str) -> StudyConfig:
     return StudyConfig(
         stack=ExperimentStackConfig(
             model=ModelSpec(
@@ -56,9 +56,9 @@ def _study(*, artifact_dir: str, coefficient_length: int = 1) -> StudyConfig:
             w_u=0.5,
             beta_lower=-2.0,
             beta_upper=0.0,
-            feature_ids=((17, 1),) if coefficient_length else (),
-            feature_scales=(1.0,) if coefficient_length else (),
-            coefficient_length=coefficient_length,
+            feature_ids=(),
+            feature_scales=(),
+            coefficient_length=0,
             tie_policy="merge_into_q_minus",
             tie_band_epsilon=1e-6,
             mc1_tie_policy="fail_and_report",
@@ -70,12 +70,12 @@ def _study(*, artifact_dir: str, coefficient_length: int = 1) -> StudyConfig:
             continuation_include_eos=False,
             attribution_scope="last_prompt_token",
             pool_eligibility_override=False,
-            pool_quota_per_list=8,
+            pool_quota_per_list=2,
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
             order_regimes=("CF",),
-            feature_chunk_size=1024,
+            feature_chunk_size=8,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(question_ids=("q1", "q2")),
             optimizer=StudyOptimizerConfig(
@@ -89,7 +89,7 @@ def _study(*, artifact_dir: str, coefficient_length: int = 1) -> StudyConfig:
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
-                max_steps=20,
+                max_steps=1,
                 n_questions=2,
             ),
         ),
@@ -97,82 +97,60 @@ def _study(*, artifact_dir: str, coefficient_length: int = 1) -> StudyConfig:
 
 
 @pytest.mark.unit
-def test_dispatch__opt_smoke__builds_margin_payload_beta_and_identity_from_artifacts(
-    tmp_path: Path,
-) -> None:
-    """ORCH-029: None margin/beta/identity → load artifacts + live scorer."""
-    clear_stack_cache()
-    art = tmp_path / "art"
-    study = _study(artifact_dir=str(art), coefficient_length=0)
-    # Identity artifact.
-    ident = art / "identity"
-    ident.mkdir(parents=True)
-    (ident / "identity_result.json").write_text(
-        json.dumps({"identity_passed": True, "max_abs_diff": 0.0}) + "\n",
-        encoding="utf-8",
+def test_fs_pool__schema_v2__records_nominator_provenance(tmp_path: Path) -> None:
+    """FSC-006 / DEC-085: each selected feature records nominating lists + signed J."""
+    study = _study(str(tmp_path / "art"))
+
+    def jacobian_fn(*, order_regime: str, question_ids, component: str):
+        del order_regime, question_ids
+        if component == "resistance":
+            return {(17, 1): 5.0, (17, 2): 4.0}
+        if component == "recovery":
+            return {(17, 2): 3.0, (17, 3): 2.0}
+        if component == "neutral_surrogate":
+            return {(17, 1): -0.5, (17, 2): 0.1, (17, 3): 0.2}
+        return {(17, 1): 0.7, (17, 2): -0.2, (17, 3): 0.9}
+
+    result = run_feature_selection_dispatch(
+        study=study,
+        freeze_status="unsealed",
+        jacobian_fn=jacobian_fn,
+        scale_fn=lambda keys: {k: 1.0 for k in keys},
+        question_ids=("q1", "q2"),
+        optimization_question_ids=("q_opt",),
     )
-    # Pool artifact (DEC-073).
-    fs = art / "feature_selection"
-    fs.mkdir(parents=True)
-    (fs / "common_pool.json").write_text(
+    path = Path(result["artifacts"]["pool"])
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
+    assert "provenance" in payload
+    # Feature (17,2) nominated by both resistance and recovery.
+    prov_2 = payload["provenance"]["17:2"]
+    nominators = {(n["order"], n["component"]) for n in prov_2["nominators"]}
+    assert ("CF", "resistance") in nominators
+    assert ("CF", "recovery") in nominators
+    assert "surrogates" in prov_2
+    assert prov_2["surrogates"]["neutral_surrogate"] == pytest.approx(0.1)
+    assert prov_2["surrogates"]["correct_surrogate"] == pytest.approx(-0.2)
+
+    loaded = load_common_pool_artifact(path)
+    assert set(loaded.feature_ids) == {(17, 1), (17, 2), (17, 3)}
+
+
+@pytest.mark.unit
+def test_fs_pool__stale_v1_artifact__rejected_on_load(tmp_path: Path) -> None:
+    """FSC-006: optimize/load rejects neutral-only v1 pools (force re-run-fs)."""
+    path = tmp_path / "common_pool.json"
+    path.write_text(
         json.dumps(
             {
-                "schema_version": 2,
                 "feature_ids": [[17, 1]],
                 "feature_scales": [1.0],
                 "pool_size": 1,
                 "scale_source": "decoder_norm",
-                "provenance": {
-                    "17:1": {
-                        "nominators": [
-                            {
-                                "order": "CF",
-                                "component": "resistance",
-                                "signed_jacobian": 1.0,
-                            }
-                        ],
-                        "surrogates": {},
-                    }
-                },
             }
         )
         + "\n",
         encoding="utf-8",
     )
-    # Baseline partition.
-    base = art / "baseline"
-    base.mkdir(parents=True)
-    (base / "partition_CF.json").write_text(
-        json.dumps(
-            {
-                "order_regime": "CF",
-                "q_plus": ["q1"],
-                "q_minus": ["q2"],
-                "q_tie": [],
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    class _Stack:
-        def score_belief_margins(self, *, belief_condition, question_ids, beta):
-            del beta
-            if belief_condition == "N":
-                return {qid: 1.0 if qid == "q1" else -0.5 for qid in question_ids}
-            if belief_condition == "IB":
-                return {qid: (0.25,) for qid in question_ids}
-            return {qid: (0.75,) for qid in question_ids}
-
-    result = dispatch_stage(
-        "opt_smoke",
-        study=study,
-        freeze_status="unsealed",
-        stack_loader=lambda _s: _Stack(),
-        margin_payload=None,
-        beta=None,
-        identity_passed=None,
-    )
-    assert result.ok
-    assert "l_total" in result.metrics
-    assert result.metrics["l_total"] == result.metrics["l_total"]  # finite
+    with pytest.raises(ValueError, match="schema_version|stale|re-run"):
+        load_common_pool_artifact(path)
