@@ -369,6 +369,9 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | GRAD-006 | `test_optimize__trials_jsonl__l_total_matches_logged_beta` | green | `pixi run --environment test pytest tests/unit/test_optimize_trial_loss_alignment.py -q` → `assert 0.0 == -0.1…` (pre-step loss) | same → `1 passed`; ORCH-011 → `1 passed` | `runner/optimize.py` | Post-step `l_total` with post-step `beta` |
 | GRAD-007 | `test_optimize__build_grad_fn_projected_adam__moves_beta_from_zero` | green | `pixi run --environment test pytest tests/integration/test_grad_adam_moves_beta.py -q` → `AssertionError: [0.0, 0.0]` (wrong jac sign vs suppression bound; fixture flipped) | same → `1 passed` | `tests/integration/test_grad_adam_moves_beta.py` | Production `build_grad_fn` + Adam; β moves within bounds |
 | GRAD-008 | `test_real_model__layer17_n2__optimize_moves_beta_or_loud_fails` | green | `pixi run --environment test-cuda pytest …::test_real_model__layer17_n2__optimize_moves_beta_or_loud_fails -q` → `RuntimeError: … tensor is on cpu, different from … cuda:0` (jac on CUDA) | same → `1 passed` (~41s) | `runner/adapters/margin_jacobian.py` (CPU float64 jac), `tests/real_model/test_grad_optimize_moves_beta.py` | β moves; obsolete flat trials not success |
+| GRAD-009 | `test_docs__phase_m_ship_gate__documents_grad_fix_rerun_and_flat_failure` | green | would fail before ship-gate GRAD-FIX section | `pixi run --environment test pytest tests/unit/test_grad_ship_docs.py -q` → `1 passed` | `docs/phase_m_ship_gate.md`, `docs/tdd-progress.md` | Flat all-zero trials = failure; re-run optimize after fix |
+
+**GRAD-FIX gate:** GRAD-001…009 green. Production `build_grad_fn` no longer installs all-zero margin jac by default; toy Adam moves β (GRAD-007); real layer17 optimize moves β (GRAD-008). Re-run `run-optimize` on smoke configs; do not treat pre-fix flat `trials.jsonl` as success.
 
 ## Status definitions
 

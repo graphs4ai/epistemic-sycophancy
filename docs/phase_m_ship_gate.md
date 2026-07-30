@@ -47,6 +47,19 @@ Verified on `pixi run --environment test-cuda`:
 | ORCH-036 | feature_selection writes `common_pool.json` |
 | ORCH-037 | opt_smoke finite `l_total` via live belief-margin adapters |
 | ORCH-038 | optimize writes `best_checkpoint.json` via `run.optimize` budget |
+| GRAD-007 | toy/integration: `build_grad_fn` + projected Adam moves β from 0 |
+| GRAD-008 | real `layer17_n2` optimize: ≥1 `|β_i|>0` in trials (or loud zero-grad fail) |
+
+### GRAD-FIX (DEC-084) — re-run optimize after fix
+
+Production `build_grad_fn` must supply projected ∂M/∂β (not all-zero jac). After
+GRAD-FIX, **re-run** `run-optimize` (and prefer deleting stale
+`optimize/trials.jsonl`).
+
+**Failure criterion:** flat all-zero β for every step with constant `l_total` is
+**not** success evidence (pre-fix `artifacts/smokes/layer17_n2/optimize/trials.jsonl`
+is obsolete). Accept only: β moves within bounds, or a loud DEC-084 identically-zero /
+non-finite grad error.
 
 Unit e2e without injectors (fake `stack_loader` only): ORCH-033.
 
