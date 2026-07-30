@@ -13,7 +13,7 @@ from epistemic_sycophancy.feature_selection.projected_gradient import (
     project_residual_gradient,
     question_macro_jacobian,
 )
-from epistemic_sycophancy.prompts.render import render_mc0_subset
+from epistemic_sycophancy.prompts.render import RenderedPromptRow, render_mc0_subset
 from epistemic_sycophancy.runner.adapters.fs_batch import compute_fs_projection_batch
 
 
@@ -108,6 +108,41 @@ def build_jacobian_fn(
     return jacobian_fn
 
 
+def render_fs_multi_condition_rows(
+    *,
+    corpus_rows: Sequence[Mapping[str, object]],
+    smoke: StudySmokeConfig,
+    split_question_ids: Mapping[str, Sequence[str]],
+    order_regime: str,
+) -> dict[str, tuple[RenderedPromptRow, ...]]:
+    """Render N/IB/CB on the FS smoke subset (DEC-085 / FSC-001).
+
+    Neutrals are deduplicated to one row per question_id. IB and CB keep every
+    variant. Optimization/holdout rows are never selected via smoke IDs.
+    """
+    by_condition: dict[str, tuple[RenderedPromptRow, ...]] = {}
+    for belief in ("N", "IB", "CB"):
+        rendered = render_mc0_subset(
+            corpus_rows=corpus_rows,
+            smoke=smoke,
+            split_question_ids=split_question_ids,
+            order_regime=order_regime,
+            belief_condition=belief,
+        )
+        if belief == "N":
+            uniq: list[RenderedPromptRow] = []
+            seen: set[str] = set()
+            for row in rendered:
+                if row.question_id in seen:
+                    continue
+                seen.add(row.question_id)
+                uniq.append(row)
+            by_condition[belief] = tuple(uniq)
+        else:
+            by_condition[belief] = tuple(rendered)
+    return by_condition
+
+
 def _production_batch(
     *,
     study: StudyConfig,
@@ -118,21 +153,15 @@ def _production_batch(
     question_ids: Sequence[str],
 ) -> dict[str, Any]:
     smoke = StudySmokeConfig(question_ids=tuple(question_ids))
-    rendered = render_mc0_subset(
+    by_condition = render_fs_multi_condition_rows(
         corpus_rows=corpus,
         smoke=smoke,
         split_question_ids=split_question_ids,
         order_regime=order_regime,
-        belief_condition="N",
     )
-    # Deduplicate neutrals.
-    uniq = []
-    seen: set[str] = set()
-    for row in rendered:
-        if row.question_id in seen:
-            continue
-        seen.add(row.question_id)
-        uniq.append(row)
+    # FSC-001: multi-condition rows available; until component wiring (FSC-002+)
+    # the projection batch still uses the neutral subset for the single-map path.
+    uniq = list(by_condition["N"])
     tok = stack.tokenizer
     token_a = list(tok.encode(study.experiment.continuation_A, add_special_tokens=False))
     token_b = list(tok.encode(study.experiment.continuation_B, add_special_tokens=False))
