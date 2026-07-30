@@ -108,6 +108,33 @@ class _FakeStack:
             return {qid: (0.25,) for qid in ids}
         return {qid: (0.75,) for qid in ids}
 
+    def margin_projection_batch(
+        self,
+        *,
+        belief_condition: str,
+        question_ids: tuple[str, ...],
+        beta: tuple[float, ...],
+    ):
+        """GRAD-010: tiny linear-SAE batch; real coefficient_jacobian still runs."""
+        del beta
+        n = len(question_ids)
+        decoder = self.saes[17].decoder_weight
+        n_features = int(decoder.shape[0])
+        # Match fs_projection_batch activity: feature 0 active.
+        latents_row = torch.zeros(n_features, dtype=torch.float64)
+        latents_row[0] = 1.0
+        residual_g = torch.ones(int(decoder.shape[1]), dtype=torch.float64)
+        scales = torch.linalg.vector_norm(decoder, dim=1)
+        return {
+            "layer": 17,
+            "residual_gradients": residual_g.unsqueeze(0).expand(n, -1).clone(),
+            "latents": latents_row.unsqueeze(0).expand(n, -1).clone(),
+            "decoder": decoder,
+            "feature_scales": scales,
+            "question_ids": list(question_ids),
+            "belief_condition": belief_condition,
+        }
+
 
 def _write_study_yaml(path: Path, artifact_dir: Path) -> None:
     payload = {

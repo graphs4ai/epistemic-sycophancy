@@ -373,6 +373,13 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 
 **GRAD-FIX gate:** GRAD-001…009 green. Production `build_grad_fn` no longer installs all-zero margin jac by default; toy Adam moves β (GRAD-007); real layer17 optimize moves β (GRAD-008). Re-run `run-optimize` on smoke configs; do not treat pre-fix flat `trials.jsonl` as success.
 
+## FS-COMPONENTS (multi-condition feature selection)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| DEC-085 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Four real component maps; φ; §11.3 weights; DEC-019 nomination; schema v2; degenerate skip |
+| GRAD-010 | `test_dispatch__optimize__builds_objective_grad…` + `test_cli__fake_stack__identity_through_full_study…` | green | `pixi run --environment test pytest tests/unit/test_orch_dispatch_optimize_default.py::… tests/unit/test_orch_m1_e2e_no_injectors.py::… -q` → `AttributeError: … no attribute 'tokenizer'` / `'config'` | same → `2 passed` | `tests/unit/test_orch_dispatch_optimize_default.py`, `tests/unit/test_orch_m1_e2e_no_injectors.py` | Fakes expose `margin_projection_batch` (tiny linear SAE); real `coefficient_jacobian` still runs |
+
 ## Status definitions
 
 - `not_started`: no test written.

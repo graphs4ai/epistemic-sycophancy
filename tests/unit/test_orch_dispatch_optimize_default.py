@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+import torch
 
 from epistemic_sycophancy.config.schema import ExperimentConfig
 from epistemic_sycophancy.config.study import (
@@ -128,6 +129,13 @@ def test_dispatch__optimize__builds_objective_grad_from_stack_and_run_optimize_b
         encoding="utf-8",
     )
 
+    # Tiny linear SAE batch: pool feature (17,1) active with nonzero ∂M/∂x so
+    # real coefficient_jacobian yields informative ∂M/∂β (GRAD-010 / DEC-084).
+    decoder = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float64)
+    latents_row = torch.tensor([0.0, 1.0], dtype=torch.float64)  # feature 1 active
+    scales = torch.tensor([1.0, 1.0], dtype=torch.float64)
+    residual_g = torch.tensor([0.0, 1.0], dtype=torch.float64)
+
     class _Stack:
         def score_belief_margins(self, *, belief_condition, question_ids, beta):
             del beta
@@ -136,6 +144,25 @@ def test_dispatch__optimize__builds_objective_grad_from_stack_and_run_optimize_b
             if belief_condition == "IB":
                 return {qid: (0.25,) for qid in question_ids}
             return {qid: (0.75,) for qid in question_ids}
+
+        def margin_projection_batch(
+            self,
+            *,
+            belief_condition: str,
+            question_ids: tuple[str, ...],
+            beta: tuple[float, ...],
+        ):
+            del beta
+            n = len(question_ids)
+            return {
+                "layer": 17,
+                "residual_gradients": residual_g.unsqueeze(0).expand(n, -1).clone(),
+                "latents": latents_row.unsqueeze(0).expand(n, -1).clone(),
+                "decoder": decoder,
+                "feature_scales": scales,
+                "question_ids": list(question_ids),
+                "belief_condition": belief_condition,
+            }
 
     result = dispatch_stage(
         "optimize",
