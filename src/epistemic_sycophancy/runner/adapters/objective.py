@@ -1,7 +1,8 @@
-"""Production objective_fn / grad_fn adapters (ORCH-024 / DEC-076)."""
+"""Production objective_fn / grad_fn adapters (ORCH-024 / DEC-076 / DEC-084)."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -12,6 +13,7 @@ from epistemic_sycophancy.objective.total import (
     evaluate_objective,
     evaluate_objective_with_grad,
 )
+from epistemic_sycophancy.runner.adapters.margin_jacobian import build_margin_jacobian_fn
 from epistemic_sycophancy.runner.adapters.margins import build_margin_payload
 
 
@@ -67,13 +69,25 @@ def build_grad_fn(
 ) -> Callable[[Sequence[float], Sequence[str]], Sequence[float]]:
     """Build ``(beta, eligible_qids) -> grad`` via local linearization at β.
 
-    When ``margin_jacobian_fn`` is provided it must return
-    ``ib_margin_jac`` / ``cb_margin_jac`` / ``neutral_margin_jac`` aligned to
-    the live margin payload (GRAD-002 / DEC-084). Otherwise margin Jacobians
-    default to zero (legacy stub until GRAD-004 wires the production builder).
+    Margin Jacobians come from ``margin_jacobian_fn`` when provided; otherwise
+    from ``build_margin_jacobian_fn(study, stack)`` (projected ∂M/∂β, DEC-084).
+    Identically zero or non-finite grads raise (DEC-084 loud-fail).
     """
+    resolved_jac_fn: Callable[..., Mapping[str, Any]] | None
+    if margin_jacobian_fn is not None:
+        resolved_jac_fn = margin_jacobian_fn
+    elif hasattr(stack, "margin_projection_batch"):
+        resolved_jac_fn = build_margin_jacobian_fn(study, stack)
+    else:
+        resolved_jac_fn = None
 
     def grad_fn(beta: Sequence[float], eligible_qids: Sequence[str]) -> Sequence[float]:
+        if resolved_jac_fn is None:
+            raise ValueError(
+                "build_grad_fn requires margin_jacobian_fn or "
+                "stack.margin_projection_batch for projected ∂M/∂β (DEC-084); "
+                "all-zero margin jac default is removed"
+            )
         payload = build_margin_payload(
             study,
             stack,
@@ -83,47 +97,23 @@ def build_grad_fn(
             margin_scorer=margin_scorer,
         )
         m = int(study.experiment.coefficient_length)
-        zero_row = torch.zeros(m, dtype=torch.float64)
-
-        def _as_seq(vals: Any) -> Sequence[Any]:
-            if isinstance(vals, (list, tuple)):
-                return vals
-            return (vals,)
-
-        def _zero_seq_map(src: Mapping[str, Any]) -> dict[str, list[torch.Tensor]]:
-            return {
-                str(qid): [zero_row.clone() for _ in _as_seq(vals)]
-                for qid, vals in src.items()
-            }
-
-        if margin_jacobian_fn is not None:
-            jac_payload = margin_jacobian_fn(
-                beta=beta,
-                question_ids=eligible_qids,
-                partitions=partitions,
-            )
-            ib_margin_jac = jac_payload["ib_margin_jac"]
-            cb_margin_jac = jac_payload["cb_margin_jac"]
-            neutral_margin_jac = jac_payload["neutral_margin_jac"]
-        else:
-            ib_margin_jac = _zero_seq_map(payload["ib_margins_by_question"])
-            cb_margin_jac = _zero_seq_map(payload["cb_margins_by_question"])
-            neutral_margin_jac = {
-                qid: zero_row.clone() for qid in payload["current_neutral_margins"]
-            }
-
+        jac_payload = resolved_jac_fn(
+            beta=beta,
+            question_ids=eligible_qids,
+            partitions=partitions,
+        )
         exp = study.experiment
         beta_t = torch.tensor(list(beta), dtype=torch.float64)
         _loss, grad = evaluate_objective_with_grad(
             beta=beta_t,
             ib_margin_const=payload["ib_margins_by_question"],
-            ib_margin_jac=ib_margin_jac,
+            ib_margin_jac=jac_payload["ib_margin_jac"],
             cb_margin_const=payload["cb_margins_by_question"],
-            cb_margin_jac=cb_margin_jac,
+            cb_margin_jac=jac_payload["cb_margin_jac"],
             baseline_cb_margins=payload["baseline_cb_margins"],
             baseline_neutral_margins=payload["baseline_neutral_margins"],
             neutral_margin_const=payload["current_neutral_margins"],
-            neutral_margin_jac=neutral_margin_jac,
+            neutral_margin_jac=jac_payload["neutral_margin_jac"],
             q_plus=payload["q_plus"],
             q_minus=payload["q_minus"],
             tau=float(exp.tau),
@@ -138,6 +128,16 @@ def build_grad_fn(
         del _loss
         if len(grad) != m:
             raise ValueError(f"grad length {len(grad)} != coefficient_length {m}")
+        if not all(math.isfinite(float(x)) for x in grad):
+            raise ValueError(
+                f"∂L/∂β is non-finite (DEC-084): grad={list(grad)!r}"
+            )
+        grad_norm_sq = sum(float(x) * float(x) for x in grad)
+        if grad_norm_sq == 0.0:
+            raise ValueError(
+                "∂L/∂β is identically zero after projected margin Jacobians "
+                "(DEC-084 loud-fail); refusing silent Adam no-op"
+            )
         return tuple(float(x) for x in grad)
 
     return grad_fn

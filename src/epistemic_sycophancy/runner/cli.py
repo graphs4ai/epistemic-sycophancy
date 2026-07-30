@@ -686,11 +686,29 @@ def dispatch_stage(
                     margin_scorer=margin_scorer,
                 )
             if grad_fn is None and study.run.optimizer.kind == "projected_adam":
+                from epistemic_sycophancy.runner.adapters.margin_jacobian import (
+                    build_margin_jacobian_fn,
+                )
+
+                corpus_for_jac, split_ids_for_jac, _smoke_jac = resolve_corpus_context(
+                    study,
+                    corpus_jsonl_paths=corpus_jsonl_paths,
+                    split_manifest_path=split_manifest_path,
+                    corpus_root=corpus_root,
+                )
+                del _smoke_jac
+                margin_jacobian_fn = build_margin_jacobian_fn(
+                    study_for_opt,
+                    stack,
+                    corpus=corpus_for_jac,
+                    split_question_ids=split_ids_for_jac,
+                )
                 grad_fn = build_grad_fn(
                     study_for_opt,
                     stack,
                     partitions=partitions,
                     margin_scorer=margin_scorer,
+                    margin_jacobian_fn=margin_jacobian_fn,
                 )
 
         opt_result = run_optimize_dispatch(

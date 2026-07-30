@@ -121,15 +121,27 @@ def test_adapters__build_objective_and_grad__live_stack_matches_evaluate_objecti
         partitions=partitions,
         margin_scorer=margin_scorer,
     )
+    zero = __import__("torch").zeros(1, dtype=__import__("torch").float64)
+
+    def margin_jacobian_fn(*, beta, question_ids, partitions):
+        del beta, question_ids, partitions
+        return {
+            "ib_margin_jac": {"q1": [zero.clone()], "q2": [zero.clone()]},
+            "cb_margin_jac": {"q1": [zero.clone()], "q2": [zero.clone()]},
+            "neutral_margin_jac": {"q1": zero.clone(), "q2": zero.clone()},
+        }
+
     grad_fn = build_grad_fn(
         study,
         stack=object(),
         partitions=partitions,
         margin_scorer=margin_scorer,
+        margin_jacobian_fn=margin_jacobian_fn,
     )
     beta = (-0.5,)
     eligible = ("q1", "q2")
     loss = objective_fn(beta, eligible)
+
     assert loss == pytest.approx(
         evaluate_objective(
             ib_margins_by_question={"q1": (0.25,), "q2": (0.25,)},
