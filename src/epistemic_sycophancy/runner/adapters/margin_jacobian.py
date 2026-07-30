@@ -49,7 +49,12 @@ def project_selected_margin_jacobian(
     )
     if not selected_indices:
         raise ValueError("selected_indices must be nonempty")
-    return torch.stack([full[int(i)] for i in selected_indices]).to(dtype=torch.float64)
+    # evaluate_objective_with_grad uses CPU float64 β (DEC-027); keep jac on CPU.
+    return (
+        torch.stack([full[int(i)] for i in selected_indices])
+        .detach()
+        .to(device="cpu", dtype=torch.float64)
+    )
 
 
 def assemble_margin_jacobian_maps(
