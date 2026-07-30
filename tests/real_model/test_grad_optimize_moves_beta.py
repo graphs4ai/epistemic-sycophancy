@@ -1,4 +1,4 @@
-"""GRAD-008: layer17_n2 optimize must move β (or loud-fail), never silent flat zeros."""
+"""GRAD-008 / GRAD-011: layer17_n2 optimize must move β; never silent flat zeros."""
 
 from __future__ import annotations
 
@@ -25,19 +25,19 @@ def _require_cuda() -> None:
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__optimize_moves_beta_or_loud_fails(
+def test_real_model__layer17_n2__optimize_moves_beta(
     tmp_path: Path,
 ) -> None:
-    """GRAD-008: after fix, trials must not be all-zero β for every step.
+    """GRAD-011: assert β moves. DEC-084 identically-zero grad is failure, not success.
 
-    Accepts either (a) at least one |β_i| > 0 in any trial, or (b) a loud
-    DEC-084 identically-zero grad failure. Silent flat all-zero trials fail.
+    Silent flat all-zero trials fail. Loud zero-grad is also failure (record as
+    blocked with FS activity diagnosis until FSC-009); do not swallow it.
     """
     _require_cuda()
     clear_stack_cache()
     from dataclasses import replace
 
-    from epistemic_sycophancy.config.study import StudyOptimizeConfig, StudySmokeConfig
+    from epistemic_sycophancy.config.study import StudyOptimizeConfig
 
     art = tmp_path / "art"
     study = load_study_config(CFG)
@@ -47,17 +47,10 @@ def test_real_model__layer17_n2__optimize_moves_beta_or_loud_fails(
     assert dispatch_stage(
         "baseline_partitions", study=study, freeze_status="unsealed", score_fn=None
     ).ok
-    fs_study = replace(
-        study,
-        run=replace(
-            study.run,
-            order_regimes=("CF",),
-            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
-        ),
-    )
+    # Use config smoke N (32); do not shrink to N=2 (DEC-079 / GRAD-011).
     assert dispatch_stage(
         "feature_selection",
-        study=fs_study,
+        study=replace(study, run=replace(study.run, order_regimes=("CF",))),
         freeze_status="unsealed",
         jacobian_fn=None,
         scale_fn=None,
@@ -87,7 +80,12 @@ def test_real_model__layer17_n2__optimize_moves_beta_or_loud_fails(
     except ValueError as exc:
         msg = str(exc)
         if "identically zero" in msg or "non-finite" in msg or "∂L/∂β" in msg:
-            return  # loud degenerate-grad diagnosis (DEC-084)
+            pytest.fail(
+                "GRAD-011: DEC-084 identically-zero ∂L/∂β is not success. "
+                "Likely N-only FS pool (features inactive on IB/CB); "
+                "see DEC-085 / FSC-009. "
+                f"Original: {msg}"
+            )
         raise
 
     assert result.ok
@@ -107,6 +105,6 @@ def test_real_model__layer17_n2__optimize_moves_beta_or_loud_fails(
             moved = True
             break
     assert moved, (
-        "GRAD-008 failure: all trials have all-zero β "
+        "GRAD-011 failure: all trials have all-zero β "
         "(obsolete flat artifact is not success evidence)"
     )

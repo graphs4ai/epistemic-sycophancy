@@ -48,7 +48,7 @@ Verified on `pixi run --environment test-cuda`:
 | ORCH-037 | opt_smoke finite `l_total` via live belief-margin adapters |
 | ORCH-038 | optimize writes `best_checkpoint.json` via `run.optimize` budget |
 | GRAD-007 | toy/integration: `build_grad_fn` + projected Adam moves β from 0 |
-| GRAD-008 | real `layer17_n2` optimize: ≥1 `|β_i|>0` in trials (or loud zero-grad fail) |
+| GRAD-008 | real `layer17_n2` optimize: ≥1 `|β_i|>0` in trials (**required**; DEC-084 loud zero-grad is failure / blocked, not green — GRAD-011) |
 
 ### GRAD-FIX (DEC-084) — re-run optimize after fix
 
@@ -58,8 +58,9 @@ GRAD-FIX, **re-run** `run-optimize` (and prefer deleting stale
 
 **Failure criterion:** flat all-zero β for every step with constant `l_total` is
 **not** success evidence (pre-fix `artifacts/smokes/layer17_n2/optimize/trials.jsonl`
-is obsolete). Accept only: β moves within bounds, or a loud DEC-084 identically-zero /
-non-finite grad error.
+is obsolete). Accept only: β moves within bounds. A loud DEC-084 identically-zero /
+non-finite grad error is a **failure diagnosis** (blocked pending FS-COMPONENTS), not a
+green gate (GRAD-011).
 
 Unit e2e without injectors (fake `stack_loader` only): ORCH-033.
 
