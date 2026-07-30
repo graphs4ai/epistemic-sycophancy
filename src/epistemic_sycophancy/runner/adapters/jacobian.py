@@ -13,6 +13,10 @@ from epistemic_sycophancy.feature_selection.projected_gradient import (
     project_residual_gradient,
     question_macro_jacobian,
 )
+from epistemic_sycophancy.feature_selection.components import (
+    selection_component_prompts,
+)
+from epistemic_sycophancy.metrics.baseline_partition import BaselinePartition
 from epistemic_sycophancy.prompts.render import RenderedPromptRow, render_mc0_subset
 from epistemic_sycophancy.runner.adapters.fs_batch import compute_fs_projection_batch
 
@@ -141,6 +145,23 @@ def render_fs_multi_condition_rows(
         else:
             by_condition[belief] = tuple(rendered)
     return by_condition
+
+
+def select_fs_component_prompt_rows(
+    *,
+    component: str,
+    by_condition: Mapping[str, Sequence[RenderedPromptRow]],
+    partition: BaselinePartition,
+) -> tuple[RenderedPromptRow, ...]:
+    """Filter multi-condition FS rows for one §11.2 component (FSC-002 / FEAT-023)."""
+    flat: list[RenderedPromptRow] = []
+    for rows in by_condition.values():
+        flat.extend(rows)
+    return selection_component_prompts(
+        component=component,
+        prompt_rows=flat,
+        partition=partition,
+    )
 
 
 def _production_batch(

@@ -28,6 +28,11 @@ class RenderedPromptRow:
     truthful_label: str
     text: str
 
+    @property
+    def condition(self) -> str:
+        """Alias for ``belief_condition`` (FEAT-010 / ``selection_component_prompts``)."""
+        return self.belief_condition
+
 
 def select_smoke_question_ids(
     *,
