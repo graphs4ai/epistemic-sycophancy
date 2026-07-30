@@ -150,7 +150,7 @@ def test_load_study_config__smoke_preset__explicit_n_or_allowlist(
     smoke_path = _REPO_ROOT / "configs" / "smokes" / "layer17_n2.yaml"
     study = load_study_config(smoke_path)
     assert study.stack.sae.layers == (17,)
-    assert study.run.smoke.n_questions == 2
+    assert study.run.smoke.n_questions == 32
     assert study.run.smoke.split == "feature_selection"
     assert study.run.smoke.seed == 0
     assert study.run.smoke.question_ids is None

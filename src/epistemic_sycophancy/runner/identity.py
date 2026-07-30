@@ -54,13 +54,12 @@ def resolve_stack(
     *,
     stack_loader: Callable[[StudyConfig], Any] | None = None,
 ) -> Any:
-    """Lazy-load and cache InterventionStack for this process (DEC-064/065/080)."""
+    """Lazy-load and cache InterventionStack for this process (DEC-064/065/080/083)."""
     cache_key = stack_config_fingerprint(study.stack)
     if stack_loader is not None:
-        # Explicit injection always wins (unit tests; DEC-065).
-        stack = stack_loader(study)
-        _STACK_CACHE[cache_key] = stack
-        return stack
+        # Explicit injection always wins (DEC-065) and must not poison the
+        # process cache used by later default loads (DEC-083).
+        return stack_loader(study)
     if cache_key in _STACK_CACHE:
         return _STACK_CACHE[cache_key]
     stack = _default_stack_loader(study)

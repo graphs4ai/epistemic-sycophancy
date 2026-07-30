@@ -210,3 +210,25 @@ def test_dispatch__identity__beta_zero_identity_on_smoke_prompts_returns_structu
     assert getattr(result, "metrics", None) is not None
     assert result.metrics.get("identity_passed") is True
     assert result.metrics.get("max_abs_diff", 1.0) == pytest.approx(0.0)
+
+
+@pytest.mark.unit
+def test_resolve_stack__injected_loader__does_not_poison_default_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DEC-083: injecting stack_loader must not poison the process cache for later default loads."""
+    from epistemic_sycophancy.runner.identity import clear_stack_cache, resolve_stack
+
+    clear_stack_cache()
+    injected = SimpleNamespace(kind="injected")
+    default_sentinel = SimpleNamespace(kind="default")
+    monkeypatch.setattr(
+        "epistemic_sycophancy.runner.identity._default_stack_loader",
+        lambda _study: default_sentinel,
+    )
+
+    study = _study()
+    assert resolve_stack(study, stack_loader=lambda _s: injected) is injected
+    # A later default resolve (no loader) must load via default, not reuse the inject.
+    assert resolve_stack(study) is default_sentinel
+
