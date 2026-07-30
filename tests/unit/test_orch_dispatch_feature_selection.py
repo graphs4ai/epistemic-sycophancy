@@ -103,8 +103,8 @@ def test_dispatch__feature_selection__stack_jacobians_pool_and_decoder_norm_no_l
     study = _study(artifact_dir=str(tmp_path / "art"))
     seen: list[tuple[str, tuple[str, ...]]] = []
 
-    def jacobian_fn(*, order_regime: str, question_ids: tuple[str, ...]):
-        seen.append((order_regime, question_ids))
+    def jacobian_fn(*, order_regime: str, question_ids: tuple[str, ...], component: str = "resistance"):
+        seen.append((order_regime, question_ids, component))
         return {(17, 3): 1.5, (17, 1): 0.25, (17, 9): -0.1}
 
     def scale_fn(keys):
@@ -122,7 +122,7 @@ def test_dispatch__feature_selection__stack_jacobians_pool_and_decoder_norm_no_l
     )
 
     assert result.ok is True
-    assert seen and all(qids == ("q1", "q2") for _, qids in seen)
+    assert seen and all(qids == ("q1", "q2") for _, qids, _comp in seen)
     assert result.metrics.get("pool_size", 0) >= 1
     assert "pool" in result.artifacts
     pool_path = Path(result.artifacts["pool"])
@@ -133,3 +133,5 @@ def test_dispatch__feature_selection__stack_jacobians_pool_and_decoder_norm_no_l
     assert "qh1" not in text
     assert "17" in text  # layer present
     assert result.metrics.get("scale_source") == "decoder_norm"
+    payload = __import__("json").loads(text)
+    assert payload.get("schema_version") == 2

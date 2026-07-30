@@ -70,6 +70,7 @@ def compute_fs_projection_batch(
     truthful_labels: Sequence[str],
     tau: float,
     use_question_macro_weights: bool = True,
+    prompt_batch_size: int | None = None,
 ) -> dict[str, Any]:
     """Return residual grads + JumpReLU latents for one layer (last prompt token).
 
@@ -77,12 +78,67 @@ def compute_fs_projection_batch(
     ``use_question_macro_weights`` is True (default, DEC-085 / FSC-003), the
     scalar is Σ_p w_p φ_p with w_p=1/(|Q|·|B_q|) so downstream aggregation must
     **sum** per-prompt Jacobians (not apply question-macro again).
+
+    ``prompt_batch_size`` microbatches the forward/backward to bound VRAM
+    (ASAP smoke with many IB/CB variants).
     """
     if len(texts) != len(question_ids) or len(texts) != len(truthful_labels):
         raise ValueError("texts, question_ids, and truthful_labels must align")
     if len(continuation_token_ids_A) != 1 or len(continuation_token_ids_B) != 1:
         raise ValueError("single-token A/B continuations required")
 
+    n = len(texts)
+    chunk = int(prompt_batch_size) if prompt_batch_size is not None else n
+    if chunk <= 0:
+        raise ValueError(f"prompt_batch_size must be positive; got {prompt_batch_size!r}")
+
+    # Global question-macro weights over the full component batch (FEAT-014).
+    weights = question_macro_prompt_weights(question_ids=question_ids)
+
+    all_grads: list[torch.Tensor] = []
+    all_latents: list[torch.Tensor] = []
+    for start in range(0, n, chunk):
+        end = min(start + chunk, n)
+        micro = _fs_projection_microbatch(
+            stack,
+            layer=layer,
+            texts=texts[start:end],
+            question_ids=question_ids[start:end],
+            continuation_token_ids_A=continuation_token_ids_A,
+            continuation_token_ids_B=continuation_token_ids_B,
+            truthful_labels=truthful_labels[start:end],
+            tau=tau,
+            prompt_weights=(
+                weights[start:end]
+                if use_question_macro_weights
+                else torch.full((end - start,), 1.0 / n, dtype=torch.float64)
+            ),
+        )
+        all_grads.append(micro["residual_gradients"])
+        all_latents.append(micro["latents"])
+
+    return {
+        "layer": layer,
+        "residual_gradients": torch.cat(all_grads, dim=0),
+        "latents": torch.cat(all_latents, dim=0),
+        "question_ids": [str(q) for q in question_ids],
+        "weights_applied": True,
+    }
+
+
+def _fs_projection_microbatch(
+    stack: Any,
+    *,
+    layer: int,
+    texts: Sequence[str],
+    question_ids: Sequence[str],
+    continuation_token_ids_A: Sequence[int],
+    continuation_token_ids_B: Sequence[int],
+    truthful_labels: Sequence[str],
+    tau: float,
+    prompt_weights: torch.Tensor,
+) -> dict[str, Any]:
+    """One microbatch forward/backward with precomputed prompt weights."""
     device = stack.device
     tokenizer = stack.tokenizer
     model = stack.model
@@ -93,7 +149,6 @@ def compute_fs_projection_batch(
 
     def hook(_module: Any, _inputs: Any, output: Any) -> Any:
         tensor = output[0] if isinstance(output, tuple) else output
-        # Detach upstream (frozen weights) and re-enable local grads for ∂ℓ/∂x.
         leaf = tensor.detach().requires_grad_(True)
         captured["residual"] = leaf
         if isinstance(output, tuple):
@@ -112,7 +167,7 @@ def compute_fs_projection_batch(
                 input_ids=encoded["input_ids"],
                 attention_mask=attention,
             )
-            logits = outputs.logits  # [B, T, V]
+            logits = outputs.logits
     finally:
         handle.remove()
 
@@ -136,15 +191,9 @@ def compute_fs_projection_batch(
 
     last_residual = torch.stack(last_rows, dim=0)
     prompt_losses = torch.stack(losses)
-    if use_question_macro_weights:
-        grads = weighted_component_residual_grads(
-            prompt_losses=prompt_losses,
-            residual=residual,
-            question_ids=question_ids,
-        )
-    else:
-        loss = prompt_losses.mean()
-        grads = torch.autograd.grad(loss, residual, retain_graph=False)[0]
+    w = prompt_weights.to(dtype=prompt_losses.dtype, device=prompt_losses.device)
+    weighted = (w * prompt_losses).sum()
+    grads = torch.autograd.grad(weighted, residual, retain_graph=False)[0]
     residual_grads = []
     for i in range(batch):
         if attention is not None:
@@ -160,19 +209,19 @@ def compute_fs_projection_batch(
     enc_b = sae.b_enc.detach()
     threshold = sae.threshold.detach() if hasattr(sae, "threshold") else None
     if threshold is None:
-        # Some JumpReLU SAEs store threshold on cfg / attribute aliases.
         threshold = getattr(sae, "b_mag", None)
     if threshold is None:
         raise ValueError(f"SAE at layer {layer} missing JumpReLU threshold")
     work = last_residual.detach().float()
-    # GemmaScope2 sae-lens W_enc is [d_in, n_features] (transposed vs Phase E).
     pre = work @ enc_w.float() + enc_b.float()
     latents = jumprelu(pre, threshold.float())
 
+    del residual, grads, outputs, logits, encoded
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+
     return {
-        "layer": layer,
         "residual_gradients": residual_gradients.to(dtype=torch.float64),
         "latents": latents.to(dtype=torch.float64),
         "question_ids": [str(q) for q in question_ids],
-        "weights_applied": bool(use_question_macro_weights),
     }

@@ -239,4 +239,5 @@ def _production_component_batch(
         continuation_token_ids_B=token_b,
         truthful_labels=[r.truthful_label for r in selected],
         tau=float(study.experiment.tau),
+        prompt_batch_size=int(study.run.prompt_batch_size),
     )
