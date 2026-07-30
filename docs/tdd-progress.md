@@ -362,6 +362,7 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 |---|---|---|---|---|---|---|
 | DEC-084 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Authority=projected `coefficient_jacobian`; pool-scoped m; refresh each step; CF N/IB/CB; loud zero-grad; post-step trials loss |
 | GRAD-001 | `test_grad__zero_margin_jac_at_beta_zero__grad_approximately_zero` | green | characterization (expected pass): `pixi run --environment test pytest tests/unit/test_grad_zero_margin_jac.py::test_grad__zero_margin_jac_at_beta_zero__grad_approximately_zero -q` → `1 passed` | same → `1 passed` | `tests/unit/test_grad_zero_margin_jac.py` | Pins G≡0 ⇒ ‖grad‖≈0 at β=0; not production default endorsement |
+| GRAD-002 | `test_adapters__build_grad_fn__informative_margin_jac__nonzero_matches_reference` | green | `pixi run --environment test pytest tests/unit/test_grad_informative_margin_jac.py::test_adapters__build_grad_fn__informative_margin_jac__nonzero_matches_reference -q` → `TypeError: ... unexpected keyword argument 'margin_jacobian_fn'` | same → `1 passed`; + ORCH-024 + GRAD-001 → `3 passed` | `runner/adapters/objective.py`, `tests/unit/test_grad_informative_margin_jac.py` | Injector path; production default still zeros until GRAD-004 |
 
 ## Status definitions
 
