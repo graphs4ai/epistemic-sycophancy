@@ -24,7 +24,7 @@ def test_sae__jumprelu_latent_update__beta_zero_identity_and_suppression_nonincr
     threshold = torch.full((n_features,), 0.05, dtype=torch.float64)
     decoder_weight = torch.randn(n_features, d_model, dtype=torch.float64)
 
-    # β=0 → exact residual identity (never reconstruction).
+    # β=0 → additive Δx=0 ⇒ exact residual identity (DEC-086; never reconstruction).
     identity = apply_additive_jumprelu_sae_delta(
         residual=residual,
         selected_indices=(1, 3),

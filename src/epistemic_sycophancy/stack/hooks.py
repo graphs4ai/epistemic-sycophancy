@@ -107,13 +107,11 @@ def install_multi_layer_hooks(
     k: int | None = None,
     delta_fn: Any | None = None,
 ) -> Iterator[None]:
-    """Install simultaneous resid_post hooks; at β=0 leave activations unchanged.
+    """Install simultaneous resid_post hooks; always apply additive SAE delta.
 
-    Nonzero β applies JumpReLU additive delta (DEC-053) under ``token_scope``.
+    At β=0 the additive formula yields Δx=0 (DEC-086); there is no short-circuit.
     """
     apply_delta = delta_fn or _default_jumprelu_delta
-    beta_tensor = torch.as_tensor(list(beta), dtype=torch.float32)
-    all_zero = bool(torch.all(beta_tensor == 0))
     by_layer = scatter_beta_by_layer(
         feature_ids=selected_keys,
         scales=scales,
@@ -129,8 +127,6 @@ def install_multi_layer_hooks(
 
         def hook(module: Any, inputs: Any, output: Any) -> Any:
             del module, inputs
-            if all_zero:
-                return output
             activation = _as_activation(output)
             if activation.ndim != 3:
                 raise ValueError(

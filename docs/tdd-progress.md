@@ -393,6 +393,12 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 
 **FS-COMPONENTS gate:** FSC-001…010 green. Production FS emits four distinct per-component Jacobian maps from N/IB/CB on the FS split; pool schema v2; layer17_n2 optimize moves β (FSC-009 / GRAD-008).
 
+## DEC-086 — Uniform β=0 additive path (no short-circuit)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| DEC-086 | `test_hooks__beta_zero__invokes_delta_fn_on_masked_tokens` | green | `pixi run --environment test pytest tests/unit/test_stack_hooks_nonzero.py::test_hooks__beta_zero__invokes_delta_fn_on_masked_tokens -q` → `assert 0 == 2` (`all_zero` bypass) | same → `1 passed`; `pixi run --environment test pytest tests/unit/test_sae_delta.py tests/unit/test_jumprelu_delta.py tests/integration/test_sae_identity.py tests/integration/test_sae_hooks.py tests/unit/test_orch_dispatch_identity.py tests/unit/test_stack_scoring.py tests/unit/test_stack_hooks_nonzero.py -q` → `19 passed` | `stack/hooks.py`, `sae/jumprelu_delta.py`, `intervention/sae_delta.py`, `docs/decisions.md`, `docs/fs_explainer.md` | Supersedes DEC-017/053 short-circuit; SAE path always runs; β=0 identity via Δx=0 |
+
 ## Status definitions
 
 - `not_started`: no test written.

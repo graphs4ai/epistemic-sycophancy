@@ -27,9 +27,10 @@ def apply_additive_jumprelu_sae_delta(
     threshold: torch.Tensor,
     decoder_weight: torch.Tensor,
 ) -> torch.Tensor:
-    """Return x' = x + (decode(z') - decode(z)); at β=0 return original x.
+    """Return x' = x + (decode(z') - decode(z)).
 
     Encode uses JumpReLU; selected update uses Phase E ReLU(z+α) (DEC-053).
+    At β=0, α=0 ⇒ z'=z ⇒ Δx=0 ⇒ x'=x (DEC-086; never SAE reconstruction).
 
     Latent algebra runs in float32 when ``residual`` is lower precision so that
     small α on large latents is not lost to bf16 ULP (WIRE-002).
@@ -44,9 +45,6 @@ def apply_additive_jumprelu_sae_delta(
         if isinstance(scales, torch.Tensor)
         else torch.tensor(list(scales), dtype=residual.dtype, device=residual.device)
     )
-
-    if not beta_tensor.requires_grad and bool(torch.all(beta_tensor == 0)):
-        return residual
 
     work_dtype = (
         torch.float32

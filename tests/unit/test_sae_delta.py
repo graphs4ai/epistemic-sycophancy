@@ -107,7 +107,7 @@ def test_intervention__linear_decoder__delta_decode_equals_latent_delta_times_de
 
 @pytest.mark.unit
 def test_intervention__zero_delta__returns_original_residual_not_sae_reconstruction() -> None:
-    """SAE-007: β=0 returns original x, not imperfect SAE reconstruction (DEC-017)."""
+    """SAE-007: β=0 additive path yields x, not imperfect SAE reconstruction (DEC-086)."""
     dtype = torch.bfloat16
     residual = torch.tensor([1.5, -0.75], dtype=dtype)
     w_dec = decoder_weight(dtype=dtype)

@@ -64,11 +64,11 @@ def apply_additive_sae_delta(
     encoder_bias: torch.Tensor,
     decoder_weight: torch.Tensor,
 ) -> torch.Tensor:
-    """Return x' = x + (decode(z') - decode(z)); at β=0 return original x.
+    """Return x' = x + (decode(z') - decode(z)).
 
-    At β=0 the hook must return the original residual, never the SAE
-    reconstruction decode(encode(x)). When ``beta`` requires grad, the
-    additive path stays in the autograd graph (SAE-013).
+    At β=0, α=0 ⇒ z'=z ⇒ Δx=0 ⇒ x'=x (DEC-086), never the SAE reconstruction
+    decode(encode(x)). The additive path always stays in the autograd graph
+    when ``beta`` requires grad (SAE-013).
     """
     beta_tensor = (
         beta
@@ -80,9 +80,6 @@ def apply_additive_sae_delta(
         if isinstance(scales, torch.Tensor)
         else torch.tensor(list(scales), dtype=residual.dtype, device=residual.device)
     )
-
-    if not beta_tensor.requires_grad and bool(torch.all(beta_tensor == 0)):
-        return residual
 
     latents = torch.relu(residual @ encoder_weight.T + encoder_bias)
     alphas = scales_tensor * beta_tensor
