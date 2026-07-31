@@ -98,7 +98,7 @@ def _study(artifact_dir: str) -> StudyConfig:
 def test_dispatch__optimize__writes_trial_records_and_best_checkpoint_artifact(
     tmp_path: Path,
 ) -> None:
-    """ORCH-011: trials.jsonl + best_checkpoint.json under optimize/ (DEC-032/035)."""
+    """ORCH-011: trials.jsonl + best_checkpoint.json + loss_curve.png (DEC-032/091)."""
     from epistemic_sycophancy.optimization.checkpoint import load_checkpoint
     from epistemic_sycophancy.runner.cli import dispatch_stage
 
@@ -113,10 +113,15 @@ def test_dispatch__optimize__writes_trial_records_and_best_checkpoint_artifact(
     )
     assert "trials" in result.artifacts
     assert "best_checkpoint" in result.artifacts
+    assert "loss_curve" in result.artifacts
     trials_path = Path(result.artifacts["trials"])
     best_path = Path(result.artifacts["best_checkpoint"])
+    curve_path = Path(result.artifacts["loss_curve"])
     assert trials_path.is_file()
     assert best_path.is_file()
+    assert curve_path.is_file()
+    assert curve_path.stat().st_size > 0
+    assert curve_path.name == "loss_curve.png"
     lines = [json.loads(line) for line in trials_path.read_text().splitlines() if line]
     assert len(lines) == 2
     for row in lines:

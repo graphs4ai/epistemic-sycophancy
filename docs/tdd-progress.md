@@ -409,6 +409,14 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | ORDER-EXP-002 | `test_cross_order_assemble__three_sealed_studies__nine_cells_distinct_betas` | green | `ImportError` / missing module before write | `pixi run --environment test pytest tests/unit/test_cross_order_assemble.py -q` → `2 passed` | `runner/cross_order_assemble.py`, campaign YAML | DEC-088; three distinct βs |
 | ORDER-EXP gate | unit + integration suites | green | n/a | `pixi run --environment test pytest tests/unit -q` → `260 passed`; `tests/integration -q` → `24 passed` | docs/decisions.md DEC-087/088; phase_m_ship_gate.md | DEC-075 superseded |
 
+## ORCH-PLOT — Loss-over-trials curve (DEC-091)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-PLOT-001 | `test_optimize__loss_curve__writes_png_from_trial_rows` | green | `pixi run --environment test pytest tests/unit/test_optimize_loss_curve.py -q` → `ModuleNotFoundError: …logging.loss_curve` | same → `1 passed`; related `test_orch_optimize_artifacts.py` + `test_optimize_trial_loss_alignment.py` → `3 passed` | `logging/loss_curve.py`, `runner/optimize.py`, `logging/__init__.py` | PNG from slim trials; empty → None |
+| ORCH-011 | `test_dispatch__optimize__writes_trial_records_and_best_checkpoint_artifact` | green | `assert 'loss_curve' in result.artifacts` failed (key absent) | suite above → passed | `runner/optimize.py` | extended artifact map |
+| DEC-091 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | amends DEC-070 with `loss_curve.png` |
+
 ## Status definitions
 
 - `not_started`: no test written.

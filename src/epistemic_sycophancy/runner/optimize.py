@@ -9,6 +9,7 @@ from typing import Any
 
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.logging.loss_curve import plot_loss_over_trials
 from epistemic_sycophancy.optimization.checkpoint import dump_checkpoint
 from epistemic_sycophancy.optimization.projected_adam import ProjectedAdam
 from epistemic_sycophancy.reproducibility.phase_gates import require_identity_gate
@@ -183,6 +184,8 @@ def run_optimize_dispatch(
         for row in trials:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
 
+    curve_path = plot_loss_over_trials(trials, out_dir / "loss_curve.png")
+
     best_ckpt = dump_checkpoint(
         optimizer_kind=kind,
         beta=best_beta,
@@ -195,6 +198,12 @@ def run_optimize_dispatch(
     best_path.write_text(
         json.dumps(best_ckpt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
     )
+    artifacts: dict[str, str] = {
+        "best_checkpoint": str(best_path),
+        "trials": str(trials_path),
+    }
+    if curve_path is not None:
+        artifacts["loss_curve"] = str(curve_path)
     return {
         "metrics": {
             "best_beta": best_beta,
@@ -205,8 +214,5 @@ def run_optimize_dispatch(
             "used_smoke_max_steps": False,
             "optimize_max_steps": optimize.max_steps,
         },
-        "artifacts": {
-            "best_checkpoint": str(best_path),
-            "trials": str(trials_path),
-        },
+        "artifacts": artifacts,
     }
