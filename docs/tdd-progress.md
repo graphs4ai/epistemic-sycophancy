@@ -442,6 +442,12 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | ORCH-011 | `test_dispatch__optimize__writes_trial_records_and_best_checkpoint_artifact` | green | `assert 'loss_curve' in result.artifacts` failed (key absent) | suite above → passed | `runner/optimize.py` | extended artifact map |
 | DEC-091 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | amends DEC-070 with `loss_curve.png` |
 
+## DEC-093 — Remove smoke/ASAP branding; coverage defaults to full split
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| DEC-093 | schema + stage purge (CFGFILE-005, WIRE-005, RUN-013, ORCH-008+) | green | prior suite required `run.smoke` / `opt_smoke` | `pixi run --environment test pytest tests/unit -q` → `270 passed, 3 skipped` | `config/study.py`, `config/load_study.py`, `prompts/render.py`, `runner/*`, `configs/dev/`, `evaluation/real_model_checks.py`, README, ship gate | Optional `run.fs_coverage`; omit → full FS split; delete `opt_smoke`; relocate `configs/smokes` → `configs/dev` |
+
 ## Status definitions
 
 - `not_started`: no test written.

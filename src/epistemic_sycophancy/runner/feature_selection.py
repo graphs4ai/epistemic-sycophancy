@@ -101,7 +101,7 @@ def run_feature_selection_stage_computed(
     overlap = set(qids) & downstream
     if overlap:
         raise HoldoutAccessError(
-            f"FS smoke questions leak into opt/val/holdout: {sorted(overlap)}"
+            f"FS coverage questions leak into opt/val/holdout: {sorted(overlap)}"
         )
     signed = dict(jacobian_fn(order_regime=order_regime, question_ids=qids))
     for key in signed:

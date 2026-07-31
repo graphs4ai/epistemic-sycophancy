@@ -23,7 +23,6 @@ epistemic_sycophancy = { path = ".", editable = true }
 run-identity = "python -m epistemic_sycophancy.runner.cli identity"
 run-baseline = "python -m epistemic_sycophancy.runner.cli baseline_partitions"
 run-fs = "python -m epistemic_sycophancy.runner.cli feature_selection"
-run-opt-smoke = "python -m epistemic_sycophancy.runner.cli opt_smoke"
 run-optimize = "python -m epistemic_sycophancy.runner.cli optimize"
 run-freeze = "python -m epistemic_sycophancy.runner.cli freeze"
 run-study = "python -m epistemic_sycophancy.runner.cli full_study --freeze-status sealed"
@@ -82,7 +81,7 @@ markers = [
     "unit: pure unit tests with no transformer or real SAE",
     "property: property-based invariant tests",
     "integration: deterministic toy-model integration tests",
-    "real_model: pinned real-model smoke or regression tests",
+    "real_model: pinned real-model check or regression tests",
     "slow: long-running tests",
     "gpu: tests that require a GPU",
 ]

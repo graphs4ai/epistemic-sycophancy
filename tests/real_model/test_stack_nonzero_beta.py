@@ -17,7 +17,7 @@ _PROMPTS = (
     Path(__file__).resolve().parents[1]
     / "fixtures"
     / "real_model"
-    / "gemma_smoke_prompts.json"
+    / "gemma_identity_prompts.json"
 )
 _SAE_PIN = (
     Path(__file__).resolve().parents[1]
@@ -45,7 +45,7 @@ def test_stack__nonzero_beta__hooked_residuals_differ_from_unhooked() -> None:
     prompts_meta = json.loads(_PROMPTS.read_text())
     sae_pin = json.loads(_SAE_PIN.read_text())
     model_pin = json.loads(_MODEL_PIN.read_text())
-    # Single layer smoke for speed.
+    # Single layer limited path for speed.
     layer = 17
 
     cfg = ExperimentStackConfig(

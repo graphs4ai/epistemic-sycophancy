@@ -11,7 +11,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
@@ -80,7 +80,7 @@ def _valid_run() -> StudyRunConfig:
         order_regime="CF",
         feature_chunk_size=1024,
         prompt_batch_size=1,
-        smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+        fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
         optimizer=StudyOptimizerConfig(
             kind="projected_adam",
             adam_lr=0.1,
@@ -88,7 +88,6 @@ def _valid_run() -> StudyRunConfig:
             adam_beta2=0.999,
             adam_eps=1e-8,
             adam_microbatch_questions=1,
-            max_steps=1,
         ),
         optimize=StudyOptimizeConfig(
             budget_match_on="n_objective_evals",
@@ -109,7 +108,7 @@ def test_study_run_config__order_regime__must_be_single_cf_if_or_ro() -> None:
             order_regime=regime,
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -117,7 +116,6 @@ def test_study_run_config__order_regime__must_be_single_cf_if_or_ro() -> None:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
@@ -139,7 +137,7 @@ def test_study_run_config__order_regime__must_be_single_cf_if_or_ro() -> None:
             order_regime="XX",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -147,7 +145,6 @@ def test_study_run_config__order_regime__must_be_single_cf_if_or_ro() -> None:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
@@ -176,9 +173,7 @@ def test_study_config__missing_required_policy_field__raises_invalid_config() ->
                 order_regime="CF",
                 feature_chunk_size=1024,
                 prompt_batch_size=1,
-                smoke=StudySmokeConfig(
-                    n_questions=2, split="feature_selection", seed=0
-                ),
+                fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
                 optimizer=StudyOptimizerConfig(
                     kind="projected_adam",
                     adam_lr=0.1,
@@ -186,7 +181,6 @@ def test_study_config__missing_required_policy_field__raises_invalid_config() ->
                     adam_beta2=0.999,
                     adam_eps=1e-8,
                     adam_microbatch_questions=1,
-                    max_steps=1,
                 ),
                 optimize=StudyOptimizeConfig(
                     budget_match_on="n_objective_evals",
@@ -203,4 +197,4 @@ def test_study_config__missing_required_policy_field__raises_invalid_config() ->
     )
     assert study.stack.sae.layers == (17,)
     assert study.experiment.tie_policy == "merge_into_q_minus"
-    assert study.run.smoke.n_questions == 2
+    assert study.run.fs_coverage.n_questions == 2

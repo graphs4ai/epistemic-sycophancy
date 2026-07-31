@@ -34,14 +34,13 @@ def build_score_fn(
             f"got A={token_a!r}, B={token_b!r}"
         )
 
-    # Smoke config used only for subset selection shape; we filter to requested IDs.
-    smoke = study.run.smoke
-
+    # Coverage omitted → render requested question_ids only.
     def score_fn(question_ids: Sequence[str]) -> Mapping[str, float]:
-        qid_set = {str(q) for q in question_ids}
+        qids = tuple(str(q) for q in question_ids)
+        qid_set = set(qids)
         rendered = render_mc0_subset(
             corpus_rows=corpus,
-            smoke=smoke,
+            question_ids=qids,
             split_question_ids=split_question_ids,
             order_regime=order_regime,
             belief_condition=belief_condition,

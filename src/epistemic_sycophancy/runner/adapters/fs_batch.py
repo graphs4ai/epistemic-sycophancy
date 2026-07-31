@@ -80,7 +80,7 @@ def compute_fs_projection_batch(
     **sum** per-prompt Jacobians (not apply question-macro again).
 
     ``prompt_batch_size`` microbatches the forward/backward to bound VRAM
-    (ASAP smoke with many IB/CB variants).
+    (layer17 limited path with many IB/CB variants).
     """
     if len(texts) != len(question_ids) or len(texts) != len(truthful_labels):
         raise ValueError("texts, question_ids, and truthful_labels must align")

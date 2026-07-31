@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from epistemic_sycophancy.evaluation.real_model_smoke import (
+from epistemic_sycophancy.evaluation.real_model_checks import (
     real_model_beta_backward_viability,
 )
 from tests.real_model._pin import MODEL_ID, MODEL_REVISION

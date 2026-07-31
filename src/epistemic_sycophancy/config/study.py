@@ -11,66 +11,70 @@ from epistemic_sycophancy.config.schema import (
 )
 from epistemic_sycophancy.stack.config import ExperimentStackConfig
 
-_ALLOWED_SMOKE_SPLITS = frozenset({"feature_selection", "optimization"})
 _ALLOWED_OPTIMIZER_KINDS = frozenset({"projected_adam", "cmaes"})
 _ALLOWED_BUDGET_MATCH_ON = frozenset({"n_objective_evals", "n_forward_equiv"})
 _ALLOWED_ORDER_REGIMES = frozenset({"CF", "IF", "RO"})
 
 
 @dataclass(frozen=True)
-class StudySmokeConfig:
-    """Tiny deterministic corpus subset for Phase L smokes (DEC-059)."""
+class StudyFsCoverageConfig:
+    """Optional FS/baseline question coverage (default = full feature_selection split).
+
+    Omit the block, or leave all fields None, to use every available
+    feature_selection question. Subsets are opt-in only via ``question_ids``
+    or ``{n_questions, seed}`` (XOR).
+    """
 
     n_questions: int | None = None
-    split: str | None = None
     seed: int | None = None
     question_ids: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         has_allowlist = self.question_ids is not None
         has_n = self.n_questions is not None
-        if has_allowlist == has_n:
-            # XOR: exactly one of allowlist or {n, split, seed}
-            if not has_allowlist:
-                raise InvalidExperimentConfig(
-                    "run.smoke requires either question_ids or "
-                    "{n_questions, split, seed}; got neither"
-                )
+        has_seed = self.seed is not None
+
+        if not has_allowlist and not has_n and not has_seed:
+            # Empty block ≡ omit → full split.
+            return
+
+        if has_allowlist and (has_n or has_seed):
             raise InvalidExperimentConfig(
-                "run.smoke requires either question_ids or "
-                "{n_questions, split, seed}; got both"
+                "run.fs_coverage requires either question_ids or "
+                "{n_questions, seed}; got both"
             )
         if has_allowlist:
             ids = tuple(str(q) for q in self.question_ids or ())
             if not ids:
                 raise InvalidExperimentConfig(
-                    "run.smoke.question_ids must be a nonempty sequence when set"
+                    "run.fs_coverage.question_ids must be a nonempty sequence when set"
                 )
             object.__setattr__(self, "question_ids", ids)
             return
+
+        # Seeded take-N subset: both n_questions and seed required.
+        if has_n != has_seed:
+            raise InvalidExperimentConfig(
+                "run.fs_coverage seeded subset requires both n_questions and seed"
+            )
         if self.n_questions is None or self.n_questions < 1:
             raise InvalidExperimentConfig(
-                f"run.smoke.n_questions must be a positive int; got {self.n_questions!r}"
-            )
-        if self.split not in _ALLOWED_SMOKE_SPLITS:
-            raise InvalidExperimentConfig(
-                "run.smoke.split must be one of "
-                f"{sorted(_ALLOWED_SMOKE_SPLITS)}; got {self.split!r}"
+                "run.fs_coverage.n_questions must be a positive int; "
+                f"got {self.n_questions!r}"
             )
         if self.seed is None or not isinstance(self.seed, int) or isinstance(
             self.seed, bool
         ):
             raise InvalidExperimentConfig(
-                f"run.smoke.seed must be an explicit int; got {self.seed!r}"
+                f"run.fs_coverage.seed must be an explicit int; got {self.seed!r}"
             )
 
 
 @dataclass(frozen=True)
 class StudyOptimizerConfig:
-    """Optimizer knobs for opt_smoke / study (DEC-062); no silent defaults."""
+    """Optimizer hyperparams for study optimize (kind + Adam/CMA knobs)."""
 
     kind: str
-    max_steps: int
     adam_lr: float | None = None
     adam_beta1: float | None = None
     adam_beta2: float | None = None
@@ -83,14 +87,6 @@ class StudyOptimizerConfig:
             raise InvalidExperimentConfig(
                 f"run.optimizer.kind must be one of {sorted(_ALLOWED_OPTIMIZER_KINDS)}; "
                 f"got {self.kind!r}"
-            )
-        if not isinstance(self.max_steps, int) or isinstance(self.max_steps, bool):
-            raise InvalidExperimentConfig(
-                f"run.optimizer.max_steps must be a positive int; got {self.max_steps!r}"
-            )
-        if self.max_steps < 1:
-            raise InvalidExperimentConfig(
-                f"run.optimizer.max_steps must be a positive int; got {self.max_steps!r}"
             )
         if self.kind == "projected_adam":
             for name, value in (
@@ -124,7 +120,7 @@ class StudyOptimizerConfig:
 
 @dataclass(frozen=True)
 class StudyOptimizeConfig:
-    """Non-smoke optimize budgets (DEC-066 / DEC-068); distinct from smoke max_steps."""
+    """Optimize budgets and optional coverage (omit coverage → full optimization split)."""
 
     budget_match_on: str
     max_steps: int | None = None
@@ -207,15 +203,15 @@ class StudyOptimizeConfig:
 
 @dataclass(frozen=True)
 class StudyRunConfig:
-    """Stage / smoke / optimizer / optimize run options (DEC-056 / DEC-087)."""
+    """Stage / coverage / optimizer / optimize run options (DEC-056 / DEC-087)."""
 
     artifact_dir: str
     order_regime: str
     feature_chunk_size: int
     prompt_batch_size: int
-    smoke: StudySmokeConfig
     optimizer: StudyOptimizerConfig
     optimize: StudyOptimizeConfig
+    fs_coverage: StudyFsCoverageConfig | None = None
 
     def __post_init__(self) -> None:
         if self.artifact_dir is None or not str(self.artifact_dir).strip():
@@ -248,8 +244,6 @@ class StudyRunConfig:
                 "run.prompt_batch_size must be a positive int; "
                 f"got {self.prompt_batch_size!r}"
             )
-        if self.smoke is None:
-            raise InvalidExperimentConfig("run.smoke must be explicit")
         if self.optimizer is None:
             raise InvalidExperimentConfig("run.optimizer must be explicit")
         if self.optimize is None:

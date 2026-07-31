@@ -1,4 +1,4 @@
-"""FSC-009: layer17_n2 multi-condition FS → IB/CB-active pool → nonzero optimize grad."""
+"""FSC-009: layer17_n32 multi-condition FS → IB/CB-active pool → nonzero optimize grad."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from epistemic_sycophancy.config.load_study import load_study_config
 from epistemic_sycophancy.runner.cli import dispatch_stage
 from epistemic_sycophancy.runner.identity import clear_stack_cache
 
-CFG = Path("configs/smokes/layer17_n2.yaml")
+CFG = Path("configs/dev/layer17_n32.yaml")
 
 
 def _require_cuda() -> None:
@@ -31,7 +31,6 @@ def _pool_activity_on_fs_conditions(
     order_regime: str = "CF",
 ) -> dict[str, dict[str, int]]:
     """Count selected-feature activity 1[z>0] at last prompt token on FS N/IB/CB."""
-    from epistemic_sycophancy.config.study import StudySmokeConfig
     from epistemic_sycophancy.runner.adapters.jacobian import (
         render_fs_multi_condition_rows,
     )
@@ -42,7 +41,7 @@ def _pool_activity_on_fs_conditions(
     corpus, split_ids, _ = resolve_corpus_context(study)
     by_condition = render_fs_multi_condition_rows(
         corpus_rows=corpus,
-        smoke=StudySmokeConfig(question_ids=tuple(question_ids)),
+        question_ids=tuple(question_ids),
         split_question_ids=split_ids,
         order_regime=order_regime,
     )
@@ -106,7 +105,7 @@ def _pool_activity_on_fs_conditions(
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__fs_pool_active_on_ib_cb_and_optimize_moves_beta(
+def test_real_model__layer17_n32__fs_pool_active_on_ib_cb_and_optimize_moves_beta(
     tmp_path: Path,
 ) -> None:
     """FSC-009: multi-condition FS pool active on IB/CB; optimize moves β."""

@@ -15,7 +15,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.prompts.render import render_mc0_subset
@@ -119,7 +119,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(question_ids=("q_fs_1", "q_fs_2")),
+            fs_coverage=StudyFsCoverageConfig(question_ids=("q_fs_1", "q_fs_2")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -127,7 +127,6 @@ def _study(*, artifact_dir: str) -> StudyConfig:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
@@ -168,7 +167,7 @@ def test_adapters__build_score_fn__beta0_neutral_margins_match_hand_toy_stack(
     # Independent hand path: render + unhooked LM scoring (β=0 ≡ no hooks).
     rendered = render_mc0_subset(
         corpus_rows=corpus,
-        smoke=study.run.smoke,
+        coverage=study.run.fs_coverage,
         split_question_ids=split_ids,
         order_regime="CF",
         belief_condition="N",

@@ -202,7 +202,6 @@ def _make_production_margin_batch_fn(
     split_question_ids: Mapping[str, Sequence[str]],
     order_regime: str,
 ):
-    from epistemic_sycophancy.config.study import StudySmokeConfig
     from epistemic_sycophancy.prompts.render import render_mc0_subset
     from epistemic_sycophancy.runner.adapters.margin_batch import (
         compute_margin_projection_batch,
@@ -225,10 +224,9 @@ def _make_production_margin_batch_fn(
     ) -> dict[str, Any]:
         del beta  # local linearization uses current residual; β=0 identity path
         qids = tuple(str(q) for q in question_ids)
-        smoke = StudySmokeConfig(question_ids=qids)
         rendered = render_mc0_subset(
             corpus_rows=corpus,
-            smoke=smoke,
+            question_ids=qids,
             split_question_ids=split_question_ids,
             order_regime=order_regime,
             belief_condition=belief_condition,

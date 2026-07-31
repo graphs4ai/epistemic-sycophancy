@@ -17,7 +17,7 @@ _PROMPTS = (
     Path(__file__).resolve().parents[1]
     / "fixtures"
     / "real_model"
-    / "gemma_smoke_prompts.json"
+    / "gemma_identity_prompts.json"
 )
 _SAE_PIN = (
     Path(__file__).resolve().parents[1]

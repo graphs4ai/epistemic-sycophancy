@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from epistemic_sycophancy.evaluation.real_model_smoke import score_real_model_batch
+from epistemic_sycophancy.evaluation.real_model_checks import score_real_model_batch
 from tests.real_model._pin import ATOL, MODEL_ID, MODEL_REVISION, RTOL
 
 PROMPTS = ("Answer:", "Q: sky? Answer:")

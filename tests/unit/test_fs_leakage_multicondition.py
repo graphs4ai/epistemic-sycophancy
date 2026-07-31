@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from epistemic_sycophancy.config.study import StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyFsCoverageConfig
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 from epistemic_sycophancy.runner.adapters.jacobian import render_fs_multi_condition_rows
 from epistemic_sycophancy.runner.feature_selection import (
@@ -39,10 +39,10 @@ def _mixed_corpus() -> list[dict[str, object]]:
 
 @pytest.mark.unit
 def test_fs_multi_condition__render__never_includes_downstream_split_rows() -> None:
-    """FSC-007: IB/CB render on FS smoke IDs must not pull opt/val/holdout."""
+    """FSC-007: IB/CB render on FS coverage IDs must not pull opt/val/holdout."""
     by_condition = render_fs_multi_condition_rows(
         corpus_rows=_mixed_corpus(),
-        smoke=StudySmokeConfig(question_ids=("q_fs",)),
+        question_ids=("q_fs",),
         split_question_ids={
             "feature_selection": ("q_fs",),
             "optimization": ("q_opt",),

@@ -1,4 +1,4 @@
-"""GRAD-008 / GRAD-011: layer17_n2 optimize must move β; never silent flat zeros."""
+"""GRAD-008 / GRAD-011: layer17_n32 optimize must move β; never silent flat zeros."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from epistemic_sycophancy.config.load_study import load_study_config
 from epistemic_sycophancy.runner.cli import dispatch_stage
 from epistemic_sycophancy.runner.identity import clear_stack_cache
 
-CFG = Path("configs/smokes/layer17_n2.yaml")
+CFG = Path("configs/dev/layer17_n32.yaml")
 
 
 def _require_cuda() -> None:
@@ -25,7 +25,7 @@ def _require_cuda() -> None:
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__optimize_moves_beta(
+def test_real_model__layer17_n32__optimize_moves_beta(
     tmp_path: Path,
 ) -> None:
     """GRAD-011: assert β moves. DEC-084 identically-zero grad is failure, not success.
@@ -47,7 +47,7 @@ def test_real_model__layer17_n2__optimize_moves_beta(
     assert dispatch_stage(
         "baseline_partitions", study=study, freeze_status="unsealed", score_fn=None
     ).ok
-    # Use config smoke N (32); do not shrink to N=2 (DEC-079 / GRAD-011).
+    # Use config fs_coverage N (32); do not shrink to N=2 (DEC-079 / GRAD-011).
     assert dispatch_stage(
         "feature_selection",
         study=replace(study, run=replace(study.run, order_regime="CF")),

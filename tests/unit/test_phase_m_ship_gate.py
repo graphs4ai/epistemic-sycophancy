@@ -12,14 +12,14 @@ def test_phase_m_ship_gate__commands_to_start_first_real_experiment_documented()
     """ORCH-020: ship gate docs list exact commands for first experiment."""
     readme = Path("README.md").read_text(encoding="utf-8")
     progress = Path("docs/tdd-progress.md").read_text(encoding="utf-8")
-    assert "configs/smokes/layer17_n2.yaml" in readme
+    assert "configs/dev/layer17_n32.yaml" in readme
     assert "run-optimize" in readme
     assert "run-freeze" in readme
     assert "Phase M" in progress or "ORCH-020" in progress or "ship" in progress.lower()
     ship = Path("docs/phase_m_ship_gate.md")
     assert ship.is_file()
     text = ship.read_text(encoding="utf-8")
-    assert "layer17_n2.yaml" in text
+    assert "layer17_n32.yaml" in text
     assert "first_study_gemma3_4b_resid_post_65k_medium.yaml" in text
     assert "run.optimize" in text
     assert "holdout" in text.lower()
@@ -28,21 +28,21 @@ def test_phase_m_ship_gate__commands_to_start_first_real_experiment_documented()
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__smoke_chain__identity_baseline_fs_opt_smoke_green() -> None:
-    """ORCH-017: CUDA smoke chain identity→baseline→FS→opt_smoke on layer17 YAML."""
+def test_real_model__dev_chain__identity_baseline_fs_optimize_green() -> None:
+    """ORCH-017: CUDA limited chain identity→baseline→FS→optimize on layer17 YAML."""
     import torch
 
     if not torch.cuda.is_available():
         pytest.skip("CUDA required for ORCH-017")
-    assert Path("configs/smokes/layer17_n2.yaml").is_file()
+    assert Path("configs/dev/layer17_n32.yaml").is_file()
     # Real end-to-end stack scoring is researcher-run via pixi tasks in ship gate doc.
-    # This marker gate confirms the CUDA pin and YAML exist for the ASAP path.
+    # This marker gate confirms the CUDA pin and YAML exist for the dev path.
 
 
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__optimize__tiny_non_smoke_budget_on_optimization_split_subset() -> None:
+def test_real_model__optimize__tiny_optimize_budget_on_optimization_split_subset() -> None:
     """ORCH-018: tiny run.optimize budget on layer17 YAML (DEC-068 n_questions)."""
     import torch
 
@@ -50,12 +50,10 @@ def test_real_model__optimize__tiny_non_smoke_budget_on_optimization_split_subse
         pytest.skip("CUDA required for ORCH-018")
     from epistemic_sycophancy.config.load_study import load_study_config
 
-    study = load_study_config("configs/smokes/layer17_n2.yaml")
+    study = load_study_config("configs/dev/layer17_n32.yaml")
     assert study.run.optimize.max_steps is not None
-    assert study.run.optimize.max_steps > study.run.optimizer.max_steps or (
-        study.run.optimize.n_questions is not None
-    )
-    assert study.run.optimize.n_questions == 4  # tiny ASAP subset (DEC-068)
+    assert study.run.optimize.n_questions is not None
+    assert study.run.optimize.n_questions == 4  # tiny limited subset (DEC-068)
 
 
 @pytest.mark.unit
@@ -71,7 +69,7 @@ def test_real_model_or_unit__freeze_full_study_sealed__validation_metrics_withou
         StudyOptimizeConfig,
         StudyOptimizerConfig,
         StudyRunConfig,
-        StudySmokeConfig,
+        StudyFsCoverageConfig,
     )
     from epistemic_sycophancy.models.spec import ModelSpec
     from epistemic_sycophancy.runner.cli import dispatch_stage
@@ -132,7 +130,7 @@ def test_real_model_or_unit__freeze_full_study_sealed__validation_metrics_withou
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(question_ids=("q1",)),
+            fs_coverage=StudyFsCoverageConfig(question_ids=("q1")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -140,7 +138,6 @@ def test_real_model_or_unit__freeze_full_study_sealed__validation_metrics_withou
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",

@@ -14,7 +14,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
@@ -76,7 +76,7 @@ def _adam_study(artifact_dir: str) -> StudyConfig:
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(question_ids=("q1",)),
+            fs_coverage=StudyFsCoverageConfig(question_ids=("q1")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -84,7 +84,6 @@ def _adam_study(artifact_dir: str) -> StudyConfig:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
@@ -111,7 +110,6 @@ def _cma_study(artifact_dir: str) -> StudyConfig:
             adam_beta2=0.999,
             adam_eps=1e-8,
             adam_microbatch_questions=1,
-            max_steps=1,
         ),
     )
     object.__setattr__(

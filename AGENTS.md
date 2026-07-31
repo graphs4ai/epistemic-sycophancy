@@ -405,7 +405,7 @@ The toy system must be small enough for:
 
 Do not use a real transformer to validate basic algebra.
 
-### 6.4 Real-model smoke and regression tests
+### 6.4 Real-model checks and regression tests
 
 Keep these separate and marked.
 

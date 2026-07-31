@@ -1,4 +1,4 @@
-"""ORCH-023: build_margin_payload for opt_smoke / optimize (DEC-076)."""
+"""ORCH-023: build_margin_payload for optimize / optimize (DEC-076)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
@@ -76,7 +76,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(question_ids=("q1", "q2")),
+            fs_coverage=StudyFsCoverageConfig(question_ids=("q1", "q2")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -84,7 +84,6 @@ def _study(*, artifact_dir: str) -> StudyConfig:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
@@ -96,10 +95,10 @@ def _study(*, artifact_dir: str) -> StudyConfig:
 
 
 @pytest.mark.unit
-def test_adapters__build_margin_payload__contains_required_opt_smoke_keys(
+def test_adapters__build_margin_payload__contains_required_optimize_keys(
     tmp_path: Path,
 ) -> None:
-    """ORCH-023: margin_payload has opt_smoke keys; live scorer called at given beta."""
+    """ORCH-023: margin_payload has optimize keys; live scorer called at given beta."""
     from epistemic_sycophancy.runner.adapters.margins import build_margin_payload
 
     study = _study(artifact_dir=str(tmp_path / "art"))

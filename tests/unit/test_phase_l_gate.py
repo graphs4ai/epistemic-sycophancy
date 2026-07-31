@@ -15,7 +15,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _FIRST_STUDY = (
     _REPO_ROOT / "configs" / "first_study_gemma3_4b_resid_post_65k_medium.yaml"
 )
-_SMOKE = _REPO_ROOT / "configs" / "smokes" / "layer17_n2.yaml"
+_DEV_LIMITED = _REPO_ROOT / "configs" / "dev" / "layer17_n32.yaml"
 
 
 @pytest.mark.unit
@@ -27,15 +27,15 @@ def test_phase_l_gate__yaml_to_finite_objective_contract_documented() -> None:
     """
     study = load_study_config(_FIRST_STUDY)
     assert study.stack.sae.layers == (9, 17, 22, 29)
-    smoke = load_study_config(_SMOKE)
-    assert smoke.stack.sae.layers == (17,)
-    assert smoke.run.smoke.n_questions == 32
+    dev = load_study_config(_DEV_LIMITED)
+    assert dev.stack.sae.layers == (17,)
+    assert dev.run.fs_coverage.n_questions == 32
 
     assert STAGE_ORDER[:4] == (
         "identity",
         "baseline_partitions",
         "feature_selection",
-        "opt_smoke",
+        "optimize",
     )
     assert STAGE_ORDER[-2:] == ("full_study", "holdout_eval")
     assert callable(dispatch_stage)

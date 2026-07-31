@@ -9,7 +9,6 @@ from typing import Any, Iterator
 
 from tqdm import tqdm
 
-from epistemic_sycophancy.config.study import StudySmokeConfig
 from epistemic_sycophancy.prompts.render import render_mc0_subset
 
 _ACTIVE_ADAM_STEP: ContextVar["_AdamStepBatchProgress | None"] = ContextVar(
@@ -50,10 +49,9 @@ def count_belief_condition_rows(
     qids = tuple(str(q) for q in question_ids)
     if not qids:
         return 0
-    smoke = StudySmokeConfig(question_ids=qids)
     rendered = render_mc0_subset(
         corpus_rows=corpus,
-        smoke=smoke,
+        question_ids=qids,
         split_question_ids=split_question_ids,
         order_regime=order_regime,
         belief_condition=belief_condition,

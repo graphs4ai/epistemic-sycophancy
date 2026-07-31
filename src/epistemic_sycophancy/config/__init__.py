@@ -9,10 +9,10 @@ from epistemic_sycophancy.config.frozen import (
 from epistemic_sycophancy.config.schema import ExperimentConfig, InvalidExperimentConfig
 from epistemic_sycophancy.config.study import (
     StudyConfig,
+    StudyFsCoverageConfig,
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
     build_study_config,
 )
 
@@ -22,10 +22,10 @@ __all__ = [
     "FrozenExperimentConfig",
     "InvalidExperimentConfig",
     "StudyConfig",
+    "StudyFsCoverageConfig",
     "StudyOptimizeConfig",
     "StudyOptimizerConfig",
     "StudyRunConfig",
-    "StudySmokeConfig",
     "build_study_config",
     "freeze_experiment_config",
     "mark_holdout_started",

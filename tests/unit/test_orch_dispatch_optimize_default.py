@@ -14,7 +14,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.runner.cli import dispatch_stage
@@ -78,7 +78,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(question_ids=("q1", "q2")),
+            fs_coverage=StudyFsCoverageConfig(question_ids=("q1", "q2")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -86,7 +86,6 @@ def _study(*, artifact_dir: str) -> StudyConfig:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
@@ -188,6 +187,6 @@ def test_dispatch__optimize__builds_objective_grad_from_stack_and_run_optimize_b
         optimization_question_ids=("q1", "q2", "q3", "q4"),
     )
     assert result.ok
-    assert result.metrics["n_trials"] == 2  # run.optimize.max_steps, not smoke 1
+    assert result.metrics["n_trials"] == 2  # run.optimize.max_steps
     ckpt = Path(result.artifacts["best_checkpoint"])
     assert ckpt.is_file()

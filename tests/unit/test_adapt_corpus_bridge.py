@@ -1,4 +1,4 @@
-"""ADAPT-001: processed MC0 corpus bridge + smoke/optimize QID resolution (DEC-078)."""
+"""ADAPT-001: processed MC0 corpus bridge + coverage/optimize QID resolution (DEC-078)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from epistemic_sycophancy.config.study import StudyOptimizeConfig, StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyOptimizeConfig, StudyFsCoverageConfig
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 from epistemic_sycophancy.prompts.render import render_mc0_subset
 
@@ -21,7 +21,7 @@ def test_adapters__load_processed_mc0__normalizes_belief_and_order_for_render() 
     from epistemic_sycophancy.runner.adapters.corpus import (
         load_processed_mc0_corpus,
         resolve_optimize_coverage_ids,
-        resolve_smoke_question_ids_from_study,
+        resolve_fs_coverage_question_ids,
         split_question_ids_from_manifest,
     )
 
@@ -51,10 +51,10 @@ def test_adapters__load_processed_mc0__normalizes_belief_and_order_for_render() 
     assert "holdout_test_behavior" not in split_ids or "q_hold_1" in split_ids.get(
         "holdout_test_behavior", ()
     )
-    # Smoke resolution never returns holdout IDs.
-    smoke = StudySmokeConfig(n_questions=2, split="feature_selection", seed=0)
-    selected = resolve_smoke_question_ids_from_study(
-        smoke=smoke,
+    # Coverage resolution never returns holdout IDs.
+    coverage = StudyFsCoverageConfig(n_questions=2, seed=0)
+    selected = resolve_fs_coverage_question_ids(
+        coverage=coverage,
         split_question_ids=split_ids,
     )
     assert len(selected) == 2
@@ -64,7 +64,7 @@ def test_adapters__load_processed_mc0__normalizes_belief_and_order_for_render() 
     # render_mc0_subset accepts normalized rows.
     rendered = render_mc0_subset(
         corpus_rows=corpus,
-        smoke=smoke,
+        coverage=coverage,
         split_question_ids=split_ids,
         order_regime="CF",
         belief_condition="N",

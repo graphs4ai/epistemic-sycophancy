@@ -18,7 +18,7 @@ def build_margin_payload(
     margin_scorer: Callable[..., Mapping[str, Any]] | None = None,
     order_regime: str = "CF",
 ) -> dict[str, Any]:
-    """Build opt_smoke / optimize margin payload via live scoring at ``beta``.
+    """Build optimize margin payload via live scoring at ``beta``.
 
     ``margin_scorer(belief_condition=, question_ids=, beta=)`` returns either
     scalars (N) or variant sequences (IB/CB) keyed by question_id. When None,

@@ -1,4 +1,4 @@
-"""ORCH-034…038: real_model ASAP gates on layer17_n2 (replace hollow ORCH-017/018)."""
+"""ORCH-034…038: real_model limited-path gates on layer17_n32 (replace hollow ORCH-017/018)."""
 
 from __future__ import annotations
 
@@ -12,23 +12,23 @@ from epistemic_sycophancy.config.load_study import load_study_config
 from epistemic_sycophancy.runner.cli import dispatch_stage, run_cli
 from epistemic_sycophancy.runner.identity import clear_stack_cache
 
-CFG = Path("configs/smokes/layer17_n2.yaml")
+CFG = Path("configs/dev/layer17_n32.yaml")
 
 
 def _require_cuda() -> None:
     import torch
 
     if not torch.cuda.is_available():
-        pytest.fail("CUDA required for ORCH-034…038 real_model ASAP gates (not skipped)")
+        pytest.fail("CUDA required for ORCH-034…038 real_model limited-path gates (not skipped)")
 
 
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__identity_via_cli_default_stack(
+def test_real_model__layer17_n32__identity_via_cli_default_stack(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ORCH-034: identity on layer17_n2 via default load_stack (actual residuals)."""
+    """ORCH-034: identity on layer17_n32 via default load_stack (actual residuals)."""
     _require_cuda()
     clear_stack_cache()
     from dataclasses import replace
@@ -52,7 +52,7 @@ def test_real_model__layer17_n2__identity_via_cli_default_stack(
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__baseline_writes_partition_without_score_fn(
+def test_real_model__layer17_n32__baseline_writes_partition_without_score_fn(
     tmp_path: Path,
 ) -> None:
     """ORCH-035: baseline_partitions via default adapters (no score_fn kwarg)."""
@@ -80,19 +80,19 @@ def test_real_model__layer17_n2__baseline_writes_partition_without_score_fn(
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__feature_selection_writes_pool_keys(
+def test_real_model__layer17_n32__feature_selection_writes_pool_keys(
     tmp_path: Path,
 ) -> None:
     """ORCH-036: feature_selection writes common_pool with (layer, feature_id).
 
     DEC-085: FS needs the frozen baseline partition for Q+/Q− component subsets,
-    so baseline_partitions must run first (same ASAP order as ORCH-037/038).
+    so baseline_partitions must run first (same stage order as ORCH-037/038).
     """
     _require_cuda()
     clear_stack_cache()
     from dataclasses import replace
 
-    from epistemic_sycophancy.config.study import StudySmokeConfig
+    from epistemic_sycophancy.config.study import StudyFsCoverageConfig
 
     art = tmp_path / "art"
     study = load_study_config(CFG)
@@ -109,7 +109,7 @@ def test_real_model__layer17_n2__feature_selection_writes_pool_keys(
         run=replace(
             study.run,
             order_regime="CF",
-            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
         ),
     )
     result = dispatch_stage(
@@ -134,15 +134,15 @@ def test_real_model__layer17_n2__feature_selection_writes_pool_keys(
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__opt_smoke_finite_l_total_default_adapters(
+def test_real_model__layer17_n32__optimize_finite_l_total_default_adapters(
     tmp_path: Path,
 ) -> None:
-    """ORCH-037: opt_smoke finite l_total via default adapters (identity from artifact)."""
+    """ORCH-037: optimize finite l_total via default adapters (identity from artifact)."""
     _require_cuda()
     clear_stack_cache()
     from dataclasses import replace
 
-    from epistemic_sycophancy.config.study import StudySmokeConfig
+    from epistemic_sycophancy.config.study import StudyFsCoverageConfig
 
     art = tmp_path / "art"
     study = load_study_config(CFG)
@@ -155,16 +155,16 @@ def test_real_model__layer17_n2__opt_smoke_finite_l_total_default_adapters(
     part = json.loads((art / "baseline" / "partition_CF.json").read_text(encoding="utf-8"))
     q_plus = list(part["q_plus"])
     q_minus = list(part["q_minus"])
-    assert q_plus and q_minus, "need both partitions for opt_smoke objective"
-    # Tiny smoke IDs spanning Q+/Q- (full YAML N=32 is too heavy for live IB/CB).
-    smoke_ids = (q_plus[0], q_minus[0])
+    assert q_plus and q_minus, "need both partitions for optimize objective"
+    # Tiny coverage IDs spanning Q+/Q- (full YAML N=32 is too heavy for live IB/CB).
+    coverage_ids = (q_plus[0], q_minus[0])
 
     fs_study = replace(
         study,
         run=replace(
             study.run,
             order_regime="CF",
-            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
         ),
     )
     assert dispatch_stage(
@@ -177,10 +177,10 @@ def test_real_model__layer17_n2__opt_smoke_finite_l_total_default_adapters(
 
     opt_study = replace(
         study,
-        run=replace(study.run, smoke=StudySmokeConfig(question_ids=smoke_ids)),
+        run=replace(study.run, fs_coverage=StudyFsCoverageConfig(question_ids=coverage_ids)),
     )
     result = dispatch_stage(
-        "opt_smoke",
+        "optimize",
         study=opt_study,
         freeze_status="unsealed",
         margin_payload=None,
@@ -188,17 +188,25 @@ def test_real_model__layer17_n2__opt_smoke_finite_l_total_default_adapters(
         identity_passed=None,
     )
     assert result.ok
-    assert math.isfinite(float(result.metrics["l_total"]))
-    path = Path(result.artifacts["opt_smoke"])
-    assert path.is_file()
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert math.isfinite(float(payload["l_total"]))
+    assert result.metrics.get("best_l_total") is not None
+    assert math.isfinite(float(result.metrics["best_l_total"]))
+    trials_path = Path(result.artifacts["trials"])
+    assert trials_path.is_file()
+    rows = [
+        json.loads(line)
+        for line in trials_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert rows
+    assert all(math.isfinite(float(row["l_total"])) for row in rows)
+    assert "best_checkpoint" in result.artifacts
+    assert Path(result.artifacts["best_checkpoint"]).is_file()
 
 
 @pytest.mark.real_model
 @pytest.mark.slow
 @pytest.mark.gpu
-def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapters(
+def test_real_model__layer17_n32__optimize_writes_best_checkpoint_default_adapters(
     tmp_path: Path,
 ) -> None:
     """ORCH-038: optimize uses run.optimize budget; writes best_checkpoint via defaults."""
@@ -206,7 +214,7 @@ def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapter
     clear_stack_cache()
     from dataclasses import replace
 
-    from epistemic_sycophancy.config.study import StudyOptimizeConfig, StudySmokeConfig
+    from epistemic_sycophancy.config.study import StudyOptimizeConfig, StudyFsCoverageConfig
 
     art = tmp_path / "art"
     study = load_study_config(CFG)
@@ -221,7 +229,7 @@ def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapter
         run=replace(
             study.run,
             order_regime="CF",
-            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
         ),
     )
     assert dispatch_stage(
@@ -232,7 +240,7 @@ def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapter
         scale_fn=None,
     ).ok
 
-    # Tiny optimize coverage (YAML n_questions=4); never smoke max_steps.
+    # Tiny optimize coverage (YAML n_questions=4); explicit optimize budgets only.
     opt_study = replace(
         study,
         run=replace(
@@ -244,10 +252,7 @@ def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapter
             ),
         ),
     )
-    assert opt_study.run.optimize.max_steps != opt_study.run.optimizer.max_steps or (
-        opt_study.run.optimize.max_steps == 2
-    )
-    assert opt_study.run.optimizer.max_steps == 1  # smoke budget unused
+    assert opt_study.run.optimize.max_steps == 2
 
     result = dispatch_stage(
         "optimize",
@@ -264,7 +269,7 @@ def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapter
     assert "beta" in payload
     assert len(payload["beta"]) >= 1
     assert all(math.isfinite(float(b)) for b in payload["beta"])
-    # Must respect run.optimize.max_steps, not smoke optimizer.max_steps=1 alone.
+    # Must respect run.optimize.max_steps, not an implicit tiny budget.
     trials = art / "optimize" / "trials.jsonl"
     assert trials.is_file()
     n_trials = sum(1 for _ in trials.read_text(encoding="utf-8").splitlines() if _.strip())

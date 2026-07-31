@@ -15,10 +15,10 @@ from epistemic_sycophancy.config.schema import (
 )
 from epistemic_sycophancy.config.study import (
     StudyConfig,
+    StudyFsCoverageConfig,
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
@@ -135,25 +135,25 @@ def _parse_experiment(raw: dict[str, Any]) -> ExperimentConfig:
     )
 
 
-def _parse_smoke(raw: dict[str, Any]) -> StudySmokeConfig:
+def _parse_fs_coverage(raw: dict[str, Any]) -> StudyFsCoverageConfig:
     kwargs: dict[str, Any] = {}
     if "question_ids" in raw and raw["question_ids"] is not None:
         kwargs["question_ids"] = tuple(str(q) for q in raw["question_ids"])
     if "n_questions" in raw and raw["n_questions"] is not None:
         kwargs["n_questions"] = int(raw["n_questions"])
-    if "split" in raw and raw["split"] is not None:
-        kwargs["split"] = str(raw["split"])
     if "seed" in raw and raw["seed"] is not None:
         kwargs["seed"] = int(raw["seed"])
-    return StudySmokeConfig(**kwargs)
+    if "split" in raw and raw["split"] is not None:
+        raise InvalidExperimentConfig(
+            "run.fs_coverage.split is not accepted; coverage always uses "
+            "feature_selection"
+        )
+    return StudyFsCoverageConfig(**kwargs)
 
 
 def _parse_optimizer(raw: dict[str, Any]) -> StudyOptimizerConfig:
     kind = str(_require_key(raw, "kind", label="run.optimizer"))
-    kwargs: dict[str, Any] = {
-        "kind": kind,
-        "max_steps": int(_require_key(raw, "max_steps", label="run.optimizer")),
-    }
+    kwargs: dict[str, Any] = {"kind": kind}
     for key in (
         "adam_lr",
         "adam_beta1",
@@ -191,9 +191,11 @@ def _parse_optimize(raw: dict[str, Any]) -> StudyOptimizeConfig:
 
 
 def _parse_run(raw: dict[str, Any]) -> StudyRunConfig:
-    smoke_raw = _require_mapping(
-        _require_key(raw, "smoke", label="run"), label="run.smoke"
-    )
+    if "smoke" in raw:
+        raise InvalidExperimentConfig(
+            "run.smoke is no longer accepted; use optional run.fs_coverage "
+            "(omit for full feature_selection split)"
+        )
     opt_raw = _require_mapping(
         _require_key(raw, "optimizer", label="run"), label="run.optimizer"
     )
@@ -205,6 +207,10 @@ def _parse_run(raw: dict[str, Any]) -> StudyRunConfig:
             "run.order_regimes is no longer accepted; use singular "
             "run.order_regime in {'CF', 'IF', 'RO'} (DEC-087 / ORDER-EXP-001)"
         )
+    fs_coverage: StudyFsCoverageConfig | None = None
+    if "fs_coverage" in raw and raw["fs_coverage"] is not None:
+        fs_raw = _require_mapping(raw["fs_coverage"], label="run.fs_coverage")
+        fs_coverage = _parse_fs_coverage(fs_raw)
     return StudyRunConfig(
         artifact_dir=str(_require_key(raw, "artifact_dir", label="run")),
         order_regime=str(_require_key(raw, "order_regime", label="run")),
@@ -212,7 +218,7 @@ def _parse_run(raw: dict[str, Any]) -> StudyRunConfig:
             _require_key(raw, "feature_chunk_size", label="run")
         ),
         prompt_batch_size=int(_require_key(raw, "prompt_batch_size", label="run")),
-        smoke=_parse_smoke(smoke_raw),
+        fs_coverage=fs_coverage,
         optimizer=_parse_optimizer(opt_raw),
         optimize=_parse_optimize(optimize_raw),
     )
@@ -260,9 +266,19 @@ def _fingerprint_payload(study: StudyConfig) -> dict[str, Any]:
             feature_ids.append([int(fid[0]), int(fid[1])])
         else:
             feature_ids.append(fid)
-    smoke = study.run.smoke
+    coverage = study.run.fs_coverage
     opt = study.run.optimizer
     optimize = study.run.optimize
+    if coverage is None:
+        fs_coverage_payload: dict[str, Any] | None = None
+    else:
+        fs_coverage_payload = {
+            "n_questions": coverage.n_questions,
+            "seed": coverage.seed,
+            "question_ids": list(coverage.question_ids)
+            if coverage.question_ids is not None
+            else None,
+        }
     return {
         "stack": {
             "model": {
@@ -317,17 +333,9 @@ def _fingerprint_payload(study: StudyConfig) -> dict[str, Any]:
             "order_regime": study.run.order_regime,
             "feature_chunk_size": study.run.feature_chunk_size,
             "prompt_batch_size": study.run.prompt_batch_size,
-            "smoke": {
-                "n_questions": smoke.n_questions,
-                "split": smoke.split,
-                "seed": smoke.seed,
-                "question_ids": list(smoke.question_ids)
-                if smoke.question_ids is not None
-                else None,
-            },
+            "fs_coverage": fs_coverage_payload,
             "optimizer": {
                 "kind": opt.kind,
-                "max_steps": opt.max_steps,
                 "adam_lr": opt.adam_lr,
                 "adam_beta1": opt.adam_beta1,
                 "adam_beta2": opt.adam_beta2,

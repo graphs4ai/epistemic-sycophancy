@@ -1,4 +1,4 @@
-"""Pinned real-model smoke helpers (Phase J REAL / DEC-043)."""
+"""Pinned real-model check helpers (Phase J REAL / DEC-043)."""
 
 from __future__ import annotations
 
@@ -202,22 +202,22 @@ def real_model_beta_backward_viability(
 
 
 @dataclass(frozen=True)
-class RealModelObjectiveSmokeResult:
-    """REAL-006 objective trial smoke outputs."""
+class RealModelObjectiveTrialResult:
+    """REAL-006 objective trial check outputs."""
 
     l_total: float
     question_ids: tuple[str, ...]
     trial_record: object
 
 
-def real_model_objective_trial_smoke(
+def real_model_objective_trial_check(
     *,
     model_id: str,
     model_revision: str,
     question_ids: Sequence[str],
     seed: int = 0,
     dtype: torch.dtype = torch.float32,
-) -> RealModelObjectiveSmokeResult:
+) -> RealModelObjectiveTrialResult:
     """One tiny development-subset objective evaluation with trial logging."""
     from epistemic_sycophancy.logging.trial_records import (
         build_objective_components,
@@ -232,7 +232,7 @@ def real_model_objective_trial_smoke(
     from epistemic_sycophancy.optimization.budget import BudgetCounters
 
     if len(question_ids) < 2:
-        raise ValueError("objective smoke requires at least two question_ids")
+        raise ValueError("objective check requires at least two question_ids")
 
     prompts = tuple(f"Q{i}: Answer:" for i in range(len(question_ids)))
     scored = score_real_model_batch(
@@ -265,9 +265,9 @@ def real_model_objective_trial_smoke(
     artifact = freeze_baseline_partition_artifact(
         partition=partition,
         model_revision_hash=model_revision,
-        prompt_template_hash="real-smoke",
-        order_manifest_hash="real-smoke-cf",
-        dataset_manifest_hash="real-smoke",
+        prompt_template_hash="real-check",
+        order_manifest_hash="real-check-cf",
+        dataset_manifest_hash="real-check",
     )
     metrics = compute_behavioral_metrics(
         frozen_partition=artifact,
@@ -310,8 +310,8 @@ def real_model_objective_trial_smoke(
         components=components,
         beta=beta,
         trial_index=0,
-        optimizer_kind="smoke",
-        ro_manifest_hash="real-smoke-ro",
+        optimizer_kind="check",
+        ro_manifest_hash="real-check-ro",
         order_regime="CF",
         neutral_accuracy=float(metrics.neutral_accuracy),
         ftw=float(metrics.ftw),
@@ -328,7 +328,7 @@ def real_model_objective_trial_smoke(
         n_invalid=int(metrics.n_invalid),
         budget=budget,
     )
-    return RealModelObjectiveSmokeResult(
+    return RealModelObjectiveTrialResult(
         l_total=float(objective.l_total),
         question_ids=tuple(str(q) for q in question_ids),
         trial_record=trial,

@@ -29,7 +29,7 @@ class _FakeStack:
 
 
 @pytest.mark.unit
-def test_cli_main__config_identity_through_opt_smoke__with_fake_stack_loader(
+def test_cli_main__config_identity_through_optimize__with_fake_stack_loader(
     tmp_path: Path,
 ) -> None:
     """ORCH-007: run_cli with stack_loader runs identity without monkeypatching dispatch."""
@@ -37,13 +37,13 @@ def test_cli_main__config_identity_through_opt_smoke__with_fake_stack_loader(
     from epistemic_sycophancy.runner.identity import clear_stack_cache
 
     clear_stack_cache()
-    # Minimal valid Study YAML (same schema as smoke preset).
+    # Minimal valid Study YAML (same schema as limited dev preset).
     cfg_path = tmp_path / "study.yaml"
     payload = yaml.safe_load(
-        Path("configs/smokes/layer17_n2.yaml").read_text(encoding="utf-8")
+        Path("configs/dev/layer17_n32.yaml").read_text(encoding="utf-8")
     )
     payload["run"]["artifact_dir"] = str(tmp_path / "artifacts")
-    payload["run"]["smoke"] = {"question_ids": ["q1", "q2"]}
+    payload["run"]["fs_coverage"] = {"question_ids": ["q1", "q2"]}
     cfg_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
 
     loads: list[StudyConfig] = []

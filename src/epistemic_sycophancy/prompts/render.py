@@ -1,4 +1,4 @@
-"""WIRE-005: render MC0 prompts for StudyConfig smoke subset."""
+"""WIRE-005: render MC0 prompts for StudyConfig FS coverage subset."""
 
 from __future__ import annotations
 
@@ -7,13 +7,14 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from epistemic_sycophancy.config.schema import InvalidExperimentConfig
-from epistemic_sycophancy.config.study import StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyFsCoverageConfig
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 from epistemic_sycophancy.prompts.templates import (
     StructuredPrompt,
     assert_belief_text_has_no_label_artifacts,
 )
 
+_FS_SPLIT = "feature_selection"
 _ALLOWED_SPLITS = frozenset({"feature_selection", "optimization"})
 
 
@@ -34,37 +35,48 @@ class RenderedPromptRow:
         return self.belief_condition
 
 
-def select_smoke_question_ids(
+def select_coverage_question_ids(
     *,
-    smoke: StudySmokeConfig,
+    coverage: StudyFsCoverageConfig | None,
     split_question_ids: Mapping[str, Sequence[str]],
+    split: str = _FS_SPLIT,
 ) -> tuple[str, ...]:
-    """Resolve smoke allowlist or seeded first-N (DEC-059). Never holdout."""
-    if smoke.question_ids is not None:
-        return tuple(smoke.question_ids)
-    assert smoke.split is not None and smoke.n_questions is not None
-    assert smoke.seed is not None
-    if smoke.split not in _ALLOWED_SPLITS:
+    """Resolve coverage allowlist, seeded take-N, or full split (default).
+
+    ``None`` / empty coverage → all IDs in ``split``. Never holdout.
+    """
+    if split not in _ALLOWED_SPLITS:
         raise HoldoutAccessError(
-            f"smoke split must be one of {sorted(_ALLOWED_SPLITS)}; got {smoke.split!r}"
+            f"coverage split must be one of {sorted(_ALLOWED_SPLITS)}; got {split!r}"
         )
-    if smoke.split not in split_question_ids:
+    if split not in split_question_ids:
         raise InvalidExperimentConfig(
-            f"smoke split {smoke.split!r} missing from split_question_ids"
+            f"coverage split {split!r} missing from split_question_ids"
         )
-    sorted_ids = sorted(str(qid) for qid in split_question_ids[smoke.split])
-    if smoke.n_questions > len(sorted_ids):
+    sorted_ids = sorted(str(qid) for qid in split_question_ids[split])
+
+    if coverage is None or (
+        coverage.question_ids is None
+        and coverage.n_questions is None
+        and coverage.seed is None
+    ):
+        return tuple(sorted_ids)
+
+    if coverage.question_ids is not None:
+        return tuple(coverage.question_ids)
+
+    assert coverage.n_questions is not None and coverage.seed is not None
+    if coverage.n_questions > len(sorted_ids):
         raise InvalidExperimentConfig(
-            f"smoke n_questions={smoke.n_questions} exceeds "
-            f"|{smoke.split}|={len(sorted_ids)}"
+            f"fs_coverage n_questions={coverage.n_questions} exceeds "
+            f"|{split}|={len(sorted_ids)}"
         )
-    # Deterministic: sort, then rotate by seed hash offset, take first N.
     if not sorted_ids:
         return ()
-    digest = hashlib.sha256(f"{smoke.seed}".encode()).digest()
+    digest = hashlib.sha256(f"{coverage.seed}".encode()).digest()
     offset = int.from_bytes(digest[:4], "big") % len(sorted_ids)
     rotated = sorted_ids[offset:] + sorted_ids[:offset]
-    return tuple(rotated[: smoke.n_questions])
+    return tuple(rotated[: coverage.n_questions])
 
 
 def render_mc0_text(prompt: StructuredPrompt) -> str:
@@ -92,15 +104,25 @@ def render_mc0_text(prompt: StructuredPrompt) -> str:
 def render_mc0_subset(
     *,
     corpus_rows: Sequence[Mapping[str, object]],
-    smoke: StudySmokeConfig,
     split_question_ids: Mapping[str, Sequence[str]],
     order_regime: str,
+    coverage: StudyFsCoverageConfig | None = None,
+    question_ids: Sequence[str] | None = None,
     belief_condition: str = "N",
 ) -> tuple[RenderedPromptRow, ...]:
-    """Select smoke questions and render MC0 neutral (or conditioned) prompts."""
-    selected = set(
-        select_smoke_question_ids(smoke=smoke, split_question_ids=split_question_ids)
-    )
+    """Select coverage questions and render MC0 neutral (or conditioned) prompts.
+
+    Prefer ``question_ids`` when provided; otherwise resolve from ``coverage``
+    (omit / None → full feature_selection split).
+    """
+    if question_ids is not None:
+        selected = set(str(q) for q in question_ids)
+    else:
+        selected = set(
+            select_coverage_question_ids(
+                coverage=coverage, split_question_ids=split_question_ids
+            )
+        )
     rendered: list[RenderedPromptRow] = []
     for row in corpus_rows:
         qid = str(row["question_id"])
@@ -143,7 +165,7 @@ def render_mc0_subset(
     missing = selected - {r.question_id for r in rendered}
     if missing:
         raise InvalidExperimentConfig(
-            f"smoke questions missing from corpus for "
+            f"coverage questions missing from corpus for "
             f"order={order_regime!r} belief={belief_condition!r}: {sorted(missing)}"
         )
     return tuple(rendered)

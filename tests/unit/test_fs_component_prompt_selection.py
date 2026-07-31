@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from epistemic_sycophancy.config.study import StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyFsCoverageConfig
 from epistemic_sycophancy.metrics.baseline_partition import BaselinePartition
 from epistemic_sycophancy.runner.adapters.jacobian import (
     render_fs_multi_condition_rows,
@@ -71,7 +71,7 @@ def test_fs_adapter__component_prompts__match_frozen_partition_no_cross_conditio
     )
     by_condition = render_fs_multi_condition_rows(
         corpus_rows=_corpus_rows(),
-        smoke=StudySmokeConfig(question_ids=("q1", "q2", "q3")),
+        question_ids=("q1", "q2", "q3"),
         split_question_ids={"feature_selection": ("q1", "q2", "q3")},
         order_regime="CF",
     )

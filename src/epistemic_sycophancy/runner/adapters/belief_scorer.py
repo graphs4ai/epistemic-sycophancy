@@ -8,7 +8,7 @@ from typing import Any
 
 import torch
 
-from epistemic_sycophancy.config.study import StudyConfig, StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.prompts.render import render_mc0_subset
 from epistemic_sycophancy.runner.progress import tick_prompt_batch
 from epistemic_sycophancy.stack.scoring import score_batch_through_hooks
@@ -58,10 +58,9 @@ def build_belief_margin_scorer(
         qids = tuple(str(q) for q in question_ids)
         if not qids:
             return {}
-        smoke = StudySmokeConfig(question_ids=qids)
         rendered = render_mc0_subset(
             corpus_rows=corpus,
-            smoke=smoke,
+            question_ids=qids,
             split_question_ids=split_question_ids,
             order_regime=order_regime,
             belief_condition=belief_condition,

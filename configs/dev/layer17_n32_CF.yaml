@@ -1,5 +1,4 @@
-# First-study default StudyConfig (DEC-049 / DEC-051 / DEC-056 / DEC-058).
-# Changing layers/model/objective/run knobs is config-only — same loaders.
+# Complete StudyConfig schema — not a parallel format.
 stack:
   model:
     hf_id: google/gemma-3-4b-it
@@ -12,7 +11,7 @@ stack:
     site: resid_post
     width: width_65k
     l0: l0_medium
-    layers: [9, 17, 22, 29]
+    layers: [17]
   hooks:
     token_scope: last_prompt_token
     resolver_id: gemma3_resid_post
@@ -42,19 +41,23 @@ experiment:
   continuation_include_eos: false
   attribution_scope: last_prompt_token
   pool_eligibility_override: false
-  pool_quota_per_list: 8
+  pool_quota_per_list: 16
 run:
-  artifact_dir: artifacts/first_study_CF
+  artifact_dir: artifacts/dev/layer17_n32_CF
   order_regime: CF
   feature_chunk_size: 1024
-  prompt_batch_size: 1
+  prompt_batch_size: 16
+  fs_coverage:
+    n_questions: 32
+    seed: 0
   optimizer:
     kind: projected_adam
-    adam_lr: 0.1
+    adam_lr: 0.01
     adam_beta1: 0.9
     adam_beta2: 0.999
     adam_eps: 1.0e-8
-    adam_microbatch_questions: 1
+    adam_microbatch_questions: 32
   optimize:
     budget_match_on: n_objective_evals
-    max_steps: 50
+    max_steps: 20
+    n_questions: 4

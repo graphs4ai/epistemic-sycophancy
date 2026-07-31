@@ -17,7 +17,6 @@ STAGE_ORDER: tuple[str, ...] = (
     "identity",
     "baseline_partitions",
     "feature_selection",
-    "opt_smoke",
     "optimize",
     "freeze",
     "full_study",
@@ -32,7 +31,6 @@ PIXI_TASK_NAMES: tuple[str, ...] = (
     "run-identity",
     "run-baseline",
     "run-fs",
-    "run-opt-smoke",
     "run-optimize",
     "run-freeze",
     "run-study",
@@ -175,13 +173,13 @@ def dispatch_stage(
                     resolve_corpus_context,
                 )
 
-                _corpus, split_ids, _smoke = resolve_corpus_context(
+                _corpus, split_ids, _coverage = resolve_corpus_context(
                     study,
                     corpus_jsonl_paths=corpus_jsonl_paths,
                     split_manifest_path=split_manifest_path,
                     corpus_root=corpus_root,
                 )
-                del _corpus, _smoke
+                del _corpus, _coverage
                 val_ids = tuple(split_ids.get("behavior_validation", ()))
             margin_scorer = getattr(stack, "score_belief_margins", None)
             if margin_scorer is None:
@@ -192,13 +190,13 @@ def dispatch_stage(
                     resolve_corpus_context,
                 )
 
-                corpus, split_ids, _smoke = resolve_corpus_context(
+                corpus, split_ids, _coverage = resolve_corpus_context(
                     study,
                     corpus_jsonl_paths=corpus_jsonl_paths,
                     split_manifest_path=split_manifest_path,
                     corpus_root=corpus_root,
                 )
-                del _smoke
+                del _coverage
                 from epistemic_sycophancy.config.study import study_order_regime
 
                 margin_scorer = build_belief_margin_scorer(
@@ -274,7 +272,7 @@ def dispatch_stage(
             from epistemic_sycophancy.runner.adapters.score import build_score_fn
 
             stack = resolve_stack(study, stack_loader=stack_loader)
-            corpus, split_ids, smoke_ids = resolve_corpus_context(
+            corpus, split_ids, coverage_ids = resolve_corpus_context(
                 study,
                 corpus_jsonl_paths=corpus_jsonl_paths,
                 split_manifest_path=split_manifest_path,
@@ -291,7 +289,7 @@ def dispatch_stage(
                     order_regime=order,
                     belief_condition="N",
                 ),
-                question_ids=smoke_ids,
+                question_ids=coverage_ids,
                 split_name=split_name_override,
                 order_regime=order,
             )
@@ -344,13 +342,13 @@ def dispatch_stage(
         resolved_qids = None
         if jacobian_fn is None or scale_fn is None:
             stack = resolve_stack(study, stack_loader=stack_loader)
-            corpus, split_ids, smoke_ids = resolve_corpus_context(
+            corpus, split_ids, coverage_ids = resolve_corpus_context(
                 study,
                 corpus_jsonl_paths=corpus_jsonl_paths,
                 split_manifest_path=split_manifest_path,
                 corpus_root=corpus_root,
             )
-            resolved_qids = smoke_ids
+            resolved_qids = coverage_ids
             if jacobian_fn is None:
                 jacobian_fn = build_jacobian_fn(
                     study,
@@ -376,128 +374,6 @@ def dispatch_stage(
         message = (
             f"completed feature_selection: pool_size={metrics['pool_size']} "
             f"scale_source={metrics['scale_source']} "
-            f"study_fp={fingerprint[:12]}…"
-        )
-        return _make_result(
-            stage=stage,
-            ok=True,
-            message=message,
-            study=study,
-            metrics=metrics,
-            artifacts=artifacts,
-        )
-
-    if stage == "opt_smoke":
-        from epistemic_sycophancy.runner.adapters.identity_gate import (
-            resolve_identity_passed,
-        )
-        from epistemic_sycophancy.runner.adapters.margins import build_margin_payload
-        from epistemic_sycophancy.runner.adapters.pool import (
-            load_common_pool_artifact,
-            study_with_selected_pool,
-        )
-        from epistemic_sycophancy.runner.identity import resolve_stack
-        from epistemic_sycophancy.runner.opt_smoke_dispatch import run_opt_smoke_dispatch
-
-        study_for_opt = study
-        if study.experiment.coefficient_length < 1:
-            pool_path = (
-                Path(study.run.artifact_dir) / "feature_selection" / "common_pool.json"
-            )
-            pool = load_common_pool_artifact(pool_path)
-            study_for_opt = study_with_selected_pool(study, pool)
-
-        if identity_passed is None:
-            identity_passed = resolve_identity_passed(study_for_opt)
-
-        if margin_payload is None or beta is None:
-            stack = resolve_stack(study_for_opt, stack_loader=stack_loader)
-            m = int(study_for_opt.experiment.coefficient_length)
-            if m < 1:
-                raise ValueError("opt_smoke requires selected pool (coefficient_length>=1)")
-            if beta is None:
-                beta = tuple(0.0 for _ in range(m))
-            if margin_payload is None:
-                from epistemic_sycophancy.runner.adapters.belief_scorer import (
-                    build_belief_margin_scorer,
-                )
-                from epistemic_sycophancy.runner.adapters.resolve import (
-                    resolve_corpus_context,
-                )
-
-                from epistemic_sycophancy.config.study import study_order_regime
-
-                order = study_order_regime(study)
-                part_path = (
-                    Path(study.run.artifact_dir)
-                    / "baseline"
-                    / f"partition_{order}.json"
-                )
-                if not part_path.is_file():
-                    raise ValueError(
-                        f"opt_smoke default adapters require baseline partition at {part_path}"
-                    )
-                part = json.loads(part_path.read_text(encoding="utf-8"))
-                smoke_ids = (
-                    tuple(study.run.smoke.question_ids)
-                    if study.run.smoke.question_ids is not None
-                    else tuple(
-                        sorted(
-                            set(part["q_plus"]) | set(part["q_minus"])
-                        )
-                    )
-                )
-                smoke_set = frozenset(str(q) for q in smoke_ids)
-                partitions = {
-                    "q_plus": frozenset(str(q) for q in part["q_plus"]) & smoke_set,
-                    "q_minus": frozenset(str(q) for q in part["q_minus"]) & smoke_set,
-                }
-                if not partitions["q_plus"] or not partitions["q_minus"]:
-                    raise ValueError(
-                        "opt_smoke smoke question_ids must intersect both "
-                        f"q_plus and q_minus (got plus={sorted(partitions['q_plus'])}, "
-                        f"minus={sorted(partitions['q_minus'])})"
-                    )
-                margin_scorer = getattr(stack, "score_belief_margins", None)
-                if margin_scorer is None:
-                    corpus, split_ids, _smoke = resolve_corpus_context(
-                        study,
-                        corpus_jsonl_paths=corpus_jsonl_paths,
-                        split_manifest_path=split_manifest_path,
-                        corpus_root=corpus_root,
-                    )
-                    del _smoke
-                    margin_scorer = build_belief_margin_scorer(
-                        study_for_opt,
-                        stack,
-                        corpus=corpus,
-                        split_question_ids=split_ids,
-                        order_regime=order,
-                    )
-                margin_payload = build_margin_payload(
-                    study_for_opt,
-                    stack,
-                    beta=beta,
-                    question_ids=smoke_ids,
-                    partitions=partitions,
-                    margin_scorer=margin_scorer,
-                    order_regime=order,
-                )
-
-        smoke = run_opt_smoke_dispatch(
-            study=study_for_opt,
-            freeze_status=freeze_status,
-            identity_passed=bool(identity_passed),
-            margin_payload=margin_payload,
-            beta=beta,
-            adam_grad=adam_grad,
-        )
-        metrics = dict(smoke["metrics"])
-        artifacts = dict(smoke["artifacts"])
-        message = (
-            f"completed opt_smoke: l_total={metrics['l_total']} "
-            f"optimizer={study.run.optimizer.kind} "
-            f"steps={study.run.optimizer.max_steps} "
             f"study_fp={fingerprint[:12]}…"
         )
         return _make_result(
@@ -538,13 +414,13 @@ def dispatch_stage(
 
         opt_qids = tuple(optimization_question_ids or ())
         if not opt_qids:
-            _corpus, split_ids, _smoke = resolve_corpus_context(
+            _corpus, split_ids, _coverage = resolve_corpus_context(
                 study,
                 corpus_jsonl_paths=corpus_jsonl_paths,
                 split_manifest_path=split_manifest_path,
                 corpus_root=corpus_root,
             )
-            del _corpus, _smoke
+            del _corpus, _coverage
             from epistemic_sycophancy.runner.adapters.corpus import (
                 resolve_optimize_coverage_ids,
             )
@@ -565,13 +441,13 @@ def dispatch_stage(
                     build_belief_margin_scorer,
                 )
 
-                corpus, split_ids_for_scorer, _smoke = resolve_corpus_context(
+                corpus, split_ids_for_scorer, _coverage = resolve_corpus_context(
                     study,
                     corpus_jsonl_paths=corpus_jsonl_paths,
                     split_manifest_path=split_manifest_path,
                     corpus_root=corpus_root,
                 )
-                del _smoke
+                del _coverage
                 from epistemic_sycophancy.config.study import study_order_regime as _ord
 
                 margin_scorer = build_belief_margin_scorer(
@@ -697,13 +573,13 @@ def dispatch_stage(
                     build_margin_jacobian_fn,
                 )
 
-                corpus_for_jac, split_ids_for_jac, _smoke_jac = resolve_corpus_context(
+                corpus_for_jac, split_ids_for_jac, _coverage_jac = resolve_corpus_context(
                     study,
                     corpus_jsonl_paths=corpus_jsonl_paths,
                     split_manifest_path=split_manifest_path,
                     corpus_root=corpus_root,
                 )
-                del _smoke_jac
+                del _coverage_jac
                 margin_jacobian_fn = build_margin_jacobian_fn(
                     study_for_opt,
                     stack,
@@ -727,13 +603,13 @@ def dispatch_stage(
                 count_adam_step_prompt_microbatches,
             )
 
-            corpus_for_pb, split_ids_for_pb, _smoke_pb = resolve_corpus_context(
+            corpus_for_pb, split_ids_for_pb, _coverage_pb = resolve_corpus_context(
                 study,
                 corpus_jsonl_paths=corpus_jsonl_paths,
                 split_manifest_path=split_manifest_path,
                 corpus_root=corpus_root,
             )
-            del _smoke_pb
+            del _coverage_pb
             adam_step_batch_total = count_adam_step_prompt_microbatches(
                 corpus=corpus_for_pb,
                 split_question_ids=split_ids_for_pb,

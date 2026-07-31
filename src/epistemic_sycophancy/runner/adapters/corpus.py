@@ -1,4 +1,4 @@
-"""Processed MC0 corpus bridge for ASAP adapters (ADAPT-001 / DEC-078 / DEC-075)."""
+"""Processed MC0 corpus bridge for study adapters (ADAPT-001 / DEC-078 / DEC-075)."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from epistemic_sycophancy.config.study import StudyOptimizeConfig, StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyFsCoverageConfig, StudyOptimizeConfig
 from epistemic_sycophancy.data.manifests import load_split_manifest
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 from epistemic_sycophancy.prompts.ordering import assign_order
-from epistemic_sycophancy.prompts.render import select_smoke_question_ids
+from epistemic_sycophancy.prompts.render import select_coverage_question_ids
 
 _DEFAULT_CORPUS_ROOT = Path("data/data_processed")
 _HOLDUT_SPLITS = frozenset({"holdout_test_behavior", "holdout"})
@@ -46,14 +46,14 @@ def split_question_ids_from_manifest(
     return {split: tuple(sorted(ids)) for split, ids in by_split.items()}
 
 
-def resolve_smoke_question_ids_from_study(
+def resolve_fs_coverage_question_ids(
     *,
-    smoke: StudySmokeConfig,
+    coverage: StudyFsCoverageConfig | None,
     split_question_ids: Mapping[str, Sequence[str]],
 ) -> tuple[str, ...]:
-    """Resolve smoke QIDs (DEC-059); never returns holdout IDs."""
-    selected = select_smoke_question_ids(
-        smoke=smoke, split_question_ids=split_question_ids
+    """Resolve FS/baseline QIDs; None/empty → full feature_selection; never holdout."""
+    selected = select_coverage_question_ids(
+        coverage=coverage, split_question_ids=split_question_ids
     )
     holdout = set()
     for split in _HOLDUT_SPLITS:
@@ -61,7 +61,7 @@ def resolve_smoke_question_ids_from_study(
     leaked = [q for q in selected if q in holdout]
     if leaked:
         raise HoldoutAccessError(
-            f"smoke selection must not include holdout question IDs: {leaked!r}"
+            f"fs_coverage selection must not include holdout question IDs: {leaked!r}"
         )
     return selected
 

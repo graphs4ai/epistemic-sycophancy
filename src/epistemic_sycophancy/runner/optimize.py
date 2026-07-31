@@ -1,4 +1,4 @@
-"""Non-smoke optimize stage (ORCH-009 / DEC-066 / DEC-072)."""
+"""Optimize stage (ORCH-009 / DEC-066 / DEC-072)."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def run_optimize_dispatch(
     beta_init: Sequence[float] | None = None,
     adam_step_batch_total: int | None = None,
 ) -> dict[str, Any]:
-    """Run non-smoke optimize using ``run.optimize`` budgets (never smoke max_steps).
+    """Run optimize using ``run.optimize`` budgets.
 
     ``adam_step_batch_total`` is the fixed prompt-microbatch count per Adam step
     (DEC-092); when omitted for projected Adam, each step bar uses total 0.
@@ -269,7 +269,6 @@ def run_optimize_dispatch(
             "n_trials": len(trials),
             "eligible_question_ids": list(eligible),
             "optimizer_kind": kind,
-            "used_smoke_max_steps": False,
             "optimize_max_steps": optimize.max_steps,
         },
         "artifacts": artifacts,

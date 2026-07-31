@@ -26,14 +26,14 @@ def run_baseline_dispatch(
     order_regime: str | None = None,
 ) -> dict[str, Any]:
     """Score IDs, build one FS partition for the study order, write artifact."""
-    smoke = study.run.smoke
+    coverage = study.run.fs_coverage
     if question_ids is None:
-        if smoke.question_ids is not None:
-            qids = tuple(smoke.question_ids)
+        if coverage is not None and coverage.question_ids is not None:
+            qids = tuple(coverage.question_ids)
         else:
             raise ValueError(
-                "baseline dispatch requires question_ids when smoke uses n_questions "
-                "path without corpus injection"
+                "baseline dispatch requires question_ids when fs_coverage is "
+                "omitted or uses n_questions without corpus injection"
             )
     else:
         qids = tuple(str(q) for q in question_ids)

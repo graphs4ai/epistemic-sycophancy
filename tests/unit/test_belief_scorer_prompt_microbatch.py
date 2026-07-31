@@ -18,7 +18,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.runner.adapters.belief_scorer import build_belief_margin_scorer
@@ -170,7 +170,7 @@ def _study(*, artifact_dir: str, prompt_batch_size: int) -> StudyConfig:
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=prompt_batch_size,
-            smoke=StudySmokeConfig(question_ids=("q0", "q1", "q2")),
+            fs_coverage=StudyFsCoverageConfig(question_ids=("q0", "q1", "q2")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -178,7 +178,6 @@ def _study(*, artifact_dir: str, prompt_batch_size: int) -> StudyConfig:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",

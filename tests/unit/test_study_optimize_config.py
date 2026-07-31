@@ -1,4 +1,4 @@
-"""ORCH-008: StudyConfig.run.optimize non-smoke budgets (DEC-066/068)."""
+"""ORCH-008: StudyConfig.run.optimize budgets (DEC-066/068)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
@@ -79,13 +79,12 @@ def _optimizer() -> StudyOptimizerConfig:
         adam_beta2=0.999,
         adam_eps=1e-8,
         adam_microbatch_questions=1,
-        max_steps=1,
     )
 
 
 @pytest.mark.unit
-def test_study_config__run_optimize__requires_explicit_non_smoke_budgets_distinct_from_smoke() -> None:
-    """ORCH-008: run.optimize required; budgets distinct from smoke max_steps (DEC-066)."""
+def test_study_config__run_optimize__requires_explicit_budgets() -> None:
+    """ORCH-008: run.optimize required with explicit budgets (DEC-066)."""
     with pytest.raises(TypeError):
         # Missing optimize kwarg must fail construction (CFG-006).
         StudyRunConfig(  # type: ignore[call-arg]
@@ -93,7 +92,7 @@ def test_study_config__run_optimize__requires_explicit_non_smoke_budgets_distinc
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
             optimizer=_optimizer(),
         )
 
@@ -108,20 +107,19 @@ def test_study_config__run_optimize__requires_explicit_non_smoke_budgets_distinc
     assert optimize.max_steps == 20
     assert optimize.n_questions == 4
     assert optimize.question_ids is None
-    assert optimize.max_steps != _optimizer().max_steps
 
     run = StudyRunConfig(
         artifact_dir="artifacts/x",
         order_regime="CF",
         feature_chunk_size=1024,
         prompt_batch_size=1,
-        smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+        fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
         optimizer=_optimizer(),
         optimize=optimize,
     )
     study = StudyConfig(stack=_stack(), experiment=_experiment(), run=run)
     assert study.run.optimize.max_steps == 20
-    assert study.run.optimizer.max_steps == 1
+    assert study.run.optimizer.kind == "projected_adam"
 
     # XOR coverage: both question_ids and n_questions forbidden.
     with pytest.raises(InvalidExperimentConfig, match="question_ids|n_questions"):

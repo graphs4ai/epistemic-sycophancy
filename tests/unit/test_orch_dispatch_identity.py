@@ -15,7 +15,7 @@ from epistemic_sycophancy.config.study import (
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudySmokeConfig,
+    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
@@ -73,13 +73,11 @@ def _study() -> StudyConfig:
             pool_quota_per_list=8,
         ),
         run=StudyRunConfig(
-            artifact_dir="artifacts/smokes/layer17_n2",
+            artifact_dir="artifacts/dev/layer17_n32",
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            smoke=StudySmokeConfig(
-                n_questions=2, split="feature_selection", seed=0
-            ),
+            fs_coverage=StudyFsCoverageConfig(n_questions=2, seed=0),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -87,7 +85,6 @@ def _study() -> StudyConfig:
                 adam_beta2=0.999,
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
-                max_steps=1,
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
@@ -181,7 +178,7 @@ def test_dispatch__identity_failure__sets_ok_false_and_blocks_require_identity_g
 
 
 @pytest.mark.unit
-def test_dispatch__identity__beta_zero_identity_on_smoke_prompts_returns_structured_stage_result() -> None:
+def test_dispatch__identity__beta_zero_identity_on_fixture_prompts_returns_structured_stage_result() -> None:
     """ORCH-001: identity loads stack, checks β=0 residual identity, structured StageResult."""
     from epistemic_sycophancy.runner.cli import dispatch_stage
 

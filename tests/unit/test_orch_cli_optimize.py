@@ -1,4 +1,4 @@
-"""ORCH-012: CLI optimize with fake objective; CUDA smoke marker reserved."""
+"""ORCH-012: CLI optimize with fake objective; CUDA marker reserved."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def test_cli_main__optimize__fake_objective_stack_writes_checkpoint(
 
     cfg_path = tmp_path / "study.yaml"
     payload = yaml.safe_load(
-        Path("configs/smokes/layer17_n2.yaml").read_text(encoding="utf-8")
+        Path("configs/dev/layer17_n32.yaml").read_text(encoding="utf-8")
     )
     payload["run"]["artifact_dir"] = str(tmp_path / "artifacts")
     payload["experiment"]["feature_ids"] = [[17, 1]]
@@ -48,11 +48,11 @@ def test_cli_main__optimize__fake_objective_stack_writes_checkpoint(
 @pytest.mark.slow
 @pytest.mark.gpu
 def test_real_model__optimize__tiny_budget_finite_loss_and_checkpoint() -> None:
-    """ORCH-012 CUDA: tiny non-smoke optimize on layer17 smoke YAML (ship path)."""
+    """ORCH-012 CUDA: tiny optimize on layer17 limited YAML (ship path)."""
     pytest.importorskip("torch")
     import torch
 
     if not torch.cuda.is_available():
-        pytest.skip("CUDA required for ORCH-012 real optimize smoke")
+        pytest.skip("CUDA required for ORCH-012 real optimize check")
     # Full stack wiring is exercised in ORCH-018; this gate documents the marker path.
-    assert Path("configs/smokes/layer17_n2.yaml").is_file()
+    assert Path("configs/dev/layer17_n32.yaml").is_file()

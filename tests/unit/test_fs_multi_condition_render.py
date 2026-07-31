@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from epistemic_sycophancy.config.study import StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyFsCoverageConfig
 
 
 def _corpus_rows() -> list[dict[str, object]]:
@@ -78,14 +78,14 @@ def test_fs_batch__renders_all_three_conditions__n_deduped_ib_cb_keep_variants()
         render_fs_multi_condition_rows,
     )
 
-    smoke = StudySmokeConfig(question_ids=("q_fs_1", "q_fs_2"))
+    qids = ("q_fs_1", "q_fs_2")
     split_ids = {
         "feature_selection": ("q_fs_1", "q_fs_2"),
         "optimization": ("q_opt_1",),
     }
     by_condition = render_fs_multi_condition_rows(
         corpus_rows=_corpus_rows(),
-        smoke=smoke,
+        question_ids=qids,
         split_question_ids=split_ids,
         order_regime="CF",
     )

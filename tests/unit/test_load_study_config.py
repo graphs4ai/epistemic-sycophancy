@@ -65,9 +65,8 @@ run:
   order_regime: CF
   feature_chunk_size: 1024
   prompt_batch_size: 1
-  smoke:
+  fs_coverage:
     n_questions: 2
-    split: feature_selection
     seed: 0
   optimizer:
     kind: projected_adam
@@ -76,7 +75,6 @@ run:
     adam_beta2: 0.999
     adam_eps: 1.0e-8
     adam_microbatch_questions: 1
-    max_steps: 1
   optimize:
     budget_match_on: n_objective_evals
     max_steps: 20
@@ -132,8 +130,7 @@ def test_load_study_config__first_study_yaml__loads_stack_experiment_and_run() -
     assert study.stack.hooks.token_scope == "last_prompt_token"
     assert study.experiment.tie_policy == "merge_into_q_minus"
     assert study.experiment.pool_quota_per_list == 8
-    assert study.run.smoke.n_questions == 2
-    assert study.run.smoke.split == "feature_selection"
+    assert study.run.fs_coverage is None
     assert study.run.optimizer.kind == "projected_adam"
     text = _FIRST_STUDY.read_text(encoding="utf-8")
     assert "stack:" in text
@@ -160,24 +157,34 @@ def test_load_study_config__layers_one_vs_four__same_loader_no_code_fork(
 
 
 @pytest.mark.unit
-def test_load_study_config__smoke_preset__explicit_n_or_allowlist(
+def test_load_study_config__fs_coverage_preset__explicit_n_or_allowlist(
     tmp_path: Path,
 ) -> None:
-    """CFGFILE-005: smoke preset YAML + allowlist XOR n/split/seed (DEC-059)."""
-    smoke_path = _REPO_ROOT / "configs" / "smokes" / "layer17_n2.yaml"
-    study = load_study_config(smoke_path)
+    """CFGFILE-005: fs_coverage preset YAML + allowlist XOR n/seed (full split when omitted)."""
+    dev_path = _REPO_ROOT / "configs" / "dev" / "layer17_n32.yaml"
+    study = load_study_config(dev_path)
     assert study.stack.sae.layers == (17,)
-    assert study.run.smoke.n_questions == 32
-    assert study.run.smoke.split == "feature_selection"
-    assert study.run.smoke.seed == 0
-    assert study.run.smoke.question_ids is None
+    assert study.run.fs_coverage is not None
+    assert study.run.fs_coverage.n_questions == 32
+    assert study.run.fs_coverage.seed == 0
+    assert study.run.fs_coverage.question_ids is None
 
     allowlist_yaml = _MINIMAL_STUDY_YAML.replace(
-        "  smoke:\n    n_questions: 2\n    split: feature_selection\n    seed: 0\n",
-        "  smoke:\n    question_ids: [q_a, q_b]\n",
+        "  fs_coverage:\n    n_questions: 2\n    seed: 0\n",
+        "  fs_coverage:\n    question_ids: [q_a, q_b]\n",
     )
     path = tmp_path / "allowlist.yaml"
     path.write_text(allowlist_yaml, encoding="utf-8")
     allowlisted = load_study_config(path)
-    assert allowlisted.run.smoke.question_ids == ("q_a", "q_b")
-    assert allowlisted.run.smoke.n_questions is None
+    assert allowlisted.run.fs_coverage.question_ids == ("q_a", "q_b")
+    assert allowlisted.run.fs_coverage.n_questions is None
+
+    omit_yaml = _MINIMAL_STUDY_YAML.replace(
+        "  fs_coverage:\n    n_questions: 2\n    seed: 0\n",
+        "",
+    )
+    omit_path = tmp_path / "omit.yaml"
+    omit_path.write_text(omit_yaml, encoding="utf-8")
+    omitted = load_study_config(omit_path)
+    assert omitted.run.fs_coverage is None
+

@@ -1,6 +1,4 @@
-# Phase L smoke preset: single layer + tiny N (DEC-059 / CFGFILE-005).
 # Complete StudyConfig schema — not a parallel format.
-# This smoke is for the CF order regime (DEC-087). Kept here just for retrocompatibility reasons.
 stack:
   model:
     hf_id: google/gemma-3-4b-it
@@ -45,13 +43,12 @@ experiment:
   pool_eligibility_override: false
   pool_quota_per_list: 8
 run:
-  artifact_dir: artifacts/smokes/layer17_n2_CF
-  order_regime: CF
+  artifact_dir: artifacts/dev/layer17_n32_RO
+  order_regime: RO
   feature_chunk_size: 1024
   prompt_batch_size: 1
-  smoke:
+  fs_coverage:
     n_questions: 32
-    split: feature_selection
     seed: 0
   optimizer:
     kind: projected_adam
@@ -60,7 +57,6 @@ run:
     adam_beta2: 0.999
     adam_eps: 1.0e-8
     adam_microbatch_questions: 1
-    max_steps: 1
   optimize:
     budget_match_on: n_objective_evals
     max_steps: 20

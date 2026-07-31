@@ -34,15 +34,15 @@ def run_feature_selection_dispatch(
     holdout_question_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Compute per-component Jacobians for the study order, build pool, write artifact."""
-    smoke = study.run.smoke
+    coverage = study.run.fs_coverage
     if question_ids is not None:
         qids = tuple(str(q) for q in question_ids)
-    elif smoke.question_ids is not None:
-        qids = tuple(smoke.question_ids)
+    elif coverage is not None and coverage.question_ids is not None:
+        qids = tuple(coverage.question_ids)
     else:
         raise ValueError(
-            "feature_selection dispatch requires question_ids when smoke uses "
-            "n_questions without corpus injection"
+            "feature_selection dispatch requires question_ids when fs_coverage is "
+            "omitted or uses n_questions without corpus injection"
         )
 
     order = study_order_regime(study)

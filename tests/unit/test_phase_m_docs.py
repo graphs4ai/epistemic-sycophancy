@@ -16,7 +16,6 @@ def test_phase_m_docs__pixi_tasks_and_readme_cover_full_stage_list() -> None:
         "identity",
         "baseline_partitions",
         "feature_selection",
-        "opt_smoke",
         "optimize",
         "freeze",
         "full_study",
@@ -26,7 +25,6 @@ def test_phase_m_docs__pixi_tasks_and_readme_cover_full_stage_list() -> None:
         "run-identity",
         "run-baseline",
         "run-fs",
-        "run-opt-smoke",
         "run-optimize",
         "run-freeze",
         "run-study",
@@ -41,4 +39,4 @@ def test_phase_m_docs__pixi_tasks_and_readme_cover_full_stage_list() -> None:
     assert "freeze" in readme
     assert "holdout_eval" in readme or "run-holdout" in readme
     assert "stage ready" not in readme.lower() or "deprecated" in readme.lower()
-    assert "run.optimize" in readme or "non-smoke" in readme
+    assert "run.optimize" in readme or "fs_coverage" in readme

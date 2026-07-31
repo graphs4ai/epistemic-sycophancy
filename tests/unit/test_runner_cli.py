@@ -19,7 +19,6 @@ def test_runner__cli_stages__expose_identity_baseline_fs_opt_full_in_order() -> 
         "identity",
         "baseline_partitions",
         "feature_selection",
-        "opt_smoke",
         "optimize",
         "freeze",
         "full_study",
@@ -29,7 +28,6 @@ def test_runner__cli_stages__expose_identity_baseline_fs_opt_full_in_order() -> 
         "run-identity",
         "run-baseline",
         "run-fs",
-        "run-opt-smoke",
         "run-optimize",
         "run-freeze",
         "run-study",
@@ -78,7 +76,7 @@ def test_runner_cli__with_config__dispatches_real_stage_not_ready_stub(
 
     from epistemic_sycophancy.runner import cli as cli_mod
 
-    study_yaml = Path("configs/smokes/layer17_n2.yaml")
+    study_yaml = Path("configs/dev/layer17_n32.yaml")
     calls: list[str] = []
 
     def fake_dispatch(stage: str, *, study, freeze_status: str, **kwargs):

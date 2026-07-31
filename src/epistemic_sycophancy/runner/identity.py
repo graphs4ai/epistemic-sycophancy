@@ -1,4 +1,4 @@
-"""Identity stage: β=0 residual identity on smoke prompts (ORCH-001 / DEC-064)."""
+"""Identity stage: β=0 residual identity on fixture prompts (ORCH-001 / DEC-064)."""
 
 from __future__ import annotations
 
@@ -76,14 +76,14 @@ def run_identity_stage(
     *,
     study: StudyConfig,
     stack: Any,
-    smoke_texts: Sequence[str] | None = None,
+    prompt_texts: Sequence[str] | None = None,
 ) -> dict[str, Any]:
-    """Compare unhooked vs β=0 hooked residuals on smoke prompts.
+    """Compare unhooked vs β=0 hooked residuals on fixture prompts.
 
     Returns metrics including ``identity_passed`` and ``max_abs_diff``.
     """
     layers = tuple(int(layer) for layer in study.stack.sae.layers)
-    texts = list(smoke_texts) if smoke_texts is not None else _default_smoke_texts()
+    texts = list(prompt_texts) if prompt_texts is not None else _default_identity_prompt_texts()
     selected_keys = tuple((layer, 0) for layer in layers)
     scales = tuple(1.0 for _ in selected_keys)
     beta = tuple(0.0 for _ in selected_keys)
@@ -134,8 +134,8 @@ def run_identity_stage(
     }
 
 
-def _default_smoke_texts() -> list[str]:
-    return ["Smoke identity prompt A.", "Smoke identity prompt B."]
+def _default_identity_prompt_texts() -> list[str]:
+    return ["Identity check prompt A.", "Identity check prompt B."]
 
 
 def _prompt_lengths(stack: Any, texts: Sequence[str]) -> tuple[int, ...]:

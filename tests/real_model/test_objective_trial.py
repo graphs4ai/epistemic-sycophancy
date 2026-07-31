@@ -1,4 +1,4 @@
-"""REAL-006: real-model objective trial smoke."""
+"""REAL-006: real-model objective trial check."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from dataclasses import fields
 
 import pytest
 
-from epistemic_sycophancy.evaluation.real_model_smoke import (
-    real_model_objective_trial_smoke,
+from epistemic_sycophancy.evaluation.real_model_checks import (
+    real_model_objective_trial_check,
 )
 from epistemic_sycophancy.logging.trial_records import TrialRecord
 from tests.real_model._pin import MODEL_ID, MODEL_REVISION
@@ -15,15 +15,15 @@ from tests.real_model._pin import MODEL_ID, MODEL_REVISION
 
 @pytest.mark.real_model
 @pytest.mark.slow
-def test_real_model__objective_trial_smoke__finite_logged_deterministic() -> None:
-    """REAL-006: tiny objective smoke is finite, logged, and repeatable."""
-    first = real_model_objective_trial_smoke(
+def test_real_model__objective_trial_check__finite_logged_deterministic() -> None:
+    """REAL-006: tiny objective check is finite, logged, and repeatable."""
+    first = real_model_objective_trial_check(
         model_id=MODEL_ID,
         model_revision=MODEL_REVISION,
         question_ids=("q1", "q2"),
         seed=0,
     )
-    second = real_model_objective_trial_smoke(
+    second = real_model_objective_trial_check(
         model_id=MODEL_ID,
         model_revision=MODEL_REVISION,
         question_ids=("q1", "q2"),

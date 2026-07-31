@@ -108,7 +108,7 @@ def _write_tiny_study_yaml(path: Path, artifact_dir: Path) -> None:
             "order_regime": "CF",
             "feature_chunk_size": 1024,
             "prompt_batch_size": 1,
-            "smoke": {"question_ids": ["q_fs_1", "q_fs_2"]},
+            "fs_coverage": {"question_ids": ["q_fs_1", "q_fs_2"]},
             "optimizer": {
                 "kind": "projected_adam",
                 "adam_lr": 0.1,
@@ -116,7 +116,6 @@ def _write_tiny_study_yaml(path: Path, artifact_dir: Path) -> None:
                 "adam_beta2": 0.999,
                 "adam_eps": 1.0e-8,
                 "adam_microbatch_questions": 1,
-                "max_steps": 1,
             },
             "optimize": {
                 "budget_match_on": "n_objective_evals",

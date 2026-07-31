@@ -7,7 +7,7 @@ from typing import Any
 
 import torch
 
-from epistemic_sycophancy.config.study import StudyConfig, StudySmokeConfig
+from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.feature_selection.projected_gradient import (
     coefficient_jacobian,
     project_residual_gradient,
@@ -88,7 +88,7 @@ def build_jacobian_fn(
         )
         n_features = int(decoder.shape[0])
         decoder_f64 = decoder.detach().to(dtype=torch.float64)
-        # Full-width decoder norms in one vectorized op (65k ASAP path).
+        # Full-width decoder norms in one vectorized op (layer17 limited path).
         feature_scales = torch.linalg.vector_norm(decoder_f64, dim=1)
         if not bool(torch.all(feature_scales > 0)):
             bad = int((feature_scales <= 0).nonzero()[0].item())
@@ -127,20 +127,20 @@ def build_jacobian_fn(
 def render_fs_multi_condition_rows(
     *,
     corpus_rows: Sequence[Mapping[str, object]],
-    smoke: StudySmokeConfig,
+    question_ids: Sequence[str],
     split_question_ids: Mapping[str, Sequence[str]],
     order_regime: str,
 ) -> dict[str, tuple[RenderedPromptRow, ...]]:
-    """Render N/IB/CB on the FS smoke subset (DEC-085 / FSC-001).
+    """Render N/IB/CB on the FS coverage question set (DEC-085 / FSC-001).
 
     Neutrals are deduplicated to one row per question_id. IB and CB keep every
-    variant. Optimization/holdout rows are never selected via smoke IDs.
+    variant. Optimization/holdout rows are never selected via these IDs.
     """
     by_condition: dict[str, tuple[RenderedPromptRow, ...]] = {}
     for belief in ("N", "IB", "CB"):
         rendered = render_mc0_subset(
             corpus_rows=corpus_rows,
-            smoke=smoke,
+            question_ids=question_ids,
             split_question_ids=split_question_ids,
             order_regime=order_regime,
             belief_condition=belief,
@@ -211,10 +211,9 @@ def _production_component_batch(
     component: str,
 ) -> dict[str, Any] | None:
     """Render N/IB/CB, select component rows, project φ grads (DEC-085)."""
-    smoke = StudySmokeConfig(question_ids=tuple(question_ids))
     by_condition = render_fs_multi_condition_rows(
         corpus_rows=corpus,
-        smoke=smoke,
+        question_ids=tuple(question_ids),
         split_question_ids=split_question_ids,
         order_regime=order_regime,
     )

@@ -10,20 +10,24 @@ Phase **M.1** wires production adapters so bare CLI `--config` needs **no**
 (`run.order_regime: CF|IF|RO`). Run CF, IF, and RO as three separate sealed
 studies, then assemble the 3×3 matrix (DEC-088).
 
-## Recommended ASAP path (DEC-067 / DEC-079 / DEC-087)
+**DEC-093:** no `run.smoke` / `opt_smoke` stage. Coverage defaults to the **full
+available split** when omitted. Limited runs opt in via `run.fs_coverage` and/or
+`run.optimize.n_questions` (see `configs/dev/`).
 
-1. Start with single-layer smoke for **one** order, e.g.
-   `configs/smokes/layer17_n2_CF.yaml` (aliases: `layer17_n2.yaml` = CF)
+## Recommended limited path (DEC-067 / DEC-079 / DEC-087 / DEC-093)
+
+1. Start with single-layer limited YAML for **one** order, e.g.
+   `configs/dev/layer17_n32_CF.yaml` (aliases: `layer17_n32.yaml` = CF)
    - `run.order_regime: CF` (or IF / RO via sibling YAMLs)
-   - `run.smoke`: `n_questions: 32`, `split: feature_selection`, `seed: 0`
-   - `run.optimizer.max_steps: 1` (opt_smoke only)
-   - `run.optimize`: `max_steps: 20`, `n_questions: 4` (tiny non-smoke; DEC-068)
-2. Repeat with `layer17_n2_IF.yaml` and `layer17_n2_RO.yaml` (distinct
+   - `run.fs_coverage`: `n_questions: 32`, `seed: 0` (explicit subset)
+   - `run.optimize`: `max_steps: 20`, optional `n_questions` for a tiny optimize set
+2. Repeat with `layer17_n32_IF.yaml` and `layer17_n32_RO.yaml` (distinct
    `artifact_dir`s).
 3. Assemble cross-order matrix from the three sealed roots
-   (`configs/smokes/layer17_n2_cross_order.yaml` + `run_cross_order_assemble`).
+   (`configs/dev/layer17_n32_cross_order.yaml` + `run_cross_order_assemble`).
 4. After that path is green, scale to
-   `configs/first_study_gemma3_4b_resid_post_65k_medium.yaml` (CF default)
+   `configs/first_study_gemma3_4b_resid_post_65k_medium.yaml` (CF default;
+   **no** `fs_coverage` → full feature_selection split)
    and the IF/RO siblings
    `configs/first_study_gemma3_4b_resid_post_65k_medium_{IF,RO}.yaml`.
 
@@ -34,19 +38,18 @@ applied in-memory from `feature_selection/common_pool.json` (DEC-073).
 
 ```bash
 # One order experiment (repeat with _IF / _RO)
-CFG=configs/smokes/layer17_n2_CF.yaml
+CFG=configs/dev/layer17_n32_CF.yaml
 
 pixi run --environment test-cuda run-identity -- --config "$CFG"
 pixi run --environment test-cuda run-baseline -- --config "$CFG"
 pixi run --environment test-cuda run-fs -- --config "$CFG"
-pixi run --environment test-cuda run-opt-smoke -- --config "$CFG"
 pixi run --environment test-cuda run-optimize -- --config "$CFG"
 pixi run --environment test-cuda run-freeze -- --config "$CFG"
 pixi run --environment test-cuda run-study -- --config "$CFG"
 ```
 
 After CF, IF, and RO are sealed, assemble the 3×3 (DEC-088) via
-`run_cross_order_assemble` with `configs/smokes/layer17_n2_cross_order.yaml`
+`run_cross_order_assemble` with `configs/dev/layer17_n32_cross_order.yaml`
 sources (Python/API; not part of the per-study DEC-072 sequence).
 
 Holdout remains sealed until `run-holdout` after freeze (DEC-071). Do not open
@@ -61,11 +64,10 @@ Verified on `pixi run --environment test-cuda`:
 | ORCH-034 | identity via default stack |
 | ORCH-035 | baseline partitions without `score_fn` (single `order_regime`) |
 | ORCH-036 | feature_selection writes `common_pool.json` |
-| ORCH-037 | opt_smoke finite `l_total` via live belief-margin adapters |
 | ORCH-038 | optimize writes `best_checkpoint.json` via `run.optimize` budget |
 | GRAD-007 | toy/integration: `build_grad_fn` + projected Adam moves β from 0 |
-| GRAD-008 | real `layer17_n2` optimize: ≥1 `|β_i|>0` in trials (**required**; DEC-084 loud zero-grad is failure, not green — GRAD-011). Unblocked by multi-condition FS (FSC-009). |
-| FSC-009 | real `layer17_n2`: FS pool features active on ≥1 FS IB and ≥1 FS CB; then optimize moves β |
+| GRAD-008 | real `layer17_n32` optimize: ≥1 `|β_i|>0` in trials (**required**; DEC-084 loud zero-grad is failure, not green — GRAD-011). Unblocked by multi-condition FS (FSC-009). |
+| FSC-009 | real `layer17_n32`: FS pool features active on ≥1 FS IB and ≥1 FS CB; then optimize moves β |
 
 ### GRAD-FIX (DEC-084) — re-run optimize after fix
 
@@ -91,17 +93,17 @@ fix (or after any FS change).
 
 Unit e2e without injectors (fake `stack_loader` only): ORCH-033.
 
-## Artifacts (DEC-070 / DEC-087 / DEC-088)
+## Artifacts (DEC-070 / DEC-087 / DEC-088 / DEC-093)
 
-Per-study under `run.artifact_dir` (e.g. `artifacts/smokes/layer17_n2_CF/`):
+Per-study under `run.artifact_dir` (e.g. `artifacts/dev/layer17_n32_CF/`):
 
-- `identity/`, `baseline/partition_{order}.json`, `feature_selection/`, `opt_smoke/`
+- `identity/`, `baseline/partition_{order}.json`, `feature_selection/`
 - `optimize/trials.jsonl`, `optimize/checkpoints/`, `optimize/best_checkpoint.json`
 - `freeze/frozen_experiment_config.json` (includes `order_regime`)
 - `full_study/behavioral.json` (single-order; **no** in-study 3×3)
 - `holdout/` only after unlock
 
-Cross-study assemble root (e.g. `artifacts/smokes/layer17_n2_cross_order/`):
+Cross-study assemble root (e.g. `artifacts/dev/layer17_n32_cross_order/`):
 
 - `cross_order/sources.json`
 - `cross_order/cross_order_matrix.json`
@@ -109,7 +111,7 @@ Cross-study assemble root (e.g. `artifacts/smokes/layer17_n2_cross_order/`):
 ## Unit vs CUDA
 
 - Unit tests may inject `stack_loader` and stage callables (DEC-065).
-- Production ASAP path builds adapters from `StudyConfig` + `InterventionStack`
+- Production path builds adapters from `StudyConfig` + `InterventionStack`
   when injectors are `None`.
 - Real Gemma + GemmaScope2 requires `pixi run --environment test-cuda …`.
 

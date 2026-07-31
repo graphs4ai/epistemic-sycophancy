@@ -5,27 +5,29 @@ Library and experiment scaffolding for **additive SAE interventions** against ep
 ## Phase M — YAML → CLI → optimize → freeze → full_study (final impl)
 
 Author a StudyConfig YAML under `configs/` (`stack` + `experiment` + `run`).
-**Phase M.1:** bare `--config` runs ASAP **without injector kwargs** — production
-adapters build `score_fn` / Jacobians / objective from the stack + processed corpus.
-Smoke gates use `run.smoke` + `run.optimizer.max_steps`. **Non-smoke optimize** uses
-`run.optimize` budgets (DEC-066); never silently call `opt_smoke`.
+Bare `--config` runs **without injector kwargs** — production adapters build
+`score_fn` / Jacobians / objective from the stack + processed corpus.
 
-Stage order (DEC-072):
+**Coverage default = full split.** Omit `run.fs_coverage` and omit
+`run.optimize.n_questions` / `question_ids` to use every available question in
+the stage's split. Subsets are opt-in only (e.g. under `configs/dev/`).
+
+Stage order (DEC-072 / DEC-093):
 
 ```text
-identity → baseline_partitions → feature_selection → opt_smoke
+identity → baseline_partitions → feature_selection
 → optimize → freeze → full_study → holdout_eval
 ```
 
 ```bash
-CFG=configs/smokes/layer17_n2_CF.yaml
-# alias: configs/smokes/layer17_n2.yaml (= CF)
+# Limited layer-17 path (explicit fs_coverage / optimize.n_questions)
+CFG=configs/dev/layer17_n32_CF.yaml
+# alias: configs/dev/layer17_n32.yaml (= CF)
 
 pixi run --environment test-cuda run-identity -- --config "$CFG"
 pixi run --environment test-cuda run-baseline -- --config "$CFG"
 pixi run --environment test-cuda run-fs -- --config "$CFG"
-pixi run --environment test-cuda run-opt-smoke -- --config "$CFG"
-pixi run --environment test-cuda run-optimize -- --config "$CFG"   # non-smoke
+pixi run --environment test-cuda run-optimize -- --config "$CFG"
 pixi run --environment test-cuda run-freeze -- --config "$CFG"
 pixi run --environment test-cuda run-study -- --config "$CFG"      # sealed; no holdout
 # holdout only after freeze + explicit unlock (DEC-071):
@@ -40,7 +42,7 @@ See [`docs/phase_m_ship_gate.md`](docs/phase_m_ship_gate.md) for adapter default
 single-order artifact layout, cross-order assemble, and ORCH-034…038 real_model
 gates (`test-cuda`).
 
-Pixi tasks: `run-identity`, `run-baseline`, `run-fs`, `run-opt-smoke`, `run-optimize`, `run-freeze`, `run-study`, `run-holdout`. The legacy `"stage … ready"` CLI stub is **deprecated**; use `--config` real dispatch.
+Pixi tasks: `run-identity`, `run-baseline`, `run-fs`, `run-optimize`, `run-freeze`, `run-study`, `run-holdout`. The legacy `"stage … ready"` CLI stub is **deprecated**; use `--config` real dispatch.
 
 What you can also run today: the frozen dataset pipeline, Pixi test/lint tasks, and the Python APIs under `src/epistemic_sycophancy/`.
 
@@ -106,7 +108,7 @@ AGENTS.md                  # contributor / agent implementation contract
 | `objective` | Logistic losses, question-macro means, full objective |
 | `optimization` | CMA-ES, projected Adam, checkpoints, budgets |
 | `statistics` | Question-cluster bootstrap |
-| `evaluation` | Cross-order matrix, toy E2E, real-model smoke helpers |
+| `evaluation` | Cross-order matrix, toy E2E, real-model check helpers |
 | `controls` | Random features, shuffled coefficients |
 | `reproducibility` | Holdout seal and phase gates |
 | `logging` | Objective component and trial records |
@@ -140,7 +142,7 @@ pixi run --environment test test
 # One file or node
 pixi run --environment test pytest tests/unit/test_scoring_margins.py -q
 
-# Pinned tiny GPT-2 smoke (downloads the pinned revision on first run)
+# Pinned tiny GPT-2 check (downloads the pinned revision on first run)
 pixi run --environment test pytest -m real_model -q
 
 # GPU memory / CUDA-marked tests (requires cuda env + hardware)
@@ -206,7 +208,7 @@ from epistemic_sycophancy.evaluation import build_cross_order_matrix, run_toy_e2
 from epistemic_sycophancy.statistics import bootstrap_selectivity_interval
 ```
 
-Toy end-to-end checks and real-model smoke helpers live under `evaluation/` and are exercised by the integration / `real_model` tests. Full-scale model training loops are not wired as a CLI yet; compose the APIs above (or follow the tests as usage examples).
+Toy end-to-end checks and real-model check helpers live under `evaluation/` and are exercised by the integration / `real_model` tests. Full-scale model training loops are not wired as a CLI yet; compose the APIs above (or follow the tests as usage examples).
 
 ## Further reading
 
