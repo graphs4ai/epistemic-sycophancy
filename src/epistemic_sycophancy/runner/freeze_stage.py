@@ -12,6 +12,7 @@ from epistemic_sycophancy.config.load_study import (
     study_config_fingerprint,
 )
 from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.logging.pipeline import log_audit
 from epistemic_sycophancy.runner.cli import _stage_hash_fields
 
 
@@ -61,6 +62,13 @@ def run_freeze_dispatch(*, study: StudyConfig) -> dict[str, Any]:
     payload["order_regime"] = study.run.order_regime
     payload["freeze_status"] = frozen.freeze_status
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    log_audit(
+        "freeze_sealed",
+        freeze_status=frozen.freeze_status,
+        holdout_started=frozen.holdout_started,
+        config_fingerprint=frozen.config_fingerprint,
+        path=str(path),
+    )
     return {
         "frozen": frozen,
         "metrics": {

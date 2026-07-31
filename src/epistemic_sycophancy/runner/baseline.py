@@ -9,6 +9,7 @@ from typing import Any
 
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig, study_order_regime
+from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.metrics.baseline_partition import (
     freeze_baseline_partition_artifact,
 )
@@ -78,6 +79,15 @@ def run_baseline_dispatch(
         "split_name": resolved_split,
     }
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    log_progress(
+        "baseline_partition",
+        order_regime=regime,
+        split_name=resolved_split,
+        n_q_plus=len(partition.q_plus),
+        n_q_minus=len(partition.q_minus),
+        n_q_tie=partition.n_q_tie,
+        path=str(path),
+    )
     artifacts = {
         f"partition_{regime}": str(path),
         "partition": str(path),

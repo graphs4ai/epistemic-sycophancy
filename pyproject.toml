@@ -32,6 +32,7 @@ run-holdout = "python -m epistemic_sycophancy.runner.cli holdout_eval --freeze-s
 [tool.pixi.dependencies]
 python = "3.10.*"
 matplotlib = ">=3.10.9,<4"
+tqdm = ">=4.70.0,<5"
 
 [tool.pixi.feature.cpu]
 platforms = ["linux-64"]

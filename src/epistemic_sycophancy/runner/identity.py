@@ -10,6 +10,7 @@ from typing import Any
 
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.stack.config import ExperimentStackConfig
 from epistemic_sycophancy.stack.intervention_stack import InterventionStack, load_stack
 
@@ -116,6 +117,14 @@ def run_identity_stage(
     artifact_path.write_text(
         __import__("json").dumps(payload, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
+    )
+    log_progress(
+        "identity_check",
+        identity_passed=identity_passed,
+        max_abs_diff=max_abs_diff,
+        n_prompts=len(texts),
+        layers=list(layers),
+        path=str(artifact_path),
     )
     return {
         "identity_passed": identity_passed,

@@ -409,6 +409,31 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | ORDER-EXP-002 | `test_cross_order_assemble__three_sealed_studies__nine_cells_distinct_betas` | green | `ImportError` / missing module before write | `pixi run --environment test pytest tests/unit/test_cross_order_assemble.py -q` → `2 passed` | `runner/cross_order_assemble.py`, campaign YAML | DEC-088; three distinct βs |
 | ORDER-EXP gate | unit + integration suites | green | n/a | `pixi run --environment test pytest tests/unit -q` → `260 passed`; `tests/integration -q` → `24 passed` | docs/decisions.md DEC-087/088; phase_m_ship_gate.md | DEC-075 superseded |
 
+## ORCH-LOG — Operational pipeline logging (DEC-089)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-LOG-001 | `test_pipeline_logging__configure__…` + `test_cli__arg_parser__exposes_log_level_flag` | green | `ModuleNotFoundError: …pipeline` / unrecognized `--log-level` | `pixi run --environment test pytest tests/unit/test_pipeline_logging.py -q` → `7 passed` | `logging/pipeline.py`, `logging/__init__.py`, `runner/cli.py` | stderr handler; default INFO |
+| ORCH-LOG-002 | `test_cli__run_cli__emits_stage_start_and_end_with_elapsed` | green | (implemented with CLI wire; covered in suite) | same suite → passed | `runner/cli.py` | start/end + `elapsed_s` |
+| ORCH-LOG-003 | `test_optimize__progress__logs_each_step_with_l_total` | green | `assert 0 == 2` (no progress lines) | same → passed | `runner/optimize.py` | Adam + CMA-ES `optimize_step` |
+| ORCH-LOG-004 | `test_fs_dispatch__progress__logs_component_and_skips` | green | no `fs_component` / skip lines | same → passed | `runner/fs_dispatch.py` | component + skip + pool_done |
+| ORCH-LOG-005 | `test_freeze_and_holdout__audit__emit_warning_events` | green | no `audit=freeze_sealed` / `holdout_unsealed` | same → passed | `runner/freeze_stage.py`, `runner/holdout_eval.py` | WARNING audit |
+| ORCH-LOG-006 | `test_baseline__progress__logs_partition_counts` | green | no `baseline_partition` progress | same → passed | `runner/baseline.py` | Q+/Q− counts |
+| DEC-089 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md`, identity/opt_smoke/full_study/cross_order progress wires | Distinct from TrialRecord artifacts |
+
+**ORCH-LOG gate:** ORCH-LOG-001…006 green. CLI `--log-level`; stage boundaries; optimize/FS progress; freeze/holdout audit.
+
+## OPT-BATCH — Optimize prompt_batch_size (DEC-090)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| GRAD-012 | `test_margin_batch__prompt_microbatches__match_full_batch_grads_and_latents` | green | `pixi run --environment test pytest tests/unit/test_margin_batch_prompt_microbatch.py::test_margin_batch__prompt_microbatches__match_full_batch_grads_and_latents -q` → `TypeError: … unexpected keyword argument 'prompt_batch_size'` | same → `1 passed` | `runner/adapters/margin_batch.py`, `runner/adapters/margin_jacobian.py`, `docs/decisions.md` | DEC-090; float32 latent tol `1e-5` |
+| ADAPT-010 | `test_belief_scorer__prompt_microbatches__match_full_batch_margins` | green | `pixi run --environment test pytest tests/unit/test_belief_scorer_prompt_microbatch.py::test_belief_scorer__prompt_microbatches__match_full_batch_margins -q` → `assert 3 <= 1` (unbatched) | same → `1 passed` | `runner/adapters/belief_scorer.py` | per-chunk hooks; max batch ≤ `prompt_batch_size` |
+| DEC-090 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Optimize scorers honor `prompt_batch_size` |
+| ORCH-LOG-007 | `test_optimize__cma_trials__tqdm_bar_updates_each_iteration` | green | `AttributeError: … does not have the attribute 'tqdm'` | `pixi run --environment test pytest tests/unit/test_optimize_tqdm.py -q` → passed | `runner/optimize.py` | CMA trial-level bar |
+| ORCH-LOG-007b | `test_optimize__adam_steps__per_step_bar_advances_on_prompt_batches` (+ margin_batch) | superseded | — | replaced by ORCH-LOG-007c fixed-total bars | — | dynamic `register_prompt_batches` caused % shrink |
+| ORCH-LOG-007c | `test_count_adam_step_prompt_microbatches__…` + fixed-total Adam bar tests | green | `ImportError: count_adam_step_prompt_microbatches` | `pixi run --environment test pytest tests/unit/test_adam_step_batch_total.py tests/unit/test_optimize_tqdm.py -q` → passed | `runner/progress.py`, `runner/optimize.py`, `runner/cli.py` | Fixed `5 bN+3 bIB+5 bCB`; adapters tick only |
+
 ## ORCH-PLOT — Loss-over-trials curve (DEC-091)
 
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |

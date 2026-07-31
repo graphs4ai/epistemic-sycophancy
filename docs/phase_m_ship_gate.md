@@ -112,3 +112,13 @@ Cross-study assemble root (e.g. `artifacts/smokes/layer17_n2_cross_order/`):
 - Production ASAP path builds adapters from `StudyConfig` + `InterventionStack`
   when injectors are `None`.
 - Real Gemma + GemmaScope2 requires `pixi run --environment test-cuda …`.
+
+## Operational logging (DEC-089)
+
+Stderr logger `epistemic_sycophancy.pipeline`. CLI `--log-level` (default INFO).
+
+- Every stage: start + end with `elapsed_s` and artifact paths.
+- Optimize: per-step/trial `progress=optimize_step` with `l_total`.
+- Feature selection: per-component start, skip of empty components, pool size.
+- Freeze seal / holdout unseal: WARNING `audit=…` (leakage-sensitive).
+- Distinct from DEC-026/035 `trials.jsonl` / `TrialRecord` artifact schemas.

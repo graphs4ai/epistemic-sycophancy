@@ -15,6 +15,7 @@ from epistemic_sycophancy.config.frozen import (
 )
 from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
+from epistemic_sycophancy.logging.pipeline import log_audit
 from epistemic_sycophancy.reproducibility.holdout import load_holdout_rows
 
 
@@ -82,14 +83,22 @@ def run_holdout_eval_dispatch(
     out_dir = Path(study.run.artifact_dir) / "holdout"
     out_dir.mkdir(parents=True, exist_ok=True)
     rows_path = out_dir / "holdout_rows.json"
+    row_list = list(rows)
     rows_path.write_text(
-        json.dumps(list(rows), sort_keys=True, indent=2, default=str) + "\n",
+        json.dumps(row_list, sort_keys=True, indent=2, default=str) + "\n",
         encoding="utf-8",
+    )
+    log_audit(
+        "holdout_unsealed",
+        freeze_status="sealed",
+        holdout_started=True,
+        n_holdout_rows=len(row_list),
+        path=str(rows_path),
     )
     return {
         "metrics": {
             "holdout_started": True,
-            "n_holdout_rows": len(list(rows)),
+            "n_holdout_rows": len(row_list),
         },
         "artifacts": {"holdout": str(rows_path)},
     }

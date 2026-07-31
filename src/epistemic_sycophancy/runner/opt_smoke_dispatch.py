@@ -10,6 +10,7 @@ from typing import Any
 
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.runner.opt_smoke import run_opt_smoke, run_opt_smoke_adam_step
 
 
@@ -96,6 +97,12 @@ def run_opt_smoke_dispatch(
         "study_yaml_fingerprint": fingerprint,
     }
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    log_progress(
+        "opt_smoke",
+        l_total=l_total,
+        n_questions=len(qids),
+        path=str(path),
+    )
     return {
         "metrics": {
             "l_total": l_total,

@@ -7,6 +7,7 @@ from typing import Any
 
 import torch
 
+from epistemic_sycophancy.runner.progress import tick_prompt_batch
 from epistemic_sycophancy.sae.jumprelu_delta import jumprelu
 from epistemic_sycophancy.stack.resolver import resolve_resid_post_module
 
@@ -20,17 +21,70 @@ def compute_margin_projection_batch(
     continuation_token_ids_A: Sequence[int],
     continuation_token_ids_B: Sequence[int],
     truthful_labels: Sequence[str],
+    prompt_batch_size: int | None = None,
 ) -> dict[str, Any]:
     """Return ∂M/∂x residual grads + JumpReLU latents at last prompt token.
 
     Unlike FS projection (∂φ/∂x), this backprops the semantic margin M so
     ``coefficient_jacobian`` yields ∂M/∂β (DEC-084).
+
+    ``prompt_batch_size`` microbatches the forward/backward to bound VRAM
+    (DEC-090; parity with FS DEC-085 / DEC-022). ``None`` → one full batch.
     """
     if len(texts) != len(question_ids) or len(texts) != len(truthful_labels):
         raise ValueError("texts, question_ids, and truthful_labels must align")
     if len(continuation_token_ids_A) != 1 or len(continuation_token_ids_B) != 1:
         raise ValueError("single-token A/B continuations required")
 
+    n = len(texts)
+    chunk = int(prompt_batch_size) if prompt_batch_size is not None else n
+    if chunk <= 0:
+        raise ValueError(f"prompt_batch_size must be positive; got {prompt_batch_size!r}")
+
+    all_grads: list[torch.Tensor] = []
+    all_latents: list[torch.Tensor] = []
+    decoder_f64: torch.Tensor | None = None
+    feature_scales: torch.Tensor | None = None
+    for start in range(0, n, chunk):
+        end = min(start + chunk, n)
+        micro = _margin_projection_microbatch(
+            stack,
+            layer=layer,
+            texts=texts[start:end],
+            question_ids=question_ids[start:end],
+            continuation_token_ids_A=continuation_token_ids_A,
+            continuation_token_ids_B=continuation_token_ids_B,
+            truthful_labels=truthful_labels[start:end],
+        )
+        all_grads.append(micro["residual_gradients"])
+        all_latents.append(micro["latents"])
+        if decoder_f64 is None:
+            decoder_f64 = micro["decoder"]
+            feature_scales = micro["feature_scales"]
+        tick_prompt_batch()
+
+    assert decoder_f64 is not None and feature_scales is not None
+    return {
+        "layer": layer,
+        "residual_gradients": torch.cat(all_grads, dim=0),
+        "latents": torch.cat(all_latents, dim=0),
+        "decoder": decoder_f64,
+        "feature_scales": feature_scales,
+        "question_ids": [str(q) for q in question_ids],
+    }
+
+
+def _margin_projection_microbatch(
+    stack: Any,
+    *,
+    layer: int,
+    texts: Sequence[str],
+    question_ids: Sequence[str],
+    continuation_token_ids_A: Sequence[int],
+    continuation_token_ids_B: Sequence[int],
+    truthful_labels: Sequence[str],
+) -> dict[str, Any]:
+    """One microbatch forward/backward for ∂M/∂x + JumpReLU latents."""
     device = stack.device
     tokenizer = stack.tokenizer
     model = stack.model
@@ -114,8 +168,11 @@ def compute_margin_projection_batch(
     decoder_f64 = decoder.to(dtype=torch.float64)
     feature_scales = torch.linalg.vector_norm(decoder_f64, dim=1)
 
+    del residual, grads, outputs, logits, encoded
+    if getattr(device, "type", None) == "cuda":
+        torch.cuda.empty_cache()
+
     return {
-        "layer": layer,
         "residual_gradients": residual_gradients.to(dtype=torch.float64),
         "latents": latents.to(dtype=torch.float64),
         "decoder": decoder_f64,

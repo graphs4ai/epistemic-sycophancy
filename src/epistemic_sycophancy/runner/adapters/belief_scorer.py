@@ -6,8 +6,11 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+import torch
+
 from epistemic_sycophancy.config.study import StudyConfig, StudySmokeConfig
 from epistemic_sycophancy.prompts.render import render_mc0_subset
+from epistemic_sycophancy.runner.progress import tick_prompt_batch
 from epistemic_sycophancy.stack.scoring import score_batch_through_hooks
 
 
@@ -22,7 +25,7 @@ def build_belief_margin_scorer(
     """Return ``score_belief_margins(belief_condition=, question_ids=, beta=)``.
 
     Live stack scoring (DEC-076): β=0 is unhooked; nonzero β installs hooks with
-    per-batch ``prompt_lengths``.
+    per-microbatch ``prompt_lengths`` (DEC-090).
     """
     tok = stack.tokenizer
     token_a = list(tok.encode(study.experiment.continuation_A, add_special_tokens=False))
@@ -39,6 +42,11 @@ def build_belief_margin_scorer(
         for f in study.experiment.feature_ids
     )
     scales = tuple(float(s) for s in study.experiment.feature_scales)
+    prompt_batch_size = int(study.run.prompt_batch_size)
+    if prompt_batch_size < 1:
+        raise ValueError(
+            f"run.prompt_batch_size must be positive; got {prompt_batch_size!r}"
+        )
 
     def score_belief_margins(
         *,
@@ -70,37 +78,51 @@ def build_belief_margin_scorer(
             rows = list(rendered)
 
         beta_t = tuple(float(b) for b in beta)
-        hooks_cm = None
-        if feature_ids and any(abs(b) > 0.0 for b in beta_t):
-            encoded = tok(
-                [row.text for row in rows],
-                return_tensors="pt",
-                padding=True,
-            )
-            if "attention_mask" in encoded:
-                lengths = tuple(
-                    int(x) for x in encoded["attention_mask"].sum(dim=-1).tolist()
-                )
-            else:
-                lengths = tuple(int(encoded["input_ids"].shape[1]) for _ in rows)
-            hooks_cm = stack.install_hooks(
-                selected_keys=feature_ids,
-                scales=scales,
-                beta=beta_t,
-                prompt_lengths=lengths,
-            )
+        use_hooks = bool(feature_ids and any(abs(b) > 0.0 for b in beta_t))
 
-        batch = score_batch_through_hooks(
-            model=stack.model,
-            tokenizer=stack.tokenizer,
-            prompts=[row.text for row in rows],
-            continuation_token_ids_A=token_a,
-            continuation_token_ids_B=token_b,
-            truthful_labels=tuple(row.truthful_label for row in rows),
-            device=stack.device,
-            install_hooks_cm=hooks_cm,
-        )
-        margins = tuple(float(m) for m in batch.margins)
+        margins: list[float] = []
+        n = len(rows)
+        for start in range(0, n, prompt_batch_size):
+            end = min(start + prompt_batch_size, n)
+            slice_rows = rows[start:end]
+            hooks_cm = None
+            if use_hooks:
+                encoded = tok(
+                    [row.text for row in slice_rows],
+                    return_tensors="pt",
+                    padding=True,
+                )
+                if "attention_mask" in encoded:
+                    lengths = tuple(
+                        int(x) for x in encoded["attention_mask"].sum(dim=-1).tolist()
+                    )
+                else:
+                    lengths = tuple(
+                        int(encoded["input_ids"].shape[1]) for _ in slice_rows
+                    )
+                hooks_cm = stack.install_hooks(
+                    selected_keys=feature_ids,
+                    scales=scales,
+                    beta=beta_t,
+                    prompt_lengths=lengths,
+                )
+
+            batch = score_batch_through_hooks(
+                model=stack.model,
+                tokenizer=stack.tokenizer,
+                prompts=[row.text for row in slice_rows],
+                continuation_token_ids_A=token_a,
+                continuation_token_ids_B=token_b,
+                truthful_labels=tuple(row.truthful_label for row in slice_rows),
+                device=stack.device,
+                install_hooks_cm=hooks_cm,
+            )
+            margins.extend(float(m) for m in batch.margins)
+            del batch
+            tick_prompt_batch()
+            if getattr(stack.device, "type", None) == "cuda":
+                torch.cuda.empty_cache()
+
         if belief_condition == "N":
             return {
                 row.question_id: margin

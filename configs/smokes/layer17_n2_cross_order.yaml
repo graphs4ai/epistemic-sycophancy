@@ -1,0 +1,7 @@
+# Cross-order assemble campaign (DEC-087): three sealed single-order studies.
+# Not a StudyConfig — consumed by run_cross_order_assemble.
+artifact_dir: artifacts/smokes/layer17_n2_cross_order
+sources:
+  CF: artifacts/smokes/layer17_n2_CF
+  IF: artifacts/smokes/layer17_n2_IF
+  RO: artifacts/smokes/layer17_n2_RO

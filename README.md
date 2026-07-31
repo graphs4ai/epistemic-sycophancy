@@ -19,6 +19,7 @@ identity → baseline_partitions → feature_selection → opt_smoke
 
 ```bash
 CFG=configs/smokes/layer17_n2_CF.yaml
+# alias: configs/smokes/layer17_n2.yaml (= CF)
 
 pixi run --environment test-cuda run-identity -- --config "$CFG"
 pixi run --environment test-cuda run-baseline -- --config "$CFG"
@@ -30,6 +31,10 @@ pixi run --environment test-cuda run-study -- --config "$CFG"      # sealed; no 
 # holdout only after freeze + explicit unlock (DEC-071):
 # pixi run --environment test-cuda run-holdout -- --config "$CFG" --freeze-status sealed
 ```
+
+Operational logs go to **stderr** (DEC-089): stage start/end with `elapsed_s`,
+optimize/FS progress, and WARNING audits for freeze seal / holdout unseal.
+Optional `--log-level DEBUG|INFO|WARNING|ERROR` (default `INFO`).
 
 See [`docs/phase_m_ship_gate.md`](docs/phase_m_ship_gate.md) for adapter defaults,
 single-order artifact layout, cross-order assemble, and ORCH-034…038 real_model

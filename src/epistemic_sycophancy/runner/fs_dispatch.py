@@ -11,6 +11,7 @@ from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig, study_order_regime
 from epistemic_sycophancy.feature_selection.components import COMPONENT_CONDITION
 from epistemic_sycophancy.feature_selection.pool import build_common_feature_pool
+from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.metrics.exceptions import DegenerateBaselineError
 from epistemic_sycophancy.runner.feature_selection import (
     run_feature_selection_stage_computed,
@@ -48,6 +49,12 @@ def run_feature_selection_dispatch(
     lists: dict[tuple[str, str], dict[tuple[int, int], float]] = {}
     component_skips: dict[tuple[str, str], dict[str, object]] = {}
     for component in _COMPONENTS:
+        log_progress(
+            "fs_component",
+            order_regime=order,
+            component=component,
+            n_questions=len(qids),
+        )
         stage = run_feature_selection_stage_computed(
             order_regime=order,
             split_name="feature_selection",
@@ -71,6 +78,20 @@ def run_feature_selection_dispatch(
             "skipped": skipped,
             "n_prompts": 0 if skipped else len(signed),
         }
+        if skipped:
+            log_progress(
+                "fs_component_skip",
+                order_regime=order,
+                component=component,
+                n_prompts=0,
+            )
+        else:
+            log_progress(
+                "fs_component_done",
+                order_regime=order,
+                component=component,
+                n_signed=len(signed),
+            )
     # DEC-085: both behavior lists empty for the study order → hard fail.
     res_empty = len(lists[(order, "resistance")]) == 0
     rec_empty = len(lists[(order, "recovery")]) == 0
@@ -135,6 +156,12 @@ def run_feature_selection_dispatch(
         "provenance": provenance,
     }
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    log_progress(
+        "fs_pool_done",
+        order_regime=order,
+        pool_size=len(pool.feature_ids),
+        path=str(path),
+    )
     return {
         "pool": pool,
         "component_jacobians": lists,

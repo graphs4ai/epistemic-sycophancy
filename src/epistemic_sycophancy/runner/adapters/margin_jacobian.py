@@ -256,6 +256,7 @@ def _make_production_margin_batch_fn(
             continuation_token_ids_A=token_a,
             continuation_token_ids_B=token_b,
             truthful_labels=[r.truthful_label for r in rows],
+            prompt_batch_size=int(study.run.prompt_batch_size),
         )
 
     return margin_projection_batch

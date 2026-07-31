@@ -9,6 +9,7 @@ from typing import Any
 
 from epistemic_sycophancy.config.study import StudyConfig, study_order_regime
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
+from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.metrics.baseline_partition import (
     build_baseline_partition,
     freeze_baseline_partition_artifact,
@@ -89,6 +90,14 @@ def run_full_study_dispatch(
     behavioral_path.write_text(
         json.dumps(behavioral_payload, sort_keys=True, indent=2) + "\n",
         encoding="utf-8",
+    )
+    log_progress(
+        "full_study_behavioral",
+        order_regime=order,
+        ftw=metrics.ftw,
+        cbr=metrics.cbr,
+        selectivity=metrics.selectivity,
+        path=str(behavioral_path),
     )
     return {
         "metrics": {

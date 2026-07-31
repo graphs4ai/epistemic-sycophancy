@@ -554,6 +554,7 @@ def dispatch_stage(
                 split_question_ids=split_ids,
             )
 
+        live_belief_scorer = False
         if objective_fn is None or (
             grad_fn is None and study.run.optimizer.kind == "projected_adam"
         ):
@@ -580,6 +581,7 @@ def dispatch_stage(
                     split_question_ids=split_ids_for_scorer,
                     order_regime=_ord(study),
                 )
+                live_belief_scorer = True
             from epistemic_sycophancy.config.study import study_order_regime
 
             order = study_order_regime(study)
@@ -717,6 +719,29 @@ def dispatch_stage(
                     margin_jacobian_fn=margin_jacobian_fn,
                 )
 
+        # Fixed Adam-step total only when live belief_scorer ticks prompt batches.
+        adam_step_batch_total: int | None = None
+        if study.run.optimizer.kind == "projected_adam" and live_belief_scorer:
+            from epistemic_sycophancy.config.study import study_order_regime as _ord_pb
+            from epistemic_sycophancy.runner.progress import (
+                count_adam_step_prompt_microbatches,
+            )
+
+            corpus_for_pb, split_ids_for_pb, _smoke_pb = resolve_corpus_context(
+                study,
+                corpus_jsonl_paths=corpus_jsonl_paths,
+                split_manifest_path=split_manifest_path,
+                corpus_root=corpus_root,
+            )
+            del _smoke_pb
+            adam_step_batch_total = count_adam_step_prompt_microbatches(
+                corpus=corpus_for_pb,
+                split_question_ids=split_ids_for_pb,
+                question_ids=opt_qids,
+                order_regime=_ord_pb(study),
+                prompt_batch_size=int(study_for_opt.run.prompt_batch_size),
+            )
+
         opt_result = run_optimize_dispatch(
             study=study_for_opt,
             freeze_status=freeze_status,
@@ -725,6 +750,7 @@ def dispatch_stage(
             objective_fn=objective_fn,
             grad_fn=grad_fn,
             beta_init=beta,
+            adam_step_batch_total=adam_step_batch_total,
         )
         metrics = dict(opt_result["metrics"])
         artifacts = dict(opt_result["artifacts"])
@@ -817,6 +843,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="unsealed",
         help="FrozenExperimentConfig status (sealed required for full_study)",
     )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"),
+        help="Operational pipeline log level on stderr (DEC-089; default INFO)",
+    )
     return parser
 
 
@@ -827,18 +859,38 @@ def run_cli(
     **dispatch_kwargs: Any,
 ) -> int:
     """Testable CLI entry: load StudyConfig and dispatch with optional injections."""
+    from epistemic_sycophancy.config.load_study import study_config_fingerprint
+    from epistemic_sycophancy.logging.pipeline import (
+        configure_pipeline_logging,
+        log_stage_end,
+        log_stage_start,
+    )
+
     args = build_arg_parser().parse_args(argv)
+    configure_pipeline_logging(level=args.log_level)
     if args.config is None:
         raise SystemExit(
             "error: --config PATH is required for real stage dispatch (WIRE-011)"
         )
     study = load_study_config(Path(args.config))
+    started = log_stage_start(
+        args.stage,
+        study_fp=study_config_fingerprint(study),
+        extra={"artifact_dir": study.run.artifact_dir},
+    )
     result = dispatch_stage(
         args.stage,
         study=study,
         freeze_status=args.freeze_status,
         stack_loader=stack_loader,
         **dispatch_kwargs,
+    )
+    log_stage_end(
+        args.stage,
+        ok=result.ok,
+        message=result.message,
+        started_at=started,
+        artifacts=result.artifacts,
     )
     print(result.message)
     return 0 if result.ok else 1

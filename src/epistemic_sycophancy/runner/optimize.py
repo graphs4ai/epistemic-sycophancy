@@ -7,12 +7,17 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
+
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.logging.loss_curve import plot_loss_over_trials
+from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.optimization.checkpoint import dump_checkpoint
 from epistemic_sycophancy.optimization.projected_adam import ProjectedAdam
 from epistemic_sycophancy.reproducibility.phase_gates import require_identity_gate
+from epistemic_sycophancy.runner.progress import adam_step_batch_progress
 
 
 def resolve_optimize_question_ids(
@@ -40,8 +45,13 @@ def run_optimize_dispatch(
     objective_fn: Callable[[Sequence[float], Sequence[str]], float],
     grad_fn: Callable[[Sequence[float], Sequence[str]], Sequence[float]] | None = None,
     beta_init: Sequence[float] | None = None,
+    adam_step_batch_total: int | None = None,
 ) -> dict[str, Any]:
-    """Run non-smoke optimize using ``run.optimize`` budgets (never smoke max_steps)."""
+    """Run non-smoke optimize using ``run.optimize`` budgets (never smoke max_steps).
+
+    ``adam_step_batch_total`` is the fixed prompt-microbatch count per Adam step
+    (DEC-092); when omitted for projected Adam, each step bar uses total 0.
+    """
     del freeze_status
     require_identity_gate(identity_passed=identity_passed)
     eligible = resolve_optimize_question_ids(
@@ -90,41 +100,64 @@ def run_optimize_dispatch(
             beta_lower=float(exp.beta_lower),
             beta_upper=float(exp.beta_upper),
         )
-        for step in range(int(optimize.max_steps)):
-            current = tuple(float(x) for x in beta_param.detach().tolist())
-            grad = grad_fn(current, eligible)
-            adam.zero_grad()
-            beta_param.grad = torch.tensor(list(grad), dtype=torch.float64)
-            adam.step()
-            updated = tuple(float(x) for x in beta_param.detach().tolist())
-            for b in updated:
-                if not (exp.beta_lower <= b <= exp.beta_upper):
-                    raise ValueError(f"β out of bounds after step: {updated}")
-            # DEC-084 / GRAD-006: log loss at the logged (post-step) β.
-            loss = float(objective_fn(updated, eligible))
-            trials.append(
-                {
-                    "trial_index": step,
-                    "optimizer_kind": kind,
-                    "beta": list(updated),
-                    "l_total": loss,
-                    "question_ids": list(eligible),
-                }
-            )
-            if loss < best_loss:
-                best_loss = loss
-                best_beta = list(updated)
-            ckpt = dump_checkpoint(
-                optimizer_kind=kind,
-                beta=list(updated),
-                optimizer_state={"step": step},
-                config_hash=study_config_fingerprint(study),
-                objective_version="v1",
-                ro_manifest_hash="orch-fixed-ro",
-            )
-            (ckpt_dir / f"step_{step:04d}.json").write_text(
-                json.dumps(ckpt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
-            )
+        n_steps = int(optimize.max_steps)
+        step_batch_total = (
+            int(adam_step_batch_total) if adam_step_batch_total is not None else 0
+        )
+        with logging_redirect_tqdm():
+            for step in range(n_steps):
+                with adam_step_batch_progress(
+                    step=step,
+                    n_steps=n_steps,
+                    total=step_batch_total,
+                ) as step_bar:
+                    current = tuple(float(x) for x in beta_param.detach().tolist())
+                    grad = grad_fn(current, eligible)
+                    adam.zero_grad()
+                    beta_param.grad = torch.tensor(list(grad), dtype=torch.float64)
+                    adam.step()
+                    updated = tuple(float(x) for x in beta_param.detach().tolist())
+                    for b in updated:
+                        if not (exp.beta_lower <= b <= exp.beta_upper):
+                            raise ValueError(f"β out of bounds after step: {updated}")
+                    # DEC-084 / GRAD-006: log loss at the logged (post-step) β.
+                    loss = float(objective_fn(updated, eligible))
+                    trials.append(
+                        {
+                            "trial_index": step,
+                            "optimizer_kind": kind,
+                            "beta": list(updated),
+                            "l_total": loss,
+                            "question_ids": list(eligible),
+                        }
+                    )
+                    best_so_far = min(best_loss, loss)
+                    step_bar.set_postfix(
+                        l_total=f"{loss:.4g}", best_l_total=f"{best_so_far:.4g}"
+                    )
+                    log_progress(
+                        "optimize_step",
+                        trial_index=step,
+                        optimizer_kind=kind,
+                        l_total=loss,
+                        best_l_total=best_so_far,
+                        n_steps=n_steps,
+                    )
+                    if loss < best_loss:
+                        best_loss = loss
+                        best_beta = list(updated)
+                    ckpt = dump_checkpoint(
+                        optimizer_kind=kind,
+                        beta=list(updated),
+                        optimizer_state={"step": step},
+                        config_hash=study_config_fingerprint(study),
+                        objective_version="v1",
+                        ro_manifest_hash="orch-fixed-ro",
+                    )
+                    (ckpt_dir / f"step_{step:04d}.json").write_text(
+                        json.dumps(ckpt, sort_keys=True, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
     elif kind == "cmaes":
         from epistemic_sycophancy.optimization.cmaes import CMAESOptimizer
 
@@ -133,6 +166,8 @@ def run_optimize_dispatch(
         cma_seed = study.run.optimizer.cma_seed
         if cma_seed is None:
             raise ValueError("cmaes requires run.optimizer.cma_seed")
+        from epistemic_sycophancy.prompts.ordering import build_ro_manifest
+
         opt = CMAESOptimizer(
             x0=beta0,
             sigma0=0.5,
@@ -140,42 +175,65 @@ def run_optimize_dispatch(
             beta_lower=float(exp.beta_lower),
             beta_upper=float(exp.beta_upper),
             eligible_question_ids=eligible,
-            ro_manifest={"order": "RO", "seed": 0},
+            ro_manifest=build_ro_manifest(
+                ro_seed=0,
+                question_ids=list(eligible),
+            ),
         )
         # Approximate population via ask size; run n_trials generations.
-        for trial in range(int(optimize.n_trials)):
-            candidates = opt.ask()[: int(optimize.population_size)]
-            values = [
-                opt.evaluate_candidate(cand, evaluate_on_questions=objective_fn)
-                for cand in candidates
-            ]
-            opt.tell(candidates, values)
-            best_idx = min(range(len(values)), key=lambda i: values[i])
-            cand = list(map(float, candidates[best_idx]))
-            loss = float(values[best_idx])
-            trials.append(
-                {
-                    "trial_index": trial,
-                    "optimizer_kind": kind,
-                    "beta": cand,
-                    "l_total": loss,
-                    "question_ids": list(eligible),
-                }
+        n_trials = int(optimize.n_trials)
+        with logging_redirect_tqdm():
+            trial_bar = tqdm(
+                range(n_trials),
+                total=n_trials,
+                desc="optimize",
+                unit="trial",
             )
-            if loss < best_loss:
-                best_loss = loss
-                best_beta = cand
-            ckpt = dump_checkpoint(
-                optimizer_kind=kind,
-                beta=cand,
-                optimizer_state={"trial": trial},
-                config_hash=study_config_fingerprint(study),
-                objective_version="v1",
-                ro_manifest_hash=opt.ro_manifest_hash,
-            )
-            (ckpt_dir / f"trial_{trial:04d}.json").write_text(
-                json.dumps(ckpt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
-            )
+            for trial in trial_bar:
+                candidates = opt.ask()[: int(optimize.population_size)]
+                values = [
+                    opt.evaluate_candidate(cand, evaluate_on_questions=objective_fn)
+                    for cand in candidates
+                ]
+                opt.tell(candidates, values)
+                best_idx = min(range(len(values)), key=lambda i: values[i])
+                cand = list(map(float, candidates[best_idx]))
+                loss = float(values[best_idx])
+                trials.append(
+                    {
+                        "trial_index": trial,
+                        "optimizer_kind": kind,
+                        "beta": cand,
+                        "l_total": loss,
+                        "question_ids": list(eligible),
+                    }
+                )
+                best_so_far = min(best_loss, loss)
+                trial_bar.set_postfix(
+                    l_total=f"{loss:.4g}", best_l_total=f"{best_so_far:.4g}"
+                )
+                log_progress(
+                    "optimize_step",
+                    trial_index=trial,
+                    optimizer_kind=kind,
+                    l_total=loss,
+                    best_l_total=best_so_far,
+                    n_trials=n_trials,
+                )
+                if loss < best_loss:
+                    best_loss = loss
+                    best_beta = cand
+                ckpt = dump_checkpoint(
+                    optimizer_kind=kind,
+                    beta=cand,
+                    optimizer_state={"trial": trial},
+                    config_hash=study_config_fingerprint(study),
+                    objective_version="v1",
+                    ro_manifest_hash=opt.ro_manifest_hash,
+                )
+                (ckpt_dir / f"trial_{trial:04d}.json").write_text(
+                    json.dumps(ckpt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+                )
     else:
         raise ValueError(f"unsupported optimizer kind {kind!r}")
 
