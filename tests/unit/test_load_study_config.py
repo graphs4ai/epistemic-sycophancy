@@ -62,7 +62,7 @@ experiment:
   pool_quota_per_list: 8
 run:
   artifact_dir: artifacts/first_study
-  order_regimes: [CF, IF, RO]
+  order_regime: CF
   feature_chunk_size: 1024
   prompt_batch_size: 1
   smoke:
@@ -82,6 +82,23 @@ run:
     max_steps: 20
     n_questions: 4
 """
+
+
+@pytest.mark.unit
+def test_load_study_config__order_regimes_list__raises_invalid_config(
+    tmp_path: Path,
+) -> None:
+    """ORDER-EXP-001: legacy run.order_regimes list is rejected (DEC-087)."""
+    from epistemic_sycophancy.config.schema import InvalidExperimentConfig
+
+    yaml_text = _MINIMAL_STUDY_YAML.replace(
+        "  order_regime: CF\n",
+        "  order_regimes: [CF, IF, RO]\n",
+    )
+    path = tmp_path / "multi.yaml"
+    path.write_text(yaml_text, encoding="utf-8")
+    with pytest.raises(InvalidExperimentConfig, match="order_regimes"):
+        load_study_config(path)
 
 
 @pytest.mark.unit

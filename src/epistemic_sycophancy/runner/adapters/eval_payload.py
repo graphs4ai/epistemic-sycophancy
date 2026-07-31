@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.config.study import StudyConfig, study_order_regime
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 
 
@@ -83,12 +83,13 @@ def build_eval_payload(
                 out[qid] = (float(value),)
         return out
 
-    current_n = _score_scalar("N", order="CF", beta_vec=beta)
-    current_ib = _score_seq("IB", order="CF", beta_vec=beta)
-    current_cb = _score_seq("CB", order="CF", beta_vec=beta)
-    baselines: dict[str, dict[str, float]] = {}
-    for order in study.run.order_regimes:
-        baselines[str(order)] = _score_scalar("N", order=str(order), beta_vec=zero)
+    order = study_order_regime(study)
+    current_n = _score_scalar("N", order=order, beta_vec=beta)
+    current_ib = _score_seq("IB", order=order, beta_vec=beta)
+    current_cb = _score_seq("CB", order=order, beta_vec=beta)
+    baselines: dict[str, dict[str, float]] = {
+        order: _score_scalar("N", order=order, beta_vec=zero),
+    }
 
     return {
         "current_neutral_margins": current_n,
@@ -96,4 +97,5 @@ def build_eval_payload(
         "current_cb_margins": current_cb,
         "baseline_neutral_margins_by_order": baselines,
         "validation_question_ids": list(val_ids),
+        "order_regime": order,
     }

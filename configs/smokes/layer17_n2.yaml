@@ -1,5 +1,6 @@
 # Phase L smoke preset: single layer + tiny N (DEC-059 / CFGFILE-005).
 # Complete StudyConfig schema — not a parallel format.
+# This smoke is for the CF order regime (DEC-087). Kept here just for retrocompatibility reasons.
 stack:
   model:
     hf_id: google/gemma-3-4b-it
@@ -44,8 +45,8 @@ experiment:
   pool_eligibility_override: false
   pool_quota_per_list: 8
 run:
-  artifact_dir: artifacts/smokes/layer17_n2
-  order_regimes: [CF, IF, RO]
+  artifact_dir: artifacts/smokes/layer17_n2_CF
+  order_regime: CF
   feature_chunk_size: 1024
   prompt_batch_size: 1
   smoke:

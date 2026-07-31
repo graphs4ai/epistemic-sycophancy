@@ -129,7 +129,7 @@ def test_real_model_or_unit__freeze_full_study_sealed__validation_metrics_withou
         ),
         run=StudyRunConfig(
             artifact_dir=str(tmp_path / "art"),
-            order_regimes=("CF", "IF", "RO"),
+            order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(question_ids=("q1",)),
@@ -184,4 +184,5 @@ def test_real_model_or_unit__freeze_full_study_sealed__validation_metrics_withou
     )
     assert result.ok is True
     assert Path(result.artifacts["behavioral"]).is_file()
-    assert Path(result.artifacts["cross_order_matrix"]).is_file()
+    assert "cross_order_matrix" not in result.artifacts
+    assert not (Path(study.run.artifact_dir) / "full_study" / "cross_order_matrix.json").exists()

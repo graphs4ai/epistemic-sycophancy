@@ -24,7 +24,9 @@ def build_margin_payload(
     scalars (N) or variant sequences (IB/CB) keyed by question_id. When None,
     requires ``stack.score_belief_margins`` (production / richer fakes).
     """
-    del study, order_regime
+    del study
+    # order_regime is applied by the closed-over margin_scorer (DEC-087).
+    del order_regime
     qids = tuple(str(q) for q in question_ids)
     scorer = margin_scorer
     if scorer is None:

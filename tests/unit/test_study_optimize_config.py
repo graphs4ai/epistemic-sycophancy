@@ -90,7 +90,7 @@ def test_study_config__run_optimize__requires_explicit_non_smoke_budgets_distinc
         # Missing optimize kwarg must fail construction (CFG-006).
         StudyRunConfig(  # type: ignore[call-arg]
             artifact_dir="artifacts/x",
-            order_regimes=("CF",),
+            order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
@@ -112,7 +112,7 @@ def test_study_config__run_optimize__requires_explicit_non_smoke_budgets_distinc
 
     run = StudyRunConfig(
         artifact_dir="artifacts/x",
-        order_regimes=("CF",),
+        order_regime="CF",
         feature_chunk_size=1024,
         prompt_batch_size=1,
         smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),

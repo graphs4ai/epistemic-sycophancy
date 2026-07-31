@@ -200,11 +200,14 @@ def _parse_run(raw: dict[str, Any]) -> StudyRunConfig:
     optimize_raw = _require_mapping(
         _require_key(raw, "optimize", label="run"), label="run.optimize"
     )
+    if "order_regimes" in raw:
+        raise InvalidExperimentConfig(
+            "run.order_regimes is no longer accepted; use singular "
+            "run.order_regime in {'CF', 'IF', 'RO'} (DEC-087 / ORDER-EXP-001)"
+        )
     return StudyRunConfig(
         artifact_dir=str(_require_key(raw, "artifact_dir", label="run")),
-        order_regimes=tuple(
-            str(r) for r in _require_key(raw, "order_regimes", label="run")
-        ),
+        order_regime=str(_require_key(raw, "order_regime", label="run")),
         feature_chunk_size=int(
             _require_key(raw, "feature_chunk_size", label="run")
         ),
@@ -311,7 +314,7 @@ def _fingerprint_payload(study: StudyConfig) -> dict[str, Any]:
         },
         "run": {
             "artifact_dir": study.run.artifact_dir,
-            "order_regimes": list(study.run.order_regimes),
+            "order_regime": study.run.order_regime,
             "feature_chunk_size": study.run.feature_chunk_size,
             "prompt_batch_size": study.run.prompt_batch_size,
             "smoke": {

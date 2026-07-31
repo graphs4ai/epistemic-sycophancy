@@ -72,7 +72,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
-            order_regimes=("CF", "IF", "RO"),
+            order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(question_ids=("q1", "q2")),
@@ -120,8 +120,9 @@ def test_dispatch__baseline_partitions__writes_fs_only_partition_artifact_holdou
 
     assert result.ok is True
     assert result.stage == "baseline_partitions"
-    # DEC-075: baseline loops all order_regimes (CF/IF/RO on this study).
-    assert scored == ["q1", "q2"] * 3
+    # DEC-087: baseline scores the single study order_regime only.
+    assert scored == ["q1", "q2"]
+    assert result.metrics.get("order_regime") == "CF"
     assert "study_fp=" not in result.message or "q_plus" in result.metrics
     assert result.metrics.get("n_q_plus", 0) >= 1
     assert result.metrics.get("n_q_minus", 0) >= 1

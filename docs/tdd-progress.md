@@ -399,6 +399,16 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 |---|---|---|---|---|---|---|
 | DEC-086 | `test_hooks__beta_zero__invokes_delta_fn_on_masked_tokens` | green | `pixi run --environment test pytest tests/unit/test_stack_hooks_nonzero.py::test_hooks__beta_zero__invokes_delta_fn_on_masked_tokens -q` → `assert 0 == 2` (`all_zero` bypass) | same → `1 passed`; `pixi run --environment test pytest tests/unit/test_sae_delta.py tests/unit/test_jumprelu_delta.py tests/integration/test_sae_identity.py tests/integration/test_sae_hooks.py tests/unit/test_orch_dispatch_identity.py tests/unit/test_stack_scoring.py tests/unit/test_stack_hooks_nonzero.py -q` → `19 passed` | `stack/hooks.py`, `sae/jumprelu_delta.py`, `intervention/sae_delta.py`, `docs/decisions.md`, `docs/fs_explainer.md` | Supersedes DEC-017/053 short-circuit; SAE path always runs; β=0 identity via Δx=0 |
 
+## ORDER-EXP — Single-order experiments (DEC-087 / DEC-088)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORDER-EXP-001 | `test_study_run_config__order_regime__must_be_single_cf_if_or_ro` | green | `pixi run --environment test pytest tests/unit/test_study_config.py::test_study_run_config__order_regime__must_be_single_cf_if_or_ro -q` → `ImportError: cannot import name 'study_order_regime'` | same → `1 passed`; `test_load_study_config__order_regimes_list__raises_invalid_config` → `1 passed` | `config/study.py`, `config/load_study.py`, YAML CF/IF/RO configs | Singular `order_regime`; reject `order_regimes` |
+| ORDER-EXP-001b | `test_dispatch__baseline_partitions__writes_fs_only_partition_artifact_holdout_sealed` | green | would score `* 3` under DEC-075 | `pixi run --environment test pytest tests/unit/test_orch_dispatch_baseline.py::test_dispatch__baseline_partitions__writes_fs_only_partition_artifact_holdout_sealed -q` → `1 passed` | `runner/baseline.py`, `runner/cli.py`, `runner/fs_dispatch.py` | Single-order baseline/FS; supersedes DEC-075 |
+| ORDER-EXP-001c | `test_dispatch__full_study_sealed__behavioral_no_holdout` | green | prior ORCH-014 required `cross_order_matrix` | same renamed test → `1 passed` | `runner/full_study.py`, `runner/adapters/eval_payload.py`, `runner/cli.py` | Amends DEC-069; no fake 3×3 |
+| ORDER-EXP-002 | `test_cross_order_assemble__three_sealed_studies__nine_cells_distinct_betas` | green | `ImportError` / missing module before write | `pixi run --environment test pytest tests/unit/test_cross_order_assemble.py -q` → `2 passed` | `runner/cross_order_assemble.py`, campaign YAML | DEC-088; three distinct βs |
+| ORDER-EXP gate | unit + integration suites | green | n/a | `pixi run --environment test pytest tests/unit -q` → `260 passed`; `tests/integration -q` → `24 passed` | docs/decisions.md DEC-087/088; phase_m_ship_gate.md | DEC-075 superseded |
+
 ## Status definitions
 
 - `not_started`: no test written.

@@ -127,7 +127,7 @@ def test_real_model__layer17_n2__fs_pool_active_on_ib_cb_and_optimize_moves_beta
     ).ok
     fs_result = dispatch_stage(
         "feature_selection",
-        study=replace(study, run=replace(study.run, order_regimes=("CF",))),
+        study=replace(study, run=replace(study.run, order_regime="CF")),
         freeze_status="unsealed",
         jacobian_fn=None,
         scale_fn=None,

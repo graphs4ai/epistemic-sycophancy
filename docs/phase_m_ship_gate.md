@@ -6,15 +6,26 @@ Phase **M.1** wires production adapters so bare CLI `--config` needs **no**
 `score_fn` / `jacobian_fn` / `objective_fn` / `eval_payload` injector kwargs
 (DEC-073…081). Unit tests may still inject fakes (DEC-065).
 
-## Recommended ASAP path (DEC-067 / DEC-079)
+**DEC-087:** each study is a **single** answer-order experiment
+(`run.order_regime: CF|IF|RO`). Run CF, IF, and RO as three separate sealed
+studies, then assemble the 3×3 matrix (DEC-088).
 
-1. Start with single-layer smoke: `configs/smokes/layer17_n2.yaml`
+## Recommended ASAP path (DEC-067 / DEC-079 / DEC-087)
+
+1. Start with single-layer smoke for **one** order, e.g.
+   `configs/smokes/layer17_n2_CF.yaml` (aliases: `layer17_n2.yaml` = CF)
+   - `run.order_regime: CF` (or IF / RO via sibling YAMLs)
    - `run.smoke`: `n_questions: 32`, `split: feature_selection`, `seed: 0`
-     (N=32 for non-degenerate baseline partitions on Gemma3-4B)
    - `run.optimizer.max_steps: 1` (opt_smoke only)
    - `run.optimize`: `max_steps: 20`, `n_questions: 4` (tiny non-smoke; DEC-068)
-2. After that path is green, scale to `configs/first_study_gemma3_4b_resid_post_65k_medium.yaml`
-   (4 layers; full optimization split when `run.optimize.n_questions` omitted).
+2. Repeat with `layer17_n2_IF.yaml` and `layer17_n2_RO.yaml` (distinct
+   `artifact_dir`s).
+3. Assemble cross-order matrix from the three sealed roots
+   (`configs/smokes/layer17_n2_cross_order.yaml` + `run_cross_order_assemble`).
+4. After that path is green, scale to
+   `configs/first_study_gemma3_4b_resid_post_65k_medium.yaml` (CF default)
+   and the IF/RO siblings
+   `configs/first_study_gemma3_4b_resid_post_65k_medium_{IF,RO}.yaml`.
 
 ## Commands (YAML-only; `test-cuda`)
 
@@ -22,7 +33,8 @@ No injector kwargs. Stack loads once per process (DEC-064/080). Pool after FS is
 applied in-memory from `feature_selection/common_pool.json` (DEC-073).
 
 ```bash
-CFG=configs/smokes/layer17_n2.yaml
+# One order experiment (repeat with _IF / _RO)
+CFG=configs/smokes/layer17_n2_CF.yaml
 
 pixi run --environment test-cuda run-identity -- --config "$CFG"
 pixi run --environment test-cuda run-baseline -- --config "$CFG"
@@ -32,6 +44,10 @@ pixi run --environment test-cuda run-optimize -- --config "$CFG"
 pixi run --environment test-cuda run-freeze -- --config "$CFG"
 pixi run --environment test-cuda run-study -- --config "$CFG"
 ```
+
+After CF, IF, and RO are sealed, assemble the 3×3 (DEC-088) via
+`run_cross_order_assemble` with `configs/smokes/layer17_n2_cross_order.yaml`
+sources (Python/API; not part of the per-study DEC-072 sequence).
 
 Holdout remains sealed until `run-holdout` after freeze (DEC-071). Do not open
 holdout for checkpoint selection.
@@ -43,7 +59,7 @@ Verified on `pixi run --environment test-cuda`:
 | Spec | Behavior |
 |---|---|
 | ORCH-034 | identity via default stack |
-| ORCH-035 | baseline partitions without `score_fn` |
+| ORCH-035 | baseline partitions without `score_fn` (single `order_regime`) |
 | ORCH-036 | feature_selection writes `common_pool.json` |
 | ORCH-037 | opt_smoke finite `l_total` via live belief-margin adapters |
 | ORCH-038 | optimize writes `best_checkpoint.json` via `run.optimize` budget |
@@ -58,32 +74,37 @@ GRAD-FIX, **re-run** `run-optimize` (and prefer deleting stale
 `optimize/trials.jsonl`).
 
 **Failure criterion:** flat all-zero β for every step with constant `l_total` is
-**not** success evidence (pre-fix `artifacts/smokes/layer17_n2/optimize/trials.jsonl`
-is obsolete). Accept only: β moves within bounds. A loud DEC-084 identically-zero /
-non-finite grad error is a **failure diagnosis**, not a green gate (GRAD-011).
+**not** success evidence. Accept only: β moves within bounds. A loud DEC-084
+identically-zero / non-finite grad error is a **failure diagnosis**, not a green
+gate (GRAD-011).
 
 ### FS-COMPONENTS (DEC-085) — re-run feature_selection before optimize
 
 Production feature selection ranks **four** components from **N, IB, and CB** on the
-FS split (resistance=IB∩Q+, recovery=CB∩Q−, neutral/correct surrogates). Pool
-nomination remains DEC-019 (resistance/recovery only). Artifacts use
-`schema_version: 2` with nominator provenance.
+FS split for the study `order_regime`. Pool nomination remains DEC-019
+(resistance/recovery only). Artifacts use `schema_version: 2` with nominator
+provenance.
 
 **Stale pools:** neutral-only / v1 `feature_selection/common_pool.json` files are
 **rejected** on load. Always **re-run** `run-fs` before `run-optimize` after this
-fix (or after any FS change). Do not reuse pre-FS-COMPONENTS pools.
+fix (or after any FS change).
 
 Unit e2e without injectors (fake `stack_loader` only): ORCH-033.
 
-## Artifacts (DEC-070)
+## Artifacts (DEC-070 / DEC-087 / DEC-088)
 
-Under `run.artifact_dir`:
+Per-study under `run.artifact_dir` (e.g. `artifacts/smokes/layer17_n2_CF/`):
 
-- `identity/`, `baseline/`, `feature_selection/`, `opt_smoke/`
+- `identity/`, `baseline/partition_{order}.json`, `feature_selection/`, `opt_smoke/`
 - `optimize/trials.jsonl`, `optimize/checkpoints/`, `optimize/best_checkpoint.json`
-- `freeze/frozen_experiment_config.json`
-- `full_study/behavioral.json`, `full_study/cross_order_matrix.json`
+- `freeze/frozen_experiment_config.json` (includes `order_regime`)
+- `full_study/behavioral.json` (single-order; **no** in-study 3×3)
 - `holdout/` only after unlock
+
+Cross-study assemble root (e.g. `artifacts/smokes/layer17_n2_cross_order/`):
+
+- `cross_order/sources.json`
+- `cross_order/cross_order_matrix.json`
 
 ## Unit vs CUDA
 

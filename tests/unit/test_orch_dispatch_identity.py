@@ -74,7 +74,7 @@ def _study() -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir="artifacts/smokes/layer17_n2",
-            order_regimes=("CF", "IF", "RO"),
+            order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(

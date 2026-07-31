@@ -58,6 +58,8 @@ def run_freeze_dispatch(*, study: StudyConfig) -> dict[str, Any]:
     path = out_dir / "frozen_experiment_config.json"
     payload = asdict(frozen)
     payload["study_yaml_fingerprint"] = hashes["study_yaml_fingerprint"]
+    payload["order_regime"] = study.run.order_regime
+    payload["freeze_status"] = frozen.freeze_status
     path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     return {
         "frozen": frozen,

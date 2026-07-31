@@ -116,7 +116,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
-            order_regimes=("CF", "IF"),
+            order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(question_ids=("q_fs_1", "q_fs_2")),
@@ -142,7 +142,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
 def test_dispatch__baseline_partitions__builds_score_fn_when_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """ORCH-027: score_fn=None → build from stack; loops order_regimes."""
+    """ORCH-027: score_fn=None → build from stack; single study order_regime."""
     monkeypatch.chdir(tmp_path)
     # Point corpus bridge at fixtures without depending on repo cwd.
     art = tmp_path / "art"
@@ -159,9 +159,9 @@ def test_dispatch__baseline_partitions__builds_score_fn_when_none(
         score_fn=None,
     )
     assert result.ok
-    for order in ("CF", "IF"):
-        path = art / "baseline" / f"partition_{order}.json"
-        assert path.is_file()
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        assert payload["order_regime"] == order
-        assert "q_plus" in payload
+    path = art / "baseline" / "partition_CF.json"
+    assert path.is_file()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["order_regime"] == "CF"
+    assert "q_plus" in payload
+    assert not (art / "baseline" / "partition_IF.json").exists()

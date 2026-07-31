@@ -24,6 +24,10 @@ STAGE_ORDER: tuple[str, ...] = (
     "holdout_eval",
 )
 
+# Cross-study stage (DEC-087): not part of the per-study DEC-072 sequence.
+CROSS_STUDY_STAGES: tuple[str, ...] = ("cross_order_assemble",)
+CLI_STAGES: tuple[str, ...] = STAGE_ORDER + CROSS_STUDY_STAGES
+
 PIXI_TASK_NAMES: tuple[str, ...] = (
     "run-identity",
     "run-baseline",
@@ -195,11 +199,14 @@ def dispatch_stage(
                     corpus_root=corpus_root,
                 )
                 del _smoke
+                from epistemic_sycophancy.config.study import study_order_regime
+
                 margin_scorer = build_belief_margin_scorer(
                     study,
                     stack,
                     corpus=corpus,
                     split_question_ids=split_ids,
+                    order_regime=study_order_regime(study),
                 )
             eval_payload = build_eval_payload(
                 study,
@@ -219,7 +226,7 @@ def dispatch_stage(
             stage=stage,
             ok=True,
             message=(
-                f"completed full_study: n_cells={fs['metrics']['n_cells']} "
+                f"completed full_study: order={fs['metrics'].get('order_regime')} "
                 f"study_fp={study_config_fingerprint(study)[:12]}…"
             ),
             study=study,
@@ -256,10 +263,11 @@ def dispatch_stage(
         )
 
     if stage == "baseline_partitions":
+        from epistemic_sycophancy.config.study import study_order_regime
         from epistemic_sycophancy.runner.baseline import run_baseline_dispatch
         from epistemic_sycophancy.runner.identity import resolve_stack
 
-        regimes = tuple(str(o) for o in study.run.order_regimes) or ("CF",)
+        order = study_order_regime(study)
 
         if score_fn is None:
             from epistemic_sycophancy.runner.adapters.resolve import resolve_corpus_context
@@ -272,41 +280,23 @@ def dispatch_stage(
                 split_manifest_path=split_manifest_path,
                 corpus_root=corpus_root,
             )
-            artifacts: dict[str, str] = {}
-            metrics: dict[str, Any] = {"order_regimes": list(regimes)}
-            last_metrics: dict[str, Any] = {}
-            for order in regimes:
-                one = run_baseline_dispatch(
-                    study=study,
-                    freeze_status=freeze_status,
-                    score_fn=build_score_fn(
-                        study,
-                        stack,
-                        corpus=corpus,
-                        split_question_ids=split_ids,
-                        order_regime=order,
-                        belief_condition="N",
-                    ),
-                    question_ids=smoke_ids,
-                    split_name=split_name_override,
-                    order_regimes=(order,),
-                )
-                artifacts.update(one["artifacts"])
-                last_metrics = dict(one["metrics"])
-                metrics[f"n_q_plus_{order}"] = one["metrics"]["n_q_plus"]
-                metrics[f"n_q_minus_{order}"] = one["metrics"]["n_q_minus"]
-            metrics.update(
-                {
-                    "n_q_plus": last_metrics["n_q_plus"],
-                    "n_q_minus": last_metrics["n_q_minus"],
-                    "n_q_tie": last_metrics.get("n_q_tie", 0),
-                    "order_regime": last_metrics.get("order_regime", regimes[-1]),
-                    "q_plus": last_metrics.get("q_plus", []),
-                    "q_minus": last_metrics.get("q_minus", []),
-                }
+            baseline = run_baseline_dispatch(
+                study=study,
+                freeze_status=freeze_status,
+                score_fn=build_score_fn(
+                    study,
+                    stack,
+                    corpus=corpus,
+                    split_question_ids=split_ids,
+                    order_regime=order,
+                    belief_condition="N",
+                ),
+                question_ids=smoke_ids,
+                split_name=split_name_override,
+                order_regime=order,
             )
-            if "partition" not in artifacts and artifacts:
-                artifacts["partition"] = next(iter(artifacts.values()))
+            metrics = dict(baseline["metrics"])
+            artifacts = dict(baseline["artifacts"])
             message = (
                 f"completed baseline_partitions: n_q_plus={metrics['n_q_plus']} "
                 f"n_q_minus={metrics['n_q_minus']} "
@@ -326,7 +316,7 @@ def dispatch_stage(
             freeze_status=freeze_status,
             score_fn=score_fn,
             split_name=split_name_override,
-            order_regimes=regimes,
+            order_regime=order,
         )
         metrics = dict(baseline["metrics"])
         artifacts = dict(baseline["artifacts"])
@@ -435,8 +425,13 @@ def dispatch_stage(
                     resolve_corpus_context,
                 )
 
+                from epistemic_sycophancy.config.study import study_order_regime
+
+                order = study_order_regime(study)
                 part_path = (
-                    Path(study.run.artifact_dir) / "baseline" / "partition_CF.json"
+                    Path(study.run.artifact_dir)
+                    / "baseline"
+                    / f"partition_{order}.json"
                 )
                 if not part_path.is_file():
                     raise ValueError(
@@ -477,6 +472,7 @@ def dispatch_stage(
                         stack,
                         corpus=corpus,
                         split_question_ids=split_ids,
+                        order_regime=order,
                     )
                 margin_payload = build_margin_payload(
                     study_for_opt,
@@ -485,6 +481,7 @@ def dispatch_stage(
                     question_ids=smoke_ids,
                     partitions=partitions,
                     margin_scorer=margin_scorer,
+                    order_regime=order,
                 )
 
         smoke = run_opt_smoke_dispatch(
@@ -574,13 +571,21 @@ def dispatch_stage(
                     corpus_root=corpus_root,
                 )
                 del _smoke
+                from epistemic_sycophancy.config.study import study_order_regime as _ord
+
                 margin_scorer = build_belief_margin_scorer(
                     study_for_opt,
                     stack,
                     corpus=corpus,
                     split_question_ids=split_ids_for_scorer,
+                    order_regime=_ord(study),
                 )
-            part_path = Path(study.run.artifact_dir) / "baseline" / "partition_CF.json"
+            from epistemic_sycophancy.config.study import study_order_regime
+
+            order = study_order_regime(study)
+            part_path = (
+                Path(study.run.artifact_dir) / "baseline" / f"partition_{order}.json"
+            )
             partitions: dict[str, Any]
             if part_path.is_file():
                 part = json.loads(part_path.read_text(encoding="utf-8"))
@@ -633,7 +638,7 @@ def dispatch_stage(
                         }
                         try:
                             built = build_baseline_partition(
-                                order_regime="CF",
+                                order_regime=order,
                                 neutral_margins=neutrals,
                                 epsilon=float(study.experiment.tie_band_epsilon),
                                 tie_policy=str(study.experiment.tie_policy),
@@ -702,6 +707,7 @@ def dispatch_stage(
                     stack,
                     corpus=corpus_for_jac,
                     split_question_ids=split_ids_for_jac,
+                    order_regime=order,
                 )
                 grad_fn = build_grad_fn(
                     study_for_opt,
@@ -778,6 +784,13 @@ def dispatch_stage(
             artifacts=dict(holdout["artifacts"]),
         )
 
+    if stage == "cross_order_assemble":
+        raise ValueError(
+            "cross_order_assemble is a cross-study stage; call "
+            "run_cross_order_assemble(campaign=...) with three sealed sources "
+            "(DEC-087 / ORDER-EXP-002)"
+        )
+
     return _make_result(
         stage=stage,
         ok=True,
@@ -790,8 +803,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="epistemic-sycophancy-run")
     parser.add_argument(
         "stage",
-        choices=STAGE_ORDER,
-        help="Experiment stage to run (DEC-055)",
+        choices=CLI_STAGES,
+        help="Experiment stage to run (DEC-055 / DEC-087)",
     )
     parser.add_argument(
         "--config",

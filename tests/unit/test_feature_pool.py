@@ -111,7 +111,11 @@ def test_feature_pool__selected_behavior_features__retain_signed_preservation_ja
 def test_feature_pool__all_order_optimizers__receive_identical_feature_ids_scales_and_ordering() -> (
     None
 ):
-    """FEAT-032: CF/IF/RO optimizers share one DEC-019 quota-union pool."""
+    """FEAT-032: quota-union of supplied lists is deterministic (pool API).
+
+    Under DEC-087 each study supplies one order's lists; the builder still
+    accepts multi-order maps for pure unit coverage of the union rule.
+    """
     from epistemic_sycophancy.feature_selection import build_common_feature_pool
 
     # Six lists: (CF/IF/RO) × (resistance/recovery). Distinct order-specific

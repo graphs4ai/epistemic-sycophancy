@@ -18,9 +18,7 @@ identity → baseline_partitions → feature_selection → opt_smoke
 ```
 
 ```bash
-# ASAP path: single-layer smoke YAML (DEC-067), then first_study 4-layer
-# YAML-only: no score_fn / jacobian_fn / objective_fn injection
-CFG=configs/smokes/layer17_n2.yaml
+CFG=configs/smokes/layer17_n2_CF.yaml
 
 pixi run --environment test-cuda run-identity -- --config "$CFG"
 pixi run --environment test-cuda run-baseline -- --config "$CFG"
@@ -34,7 +32,8 @@ pixi run --environment test-cuda run-study -- --config "$CFG"      # sealed; no 
 ```
 
 See [`docs/phase_m_ship_gate.md`](docs/phase_m_ship_gate.md) for adapter defaults,
-artifact layout, and ORCH-034…038 real_model gates (`test-cuda`).
+single-order artifact layout, cross-order assemble, and ORCH-034…038 real_model
+gates (`test-cuda`).
 
 Pixi tasks: `run-identity`, `run-baseline`, `run-fs`, `run-opt-smoke`, `run-optimize`, `run-freeze`, `run-study`, `run-holdout`. The legacy `"stage … ready"` CLI stub is **deprecated**; use `--config` real dispatch.
 

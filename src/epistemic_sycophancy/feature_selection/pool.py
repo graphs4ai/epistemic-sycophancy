@@ -21,7 +21,7 @@ class EligibilityResult:
 
 @dataclass(frozen=True)
 class CommonFeaturePool:
-    """Shared candidate pool for CF/IF/RO optimizers (DEC-019 / FEAT-032)."""
+    """Per-study candidate pool from that order's lists (DEC-019 / DEC-087)."""
 
     feature_ids: tuple[tuple[int, int], ...]
     scales: tuple[float, ...]
@@ -58,11 +58,12 @@ def build_common_feature_pool(
     feature_scales: Mapping[tuple[int, int], float],
     pool_quota_per_list: int,
 ) -> CommonFeaturePool:
-    """Build the DEC-019 quota-union pool shared by all order optimizers.
+    """Build the DEC-019 quota-union pool for the lists supplied by the study.
 
-    For each of the six (order, component) lists: keep ``signed_jacobian > 0``,
-    rank descending signed Jacobian (ties ascending ``(layer, feature_id)``),
-    take the top ``pool_quota_per_list`` (or all if fewer). Union, dedupe by
+    For a single-order experiment this is typically two lists
+    (resistance/recovery). Keep ``signed_jacobian > 0``, rank descending signed
+    Jacobian (ties ascending ``(layer, feature_id)``), take the top
+    ``pool_quota_per_list`` (or all if fewer). Union, dedupe by
     ``(layer, feature_id)``, and order the result ascending
     ``(layer, feature_id)``. Fill is a no-op; size equals ``|union|``.
     """

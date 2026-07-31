@@ -44,8 +44,8 @@ experiment:
   pool_eligibility_override: false
   pool_quota_per_list: 8
 run:
-  artifact_dir: artifacts/first_study
-  order_regimes: [CF, IF, RO]
+  artifact_dir: artifacts/first_study_CF
+  order_regime: CF
   feature_chunk_size: 1024
   prompt_batch_size: 1
   smoke:

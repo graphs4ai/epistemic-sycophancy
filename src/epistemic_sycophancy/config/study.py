@@ -14,6 +14,7 @@ from epistemic_sycophancy.stack.config import ExperimentStackConfig
 _ALLOWED_SMOKE_SPLITS = frozenset({"feature_selection", "optimization"})
 _ALLOWED_OPTIMIZER_KINDS = frozenset({"projected_adam", "cmaes"})
 _ALLOWED_BUDGET_MATCH_ON = frozenset({"n_objective_evals", "n_forward_equiv"})
+_ALLOWED_ORDER_REGIMES = frozenset({"CF", "IF", "RO"})
 
 
 @dataclass(frozen=True)
@@ -206,10 +207,10 @@ class StudyOptimizeConfig:
 
 @dataclass(frozen=True)
 class StudyRunConfig:
-    """Stage / smoke / optimizer / optimize run options (DEC-056 / DEC-066)."""
+    """Stage / smoke / optimizer / optimize run options (DEC-056 / DEC-087)."""
 
     artifact_dir: str
-    order_regimes: tuple[str, ...]
+    order_regime: str
     feature_chunk_size: int
     prompt_batch_size: int
     smoke: StudySmokeConfig
@@ -222,12 +223,13 @@ class StudyRunConfig:
                 f"run.artifact_dir must be an explicit non-empty string; "
                 f"got {self.artifact_dir!r}"
             )
-        regimes = tuple(str(r) for r in self.order_regimes)
-        if not regimes:
+        regime = str(self.order_regime).upper()
+        if regime not in _ALLOWED_ORDER_REGIMES:
             raise InvalidExperimentConfig(
-                "run.order_regimes must be a nonempty sequence"
+                "run.order_regime must be one of {'CF', 'IF', 'RO'}; "
+                f"got {self.order_regime!r}"
             )
-        object.__setattr__(self, "order_regimes", regimes)
+        object.__setattr__(self, "order_regime", regime)
         if (
             not isinstance(self.feature_chunk_size, int)
             or isinstance(self.feature_chunk_size, bool)
@@ -281,5 +283,11 @@ def build_study_config(
     return StudyConfig(stack=stack, experiment=experiment, run=run)
 
 
+def study_order_regime(study: StudyConfig) -> str:
+    """Return the single answer-order regime for this study (DEC-087)."""
+    return str(study.run.order_regime)
+
+
 def coerce_order_regimes(values: Sequence[str]) -> tuple[str, ...]:
+    """Deprecated helper retained for call-site migration; prefer order_regime."""
     return tuple(str(v) for v in values)

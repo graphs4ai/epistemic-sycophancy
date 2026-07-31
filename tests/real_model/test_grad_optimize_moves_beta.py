@@ -50,7 +50,7 @@ def test_real_model__layer17_n2__optimize_moves_beta(
     # Use config smoke N (32); do not shrink to N=2 (DEC-079 / GRAD-011).
     assert dispatch_stage(
         "feature_selection",
-        study=replace(study, run=replace(study.run, order_regimes=("CF",))),
+        study=replace(study, run=replace(study.run, order_regime="CF")),
         freeze_status="unsealed",
         jacobian_fn=None,
         scale_fn=None,

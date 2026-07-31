@@ -1,4 +1,4 @@
-"""ORCH-014: full_study sealed eval writes behavioral + cross-order; no holdout."""
+"""ORCH-014: full_study sealed eval writes single-order behavioral; no holdout."""
 
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def _study(artifact_dir: str) -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
-            order_regimes=("CF", "IF", "RO"),
+            order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(question_ids=("q1",)),
@@ -95,10 +95,10 @@ def _study(artifact_dir: str) -> StudyConfig:
 
 
 @pytest.mark.unit
-def test_dispatch__full_study_sealed__behavioral_and_cross_order_no_holdout(
+def test_dispatch__full_study_sealed__behavioral_no_holdout(
     tmp_path: Path,
 ) -> None:
-    """ORCH-014: sealed full_study writes val metrics + 3×3; holdout sealed."""
+    """ORCH-014: sealed full_study writes single-order val metrics; holdout sealed."""
     from epistemic_sycophancy.runner.cli import dispatch_stage
 
     art = tmp_path / "art"
@@ -128,8 +128,6 @@ def test_dispatch__full_study_sealed__behavioral_and_cross_order_no_holdout(
         "current_cb_margins": {"qv1": [0.8], "qv2": [-0.2]},
         "baseline_neutral_margins_by_order": {
             "CF": {"qv1": 1.0, "qv2": -0.5},
-            "IF": {"qv1": 0.8, "qv2": -0.4},
-            "RO": {"qv1": 0.9, "qv2": -0.3},
         },
     }
 
@@ -150,11 +148,11 @@ def test_dispatch__full_study_sealed__behavioral_and_cross_order_no_holdout(
     )
     assert result.ok is True
     assert "behavioral" in result.artifacts
-    assert "cross_order_matrix" in result.artifacts
+    assert "cross_order_matrix" not in result.artifacts
     behavioral = json.loads(Path(result.artifacts["behavioral"]).read_text())
+    assert behavioral["order_regime"] == "CF"
     assert "ftw" in behavioral or "selectivity" in behavioral
-    matrix = json.loads(Path(result.artifacts["cross_order_matrix"]).read_text())
-    assert len(matrix.get("cells", matrix)) >= 1
+    assert not (art / "full_study" / "cross_order_matrix.json").exists()
     # Holdout IDs must not appear in artifacts.
     text = Path(result.artifacts["behavioral"]).read_text()
     assert "qh1" not in text

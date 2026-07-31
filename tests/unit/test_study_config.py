@@ -77,7 +77,7 @@ def _valid_experiment_kwargs(**overrides: object) -> dict[str, object]:
 def _valid_run() -> StudyRunConfig:
     return StudyRunConfig(
         artifact_dir="artifacts/first_study",
-        order_regimes=("CF", "IF", "RO"),
+        order_regime="CF",
         feature_chunk_size=1024,
         prompt_batch_size=1,
         smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
@@ -99,6 +99,65 @@ def _valid_run() -> StudyRunConfig:
 
 
 @pytest.mark.unit
+def test_study_run_config__order_regime__must_be_single_cf_if_or_ro() -> None:
+    """ORDER-EXP-001: each study has exactly one order_regime in {CF, IF, RO}."""
+    from epistemic_sycophancy.config.study import study_order_regime
+
+    for regime in ("CF", "IF", "RO"):
+        run = StudyRunConfig(
+            artifact_dir="artifacts/first_study",
+            order_regime=regime,
+            feature_chunk_size=1024,
+            prompt_batch_size=1,
+            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            optimizer=StudyOptimizerConfig(
+                kind="projected_adam",
+                adam_lr=0.1,
+                adam_beta1=0.9,
+                adam_beta2=0.999,
+                adam_eps=1e-8,
+                adam_microbatch_questions=1,
+                max_steps=1,
+            ),
+            optimize=StudyOptimizeConfig(
+                budget_match_on="n_objective_evals",
+                max_steps=20,
+                n_questions=4,
+            ),
+        )
+        assert run.order_regime == regime
+        study = StudyConfig(
+            stack=_valid_stack(),
+            experiment=ExperimentConfig(**_valid_experiment_kwargs()),
+            run=run,
+        )
+        assert study_order_regime(study) == regime
+
+    with pytest.raises(InvalidExperimentConfig, match="order_regime"):
+        StudyRunConfig(
+            artifact_dir="artifacts/first_study",
+            order_regime="XX",
+            feature_chunk_size=1024,
+            prompt_batch_size=1,
+            smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
+            optimizer=StudyOptimizerConfig(
+                kind="projected_adam",
+                adam_lr=0.1,
+                adam_beta1=0.9,
+                adam_beta2=0.999,
+                adam_eps=1e-8,
+                adam_microbatch_questions=1,
+                max_steps=1,
+            ),
+            optimize=StudyOptimizeConfig(
+                budget_match_on="n_objective_evals",
+                max_steps=20,
+                n_questions=4,
+            ),
+        )
+
+
+@pytest.mark.unit
 def test_study_config__missing_required_policy_field__raises_invalid_config() -> None:
     """CFGFILE-001: StudyConfig rejects missing CFG-006 policy fields (DEC-056)."""
     with pytest.raises(InvalidExperimentConfig, match="tie_policy"):
@@ -114,7 +173,7 @@ def test_study_config__missing_required_policy_field__raises_invalid_config() ->
             experiment=ExperimentConfig(**_valid_experiment_kwargs()),
             run=StudyRunConfig(
                 artifact_dir=None,  # type: ignore[arg-type]
-                order_regimes=("CF",),
+                order_regime="CF",
                 feature_chunk_size=1024,
                 prompt_batch_size=1,
                 smoke=StudySmokeConfig(

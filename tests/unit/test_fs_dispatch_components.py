@@ -74,7 +74,7 @@ def _study(artifact_dir: str) -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
-            order_regimes=("CF",),
+            order_regime="CF",
             feature_chunk_size=8,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(question_ids=("q1", "q2")),
@@ -147,7 +147,7 @@ def test_fs_dispatch__four_distinct_component_maps__canonical_names(
     assert (17, 30) not in pool.feature_ids
     assert (17, 40) not in pool.feature_ids
 
-    # Per-(order, component) maps retained; empty fill for unused orders OK.
+    # Per-component maps for the study order only (DEC-087).
     component_maps = result["component_jacobians"]
     for component in COMPONENT_CONDITION:
         assert ("CF", component) in component_maps
@@ -157,8 +157,7 @@ def test_fs_dispatch__four_distinct_component_maps__canonical_names(
         != component_maps[("CF", "correct_surrogate")]
     )
     assert component_maps[("CF", "resistance")][(17, 10)] == 3.0
-    # Unused order slots are empty placeholders.
-    assert component_maps[("IF", "resistance")] == {}
+    assert ("IF", "resistance") not in component_maps
 
     path = Path(result["artifacts"]["pool"])
     payload = json.loads(path.read_text(encoding="utf-8"))

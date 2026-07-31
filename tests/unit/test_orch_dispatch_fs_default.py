@@ -82,7 +82,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
-            order_regimes=("CF",),
+            order_regime="CF",
             feature_chunk_size=2,
             prompt_batch_size=2,
             smoke=StudySmokeConfig(question_ids=("q_fs_1", "q_fs_2")),

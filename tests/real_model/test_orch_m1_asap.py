@@ -69,12 +69,12 @@ def test_real_model__layer17_n2__baseline_writes_partition_without_score_fn(
         score_fn=None,
     )
     assert result.ok
-    for order in study.run.order_regimes:
-        path = Path(study.run.artifact_dir) / "baseline" / f"partition_{order}.json"
-        assert path.is_file(), f"missing {path}"
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        assert "q_plus" in payload and "q_minus" in payload
-        assert payload["n_q_plus"] + payload["n_q_minus"] >= 1
+    order = study.run.order_regime
+    path = Path(study.run.artifact_dir) / "baseline" / f"partition_{order}.json"
+    assert path.is_file(), f"missing {path}"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert "q_plus" in payload and "q_minus" in payload
+    assert payload["n_q_plus"] + payload["n_q_minus"] >= 1
 
 
 @pytest.mark.real_model
@@ -108,7 +108,7 @@ def test_real_model__layer17_n2__feature_selection_writes_pool_keys(
         study,
         run=replace(
             study.run,
-            order_regimes=("CF",),
+            order_regime="CF",
             smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
         ),
     )
@@ -163,7 +163,7 @@ def test_real_model__layer17_n2__opt_smoke_finite_l_total_default_adapters(
         study,
         run=replace(
             study.run,
-            order_regimes=("CF",),
+            order_regime="CF",
             smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
         ),
     )
@@ -220,7 +220,7 @@ def test_real_model__layer17_n2__optimize_writes_best_checkpoint_default_adapter
         study,
         run=replace(
             study.run,
-            order_regimes=("CF",),
+            order_regime="CF",
             smoke=StudySmokeConfig(n_questions=2, split="feature_selection", seed=0),
         ),
     )

@@ -105,7 +105,7 @@ def _write_tiny_study_yaml(path: Path, artifact_dir: Path) -> None:
         },
         "run": {
             "artifact_dir": str(artifact_dir),
-            "order_regimes": ["CF", "IF"],
+            "order_regime": "CF",
             "feature_chunk_size": 1024,
             "prompt_batch_size": 1,
             "smoke": {"question_ids": ["q_fs_1", "q_fs_2"]},

@@ -72,7 +72,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
         ),
         run=StudyRunConfig(
             artifact_dir=artifact_dir,
-            order_regimes=("CF", "IF", "RO"),
+            order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
             smoke=StudySmokeConfig(question_ids=("q1",)),
@@ -132,7 +132,8 @@ def test_adapters__build_eval_payload__validation_margins_for_full_study(
     assert required <= set(payload)
     assert set(payload["current_neutral_margins"]) == set(validation_ids)
     assert "q_hold_1" not in payload["current_neutral_margins"]
-    assert set(payload["baseline_neutral_margins_by_order"]) >= {"CF", "IF", "RO"}
+    assert set(payload["baseline_neutral_margins_by_order"]) == {"CF"}
+    assert payload["order_regime"] == "CF"
     with pytest.raises(HoldoutAccessError):
         build_eval_payload(
             study,

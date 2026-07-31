@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
-from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.config.study import StudyConfig, study_order_regime
 from epistemic_sycophancy.feature_selection.components import COMPONENT_CONDITION
 from epistemic_sycophancy.feature_selection.pool import build_common_feature_pool
 from epistemic_sycophancy.metrics.exceptions import DegenerateBaselineError
@@ -19,7 +19,6 @@ from epistemic_sycophancy.runner.feature_selection import (
 # Canonical §11.2 names (DEC-085); must match components.py.
 _COMPONENTS = tuple(COMPONENT_CONDITION.keys())
 _BEHAVIOR_COMPONENTS = ("resistance", "recovery")
-_ORDERS = ("CF", "IF", "RO")
 
 
 def run_feature_selection_dispatch(
@@ -33,7 +32,7 @@ def run_feature_selection_dispatch(
     validation_question_ids: Sequence[str] = (),
     holdout_question_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Compute per-component order Jacobians, build pool, write artifact."""
+    """Compute per-component Jacobians for the study order, build pool, write artifact."""
     smoke = study.run.smoke
     if question_ids is not None:
         qids = tuple(str(q) for q in question_ids)
@@ -45,48 +44,43 @@ def run_feature_selection_dispatch(
             "n_questions without corpus injection"
         )
 
-    regimes = tuple(study.run.order_regimes) or ("CF",)
+    order = study_order_regime(study)
     lists: dict[tuple[str, str], dict[tuple[int, int], float]] = {}
     component_skips: dict[tuple[str, str], dict[str, object]] = {}
-    for order in regimes:
-        for component in _COMPONENTS:
-            stage = run_feature_selection_stage_computed(
-                order_regime=order,
-                split_name="feature_selection",
-                question_ids=qids,
-                jacobian_fn=lambda *, order_regime, question_ids, _c=component: (
-                    jacobian_fn(
-                        order_regime=order_regime,
-                        question_ids=question_ids,
-                        component=_c,
-                    )
-                ),
-                freeze_status=freeze_status,
-                optimization_question_ids=optimization_question_ids,
-                validation_question_ids=validation_question_ids,
-                holdout_question_ids=holdout_question_ids,
-            )
-            signed = dict(stage.signed_jacobians)
-            lists[(order, component)] = signed
-            skipped = len(signed) == 0
-            component_skips[(order, component)] = {
-                "skipped": skipped,
-                "n_prompts": 0 if skipped else len(signed),
-            }
-        # DEC-085: both behavior lists empty for an order → hard fail.
-        res_empty = len(lists[(order, "resistance")]) == 0
-        rec_empty = len(lists[(order, "recovery")]) == 0
-        if res_empty and rec_empty:
-            raise DegenerateBaselineError(
-                f"FS order={order!r}: both resistance and recovery component "
-                "lists are empty; cannot build DEC-019 pool (DEC-085)"
-            )
-    # Fill missing order/component slots with empty maps so pool API is stable.
-    for order in _ORDERS:
-        for component in _COMPONENTS:
-            lists.setdefault((order, component), {})
+    for component in _COMPONENTS:
+        stage = run_feature_selection_stage_computed(
+            order_regime=order,
+            split_name="feature_selection",
+            question_ids=qids,
+            jacobian_fn=lambda *, order_regime, question_ids, _c=component: (
+                jacobian_fn(
+                    order_regime=order_regime,
+                    question_ids=question_ids,
+                    component=_c,
+                )
+            ),
+            freeze_status=freeze_status,
+            optimization_question_ids=optimization_question_ids,
+            validation_question_ids=validation_question_ids,
+            holdout_question_ids=holdout_question_ids,
+        )
+        signed = dict(stage.signed_jacobians)
+        lists[(order, component)] = signed
+        skipped = len(signed) == 0
+        component_skips[(order, component)] = {
+            "skipped": skipped,
+            "n_prompts": 0 if skipped else len(signed),
+        }
+    # DEC-085: both behavior lists empty for the study order → hard fail.
+    res_empty = len(lists[(order, "resistance")]) == 0
+    rec_empty = len(lists[(order, "recovery")]) == 0
+    if res_empty and rec_empty:
+        raise DegenerateBaselineError(
+            f"FS order={order!r}: both resistance and recovery component "
+            "lists are empty; cannot build DEC-019 pool (DEC-085)"
+        )
 
-    # DEC-019: only resistance/recovery nominate into the common pool.
+    # DEC-019 / DEC-087: resistance/recovery for this study order only.
     behavior_lists = {
         key: scores
         for key, scores in lists.items()
@@ -125,15 +119,9 @@ def run_feature_selection_dispatch(
                 )
         surrogates: dict[str, float] = {}
         for surr in ("neutral_surrogate", "correct_surrogate"):
-            # Prefer CF annotation when present; else first nonempty order.
-            value = None
-            for order in regimes:
-                scores = lists.get((order, surr), {})
-                if (layer, fid) in scores:
-                    value = float(scores[(layer, fid)])
-                    break
-            if value is not None:
-                surrogates[surr] = value
+            scores = lists.get((order, surr), {})
+            if (layer, fid) in scores:
+                surrogates[surr] = float(scores[(layer, fid)])
         provenance[key] = {"nominators": nominators, "surrogates": surrogates}
     payload = {
         "schema_version": 2,
