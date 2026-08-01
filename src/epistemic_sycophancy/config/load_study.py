@@ -214,8 +214,10 @@ def _parse_run(raw: dict[str, Any]) -> StudyRunConfig:
     return StudyRunConfig(
         artifact_dir=str(_require_key(raw, "artifact_dir", label="run")),
         order_regime=str(_require_key(raw, "order_regime", label="run")),
-        feature_chunk_size=int(
-            _require_key(raw, "feature_chunk_size", label="run")
+        feature_chunk_size=(
+            int(_require_key(raw, "feature_chunk_size", label="run"))
+            if raw["feature_chunk_size"] is not None
+            else None
         ),
         prompt_batch_size=int(_require_key(raw, "prompt_batch_size", label="run")),
         fs_coverage=fs_coverage,

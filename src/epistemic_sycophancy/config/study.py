@@ -207,7 +207,7 @@ class StudyRunConfig:
 
     artifact_dir: str
     order_regime: str
-    feature_chunk_size: int
+    feature_chunk_size: int | None
     prompt_batch_size: int
     optimizer: StudyOptimizerConfig
     optimize: StudyOptimizeConfig
@@ -228,11 +228,11 @@ class StudyRunConfig:
         object.__setattr__(self, "order_regime", regime)
         if (
             not isinstance(self.feature_chunk_size, int)
-            or isinstance(self.feature_chunk_size, bool)
-            or self.feature_chunk_size < 1
+            and (self.feature_chunk_size is not None)
+            and (self.feature_chunk_size < 1)
         ):
             raise InvalidExperimentConfig(
-                "run.feature_chunk_size must be a positive int; "
+                "run.feature_chunk_size must be a positive int or NoneType; "
                 f"got {self.feature_chunk_size!r}"
             )
         if (
