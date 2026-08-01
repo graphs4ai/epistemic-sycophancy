@@ -9,3 +9,4 @@ artifacts/
 .pixi/*
 !.pixi/config.toml
 latex/
+profiles/
