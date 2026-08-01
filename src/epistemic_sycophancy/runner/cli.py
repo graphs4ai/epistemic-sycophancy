@@ -389,6 +389,7 @@ def dispatch_stage(
         from epistemic_sycophancy.runner.adapters.identity_gate import (
             resolve_identity_passed,
         )
+        from epistemic_sycophancy.runner.adapters.margins import MarginBaselineCache
         from epistemic_sycophancy.runner.adapters.objective import (
             build_grad_fn,
             build_objective_fn,
@@ -561,12 +562,24 @@ def dispatch_stage(
                 raise ValueError(
                     f"optimize default adapters require baseline partition at {part_path}"
                 )
+            # One cache per optimize run; shared by objective_fn and grad_fn
+            # so frozen β=0 N/CB baselines are scored once (PERF-BASELINE).
+            baseline_cache: MarginBaselineCache | None = None
+            if objective_fn is None or (
+                grad_fn is None and study.run.optimizer.kind == "projected_adam"
+            ):
+                baseline_cache = MarginBaselineCache(
+                    scorer=margin_scorer,
+                    coefficient_length=int(study_for_opt.experiment.coefficient_length),
+                )
+                baseline_cache.get(opt_qids)
             if objective_fn is None:
                 objective_fn = build_objective_fn(
                     study_for_opt,
                     stack,
                     partitions=partitions,
                     margin_scorer=margin_scorer,
+                    baseline_cache=baseline_cache,
                 )
             if grad_fn is None and study.run.optimizer.kind == "projected_adam":
                 from epistemic_sycophancy.runner.adapters.margin_jacobian import (
@@ -593,6 +606,7 @@ def dispatch_stage(
                     partitions=partitions,
                     margin_scorer=margin_scorer,
                     margin_jacobian_fn=margin_jacobian_fn,
+                    baseline_cache=baseline_cache,
                 )
 
         # Fixed Adam-step total only when live belief_scorer ticks prompt batches.

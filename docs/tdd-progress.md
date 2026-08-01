@@ -432,7 +432,7 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | DEC-090 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Optimize scorers honor `prompt_batch_size` |
 | ORCH-LOG-007 | `test_optimize__cma_trials__tqdm_bar_updates_each_iteration` | green | `AttributeError: … does not have the attribute 'tqdm'` | `pixi run --environment test pytest tests/unit/test_optimize_tqdm.py -q` → passed | `runner/optimize.py` | CMA trial-level bar |
 | ORCH-LOG-007b | `test_optimize__adam_steps__per_step_bar_advances_on_prompt_batches` (+ margin_batch) | superseded | — | replaced by ORCH-LOG-007c fixed-total bars | — | dynamic `register_prompt_batches` caused % shrink |
-| ORCH-LOG-007c | `test_count_adam_step_prompt_microbatches__…` + fixed-total Adam bar tests | green | `ImportError: count_adam_step_prompt_microbatches` | `pixi run --environment test pytest tests/unit/test_adam_step_batch_total.py tests/unit/test_optimize_tqdm.py -q` → passed | `runner/progress.py`, `runner/optimize.py`, `runner/cli.py` | Fixed `5 bN+3 bIB+5 bCB`; adapters tick only |
+| ORCH-LOG-007c | `test_count_adam_step_prompt_microbatches__…` + fixed-total Adam bar tests | green | `ImportError: count_adam_step_prompt_microbatches` | `pixi run --environment test pytest tests/unit/test_adam_step_batch_total.py tests/unit/test_optimize_tqdm.py -q` → passed | `runner/progress.py`, `runner/optimize.py`, `runner/cli.py` | Amended by PERF-BASELINE-003 → `3 bN+3 bIB+3 bCB` after β=0 pre-warm |
 
 ## ORCH-PLOT — Loss-over-trials curve (DEC-091)
 
@@ -460,6 +460,14 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | RUN-008-CACHE | `test_stack_scoring__model_config_use_cache_true__forward_passes_use_cache_false` | green | same | same → passed | `stack/scoring.py` | config.use_cache=True → forward use_cache=False |
 | RUN-008-REAL | `test_stack_scoring__vectorized__matches_reference_on_real_model_smoke_batch` | green | same | `pixi run --environment test pytest tests/real_model/test_stack_scoring_parity.py -q` → `1 passed` | `stack/scoring.py`, `tests/real_model/test_stack_scoring_parity.py` | tiny-random-gpt2; optimized ≡ scalar reference |
 | — | related | green | — | `pixi run --environment test pytest tests/unit/test_stack_scoring.py tests/unit/test_belief_scorer_prompt_microbatch.py tests/unit/test_adapt_score_fn.py -q` → `15 passed` | — | dependent adapters still green |
+
+## PERF-BASELINE — Cache frozen β=0 margin baselines (DEC-094)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| PERF-BASELINE-001 | `test_adapters__margin_baseline_cache__reuses_beta0_n_and_cb` (+ different qid tuple) | green | `pixi run --environment test pytest tests/unit/test_margin_baseline_cache.py -q` → `ImportError: cannot import name 'MarginBaselineCache'` | same → `2 passed`; + ORCH-023 → `3 passed` | `runner/adapters/margins.py`, `tests/unit/test_margin_baseline_cache.py` | N@0/CB@0 once per qid tuple; current-β still live |
+| PERF-BASELINE-002 | `test_adapters__objective_and_grad__share_baseline_cache__scores_beta0_once` | green | `pixi run --environment test pytest tests/unit/test_margin_baseline_cache.py::test_adapters__objective_and_grad__share_baseline_cache__scores_beta0_once -q` → `TypeError: … unexpected keyword argument 'baseline_cache'` | same → `1 passed`; + ORCH-024 → `4 passed` in suite | `runner/adapters/objective.py`, `runner/cli.py`, `docs/decisions.md` | Shared cache; CLI pre-warm; DEC-094 |
+| PERF-BASELINE-003 | `test_count_adam_step_prompt_microbatches__matches_grad_plus_objective_graph` | green | `pixi run --environment test pytest tests/unit/test_adam_step_batch_total.py::test_count_adam_step_prompt_microbatches__matches_grad_plus_objective_graph -q` → `assert 39 == 27` | `pixi run --environment test pytest tests/unit/test_adam_step_batch_total.py tests/unit/test_optimize_tqdm.py tests/unit/test_margin_baseline_cache.py tests/unit/test_adapt_margin_payload.py tests/unit/test_adapt_objective.py -q` → `10 passed` | `runner/progress.py`, `docs/decisions.md` | DEC-092 amended; bar total `3·bN+3·bIB+3·bCB` |
 
 ## Status definitions
 

@@ -78,11 +78,14 @@ def count_adam_step_prompt_microbatches(
 ) -> int:
     """Fixed prompt-microbatch total for one Adam step (grad + logged objective).
 
-    Call graph per step (DEC-076 / DEC-084):
-    - ``grad_fn``: ``build_margin_payload`` (2·N + IB + 2·CB scorers) + jac (N+IB+CB)
-    - ``objective_fn``: ``build_margin_payload`` again (2·N + IB + 2·CB)
+    Call graph per step after β=0 baseline pre-warm (PERF-BASELINE / DEC-092):
+    - ``grad_fn``: ``build_margin_payload`` (N + IB + CB at current β) + jac (N+IB+CB)
+    - ``objective_fn``: ``build_margin_payload`` again (N + IB + CB at current β)
 
-    Therefore total microbatches = ``5·bN + 3·bIB + 5·bCB`` where
+    Frozen N@0 / CB@0 are scored once outside the per-step bar via
+    ``MarginBaselineCache`` pre-warm, so they are not counted here.
+
+    Therefore total microbatches = ``3·bN + 3·bIB + 3·bCB`` where
     ``bX = ceil(n_rows(X) / prompt_batch_size)``.
     """
     batch_size = int(prompt_batch_size)
@@ -99,7 +102,7 @@ def count_adam_step_prompt_microbatches(
     b_n = n_prompt_microbatches(counts["N"], batch_size=batch_size)
     b_ib = n_prompt_microbatches(counts["IB"], batch_size=batch_size)
     b_cb = n_prompt_microbatches(counts["CB"], batch_size=batch_size)
-    return 5 * b_n + 3 * b_ib + 5 * b_cb
+    return 3 * b_n + 3 * b_ib + 3 * b_cb
 
 
 @contextmanager

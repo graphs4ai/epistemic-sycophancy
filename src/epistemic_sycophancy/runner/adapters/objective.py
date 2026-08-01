@@ -14,7 +14,10 @@ from epistemic_sycophancy.objective.total import (
     evaluate_objective_with_grad,
 )
 from epistemic_sycophancy.runner.adapters.margin_jacobian import build_margin_jacobian_fn
-from epistemic_sycophancy.runner.adapters.margins import build_margin_payload
+from epistemic_sycophancy.runner.adapters.margins import (
+    MarginBaselineCache,
+    build_margin_payload,
+)
 
 
 def build_objective_fn(
@@ -23,6 +26,7 @@ def build_objective_fn(
     *,
     partitions: Mapping[str, Any],
     margin_scorer: Callable[..., Mapping[str, Any]] | None = None,
+    baseline_cache: MarginBaselineCache | None = None,
 ) -> Callable[[Sequence[float], Sequence[str]], float]:
     """Build ``(beta, eligible_qids) -> l_total`` with live margins (DEC-076)."""
 
@@ -34,6 +38,7 @@ def build_objective_fn(
             question_ids=eligible_qids,
             partitions=partitions,
             margin_scorer=margin_scorer,
+            baseline_cache=baseline_cache,
         )
         exp = study.experiment
         result = evaluate_objective(
@@ -66,6 +71,7 @@ def build_grad_fn(
     partitions: Mapping[str, Any],
     margin_scorer: Callable[..., Mapping[str, Any]] | None = None,
     margin_jacobian_fn: Callable[..., Mapping[str, Any]] | None = None,
+    baseline_cache: MarginBaselineCache | None = None,
 ) -> Callable[[Sequence[float], Sequence[str]], Sequence[float]]:
     """Build ``(beta, eligible_qids) -> grad`` via local linearization at β.
 
@@ -95,6 +101,7 @@ def build_grad_fn(
             question_ids=eligible_qids,
             partitions=partitions,
             margin_scorer=margin_scorer,
+            baseline_cache=baseline_cache,
         )
         m = int(study.experiment.coefficient_length)
         jac_payload = resolved_jac_fn(
