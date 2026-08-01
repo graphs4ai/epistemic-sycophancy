@@ -448,6 +448,19 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 |---|---|---|---|---|---|---|
 | DEC-093 | schema + stage purge (CFGFILE-005, WIRE-005, RUN-013, ORCH-008+) | green | prior suite required `run.smoke` / `opt_smoke` | `pixi run --environment test pytest tests/unit -q` → `270 passed, 3 skipped` | `config/study.py`, `config/load_study.py`, `prompts/render.py`, `runner/*`, `configs/dev/`, `evaluation/real_model_checks.py`, README, ship gate | Optional `run.fs_coverage`; omit → full FS split; delete `opt_smoke`; relocate `configs/smokes` → `configs/dev` |
 
+## RUN-008 — vectorized stack scoring hot path (reference parity)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| RUN-008-PAD | `test_stack_scoring__variable_prompt_lengths__uses_per_row_final_nonpad_logits` | green | refactor verification (vectorized path already present); contract encoded against scalar reference | `pixi run --environment test pytest tests/unit/test_stack_scoring.py -q` → `13 passed` | `stack/scoring.py`, `tests/unit/test_stack_scoring.py` | unequal right-padded lengths; pad cols poisoned |
+| RUN-008-LA | `test_stack_scoring__truthful_label_A__margin_is_score_a_minus_score_b` | green | same | same → passed | `stack/scoring.py` | M=s_A−s_B |
+| RUN-008-LB | `test_stack_scoring__truthful_label_B__margin_is_score_b_minus_score_a` | green | same | same → passed | `stack/scoring.py` | M=s_B−s_A |
+| RUN-008-EXACT | `test_stack_scoring__known_fake_logits__returns_exact_ab_scores` | green | same | same → passed | `stack/scoring.py` | planted logits 1.25/−3.5 |
+| RUN-008-IDS | `test_stack_scoring__empty_or_multitoken_continuation_ids__raises_value_error` | green | same | same → passed | `stack/scoring.py` | empty + multi-token rejected |
+| RUN-008-CACHE | `test_stack_scoring__model_config_use_cache_true__forward_passes_use_cache_false` | green | same | same → passed | `stack/scoring.py` | config.use_cache=True → forward use_cache=False |
+| RUN-008-REAL | `test_stack_scoring__vectorized__matches_reference_on_real_model_smoke_batch` | green | same | `pixi run --environment test pytest tests/real_model/test_stack_scoring_parity.py -q` → `1 passed` | `stack/scoring.py`, `tests/real_model/test_stack_scoring_parity.py` | tiny-random-gpt2; optimized ≡ scalar reference |
+| — | related | green | — | `pixi run --environment test pytest tests/unit/test_stack_scoring.py tests/unit/test_belief_scorer_prompt_microbatch.py tests/unit/test_adapt_score_fn.py -q` → `15 passed` | — | dependent adapters still green |
+
 ## Status definitions
 
 - `not_started`: no test written.

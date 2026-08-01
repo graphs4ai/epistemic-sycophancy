@@ -8,7 +8,6 @@ from typing import Any
 
 import torch
 
-from epistemic_sycophancy.scoring.candidates import score_single_token_candidate
 from epistemic_sycophancy.scoring.margins import truthful_margin
 
 
@@ -34,9 +33,9 @@ def score_batch_with_lm_logits(
 ) -> StackScoreBatch:
     """Score DEC-010 A/B via next-token LM logits (not a residual linear head).
 
-    Single-token continuations use ``score_single_token_candidate`` on the
-    prompt-final logit row. Multi-token IDs are rejected until a dedicated path
-    is added.
+    Single-token continuations read the prompt-final (last non-pad) logit row
+    for tokens A and B. Multi-token IDs are rejected until a dedicated path
+    is added. Always forwards with ``use_cache=False``.
     """
     if len(prompts) != len(truthful_labels):
         raise ValueError("prompts and truthful_labels must have equal length")
@@ -49,40 +48,83 @@ def score_batch_with_lm_logits(
     token_a = int(continuation_token_ids_A[0])
     token_b = int(continuation_token_ids_B[0])
 
-    encoded = tokenizer(list(prompts), return_tensors="pt", padding=True)
-    encoded = {key: value.to(device) for key, value in encoded.items()}
+    encoded_cpu = tokenizer(list(prompts), return_tensors="pt", padding=True)
+
+    attention_cpu = encoded_cpu.get("attention_mask")
+
+    if attention_cpu is not None:
+        prompt_lengths_cpu = attention_cpu.sum(dim=1, dtype=torch.long)
+    else:
+        prompt_lengths_cpu = torch.full(
+            (len(prompts),),
+            encoded_cpu["input_ids"].shape[1],
+            dtype=torch.long,
+        )
+
+    encoded = {
+        key: value.to(device)
+        for key, value in encoded_cpu.items()
+    }
+
     with torch.no_grad():
         outputs = model(
             input_ids=encoded["input_ids"],
             attention_mask=encoded.get("attention_mask"),
+            use_cache=False,
         )
-        logits = outputs.logits  # [B, T, V]
 
-    attention = encoded.get("attention_mask")
-    scores_a: list[float] = []
-    scores_b: list[float] = []
-    margins: list[float] = []
-    for batch_index, label in enumerate(truthful_labels):
-        if attention is not None:
-            prompt_length = int(attention[batch_index].sum().item())
-        else:
-            prompt_length = int(encoded["input_ids"].shape[1])
-        row_logits = logits[batch_index, :prompt_length, :].detach().cpu().tolist()
-        score_a = score_single_token_candidate(
-            row_logits, token_id=token_a, prompt_length=prompt_length
+        logits = outputs.logits
+
+        batch_indices = torch.arange(
+            logits.shape[0],
+            device=logits.device,
         )
-        score_b = score_single_token_candidate(
-            row_logits, token_id=token_b, prompt_length=prompt_length
+        final_positions = (
+            prompt_lengths_cpu.to(logits.device) - 1
         )
-        scores_a.append(score_a)
-        scores_b.append(score_b)
-        margins.append(
-            truthful_margin(score_a=score_a, score_b=score_b, truthful_label=label)
+
+        candidate_ids = torch.tensor(
+            [token_a, token_b],
+            dtype=torch.long,
+            device=logits.device,
         )
+
+        candidate_logits = logits[
+            batch_indices,
+            final_positions,
+        ].index_select(
+            dim=1,
+            index=candidate_ids,
+        )
+
+    candidate_logits_cpu = (
+        candidate_logits
+        .float()
+        .cpu()
+        .tolist()
+    )
+
+    scores_a = tuple(float(row[0]) for row in candidate_logits_cpu)
+    scores_b = tuple(float(row[1]) for row in candidate_logits_cpu)
+
+    margins = tuple(
+        truthful_margin(
+            score_a=score_a,
+            score_b=score_b,
+            truthful_label=label,
+        )
+        for score_a, score_b, label in zip(
+            scores_a,
+            scores_b,
+            truthful_labels,
+            strict=True,
+        )
+    )
+
     return StackScoreBatch(
-        score_a=tuple(scores_a),
-        score_b=tuple(scores_b),
-        margins=tuple(margins),
+        score_a=scores_a,
+        score_b=scores_b,
+        margins=margins,
         truthful_labels=tuple(truthful_labels),
     )
 
