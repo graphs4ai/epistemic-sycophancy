@@ -169,8 +169,6 @@ def _margin_projection_microbatch(
     feature_scales = torch.linalg.vector_norm(decoder_f64, dim=1)
 
     del residual, grads, outputs, logits, encoded
-    if getattr(device, "type", None) == "cuda":
-        torch.cuda.empty_cache()
 
     return {
         "residual_gradients": residual_gradients.to(dtype=torch.float64),

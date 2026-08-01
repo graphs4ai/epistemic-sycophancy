@@ -119,8 +119,6 @@ def build_belief_margin_scorer(
             margins.extend(float(m) for m in batch.margins)
             del batch
             tick_prompt_batch()
-            if getattr(stack.device, "type", None) == "cuda":
-                torch.cuda.empty_cache()
 
         if belief_condition == "N":
             return {
