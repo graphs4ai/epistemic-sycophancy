@@ -29,14 +29,11 @@ if [ -z "$CFG" ] || [ ! -f "$CFG" ]; then
     exit 1
 fi
 
-# Run the baseline
+# Run the baseline partitioning
 pixi run --environment test-cuda run-baseline -- --config "$CFG"
 
-# Run the baseline partitioning
-pixi run --environment test-cuda run-baseline-partitions -- --config "$CFG"
-
 # Run the feature selection
-pixi run --environment test-cuda run-feature-selection -- --config "$CFG"
+pixi run --environment test-cuda run-fs -- --config "$CFG"
 
 # Run the optimization
 pixi run --environment test-cuda run-optimize -- --config "$CFG"
