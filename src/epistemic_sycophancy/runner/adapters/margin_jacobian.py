@@ -1,7 +1,8 @@
-"""Selected-pool margin Jacobian builder (GRAD-003 / DEC-084).
+"""Selected-pool margin Jacobian builder (GRAD-003 / DEC-084 / GRAD-014).
 
 Reuses Phase F ``project_residual_gradient`` + ``coefficient_jacobian``.
-Does not reimplement the exact local coefficient Jacobian.
+Does not reimplement the exact local coefficient Jacobian. Live β≠0 uses
+shifted activity mask ``1[z + sβ > 0]`` via ``shift_latents_for_live_beta``.
 """
 
 from __future__ import annotations
@@ -29,7 +30,9 @@ def project_selected_margin_jacobian(
     """Return ∂M/∂β over selected features: length-m float64 row.
 
     ``residual_gradient`` is ∂M/∂x at the intervened token (not ∂φ/∂x).
-    Activity mask and scales follow AGENTS.md §5.8 / DEC-053.
+    Activity mask and scales follow AGENTS.md §5.8 / DEC-053. For live β≠0,
+    pass pre-ReLU shifted latents ``z + s⊙β`` so the mask is ``1[z+sβ>0]``
+    (GRAD-014); at β=0 this reduces to ``1[z>0]``.
     """
     if residual_gradient.ndim != 1:
         raise ValueError(
@@ -112,6 +115,31 @@ def _selected_indices_for_layer(
     return indices
 
 
+def shift_latents_for_live_beta(
+    latents: torch.Tensor,
+    *,
+    selected_indices: Sequence[int],
+    feature_scales: torch.Tensor,
+    beta: Sequence[float],
+) -> torch.Tensor:
+    """Return pre-ReLU shifted latents z + s⊙β on selected coordinates (GRAD-014).
+
+    ``coefficient_jacobian`` masks with ``1[· > 0]``, so shifted values yield the
+    live intervention mask ``1[z_j + s_j β_j > 0]`` required by
+    ``z'_j = ReLU(z_j + s_j β_j)``. Non-selected coordinates are unchanged.
+    """
+    if len(selected_indices) != len(beta):
+        raise ValueError(
+            f"selected_indices length {len(selected_indices)} != beta length {len(beta)}"
+        )
+    shifted = latents.to(dtype=torch.float64).clone()
+    scales = feature_scales.to(dtype=torch.float64)
+    for pool_i, feat_i in enumerate(selected_indices):
+        idx = int(feat_i)
+        shifted[..., idx] = shifted[..., idx] + scales[idx] * float(beta[pool_i])
+    return shifted
+
+
 def build_margin_jacobian_fn(
     study: Any,
     stack: Any,
@@ -124,6 +152,8 @@ def build_margin_jacobian_fn(
 
     Uses ``stack.margin_projection_batch`` when present; otherwise requires
     ``corpus`` + ``split_question_ids`` and ``compute_margin_projection_batch``.
+    Live activity masks use ``1[z + sβ > 0]`` (GRAD-014), even when the batch
+    returns baseline (unshifted) JumpReLU latents.
     """
     batch_fn = getattr(stack, "margin_projection_batch", None)
     if batch_fn is None:
@@ -159,7 +189,6 @@ def build_margin_jacobian_fn(
                 beta=beta_t,
             )
             residual_gradients = batch["residual_gradients"]
-            latents = batch["latents"]
             decoder = batch["decoder"]
             feature_scales = batch["feature_scales"]
             batch_qids = [str(q) for q in batch["question_ids"]]
@@ -173,6 +202,18 @@ def build_margin_jacobian_fn(
                     f"selected features at layer={layer} ({len(selected)}) != "
                     f"coefficient_length={m}; multi-layer margin jac unsupported"
                 )
+            if len(beta_t) != m:
+                raise ValueError(
+                    f"beta length {len(beta_t)} != coefficient_length={m}"
+                )
+            # Live mask 1[z+sβ>0]: shift baseline post-encode latents before
+            # coefficient_jacobian's strict >0 gate (GRAD-014 / DEC-084).
+            latents = shift_latents_for_live_beta(
+                batch["latents"],
+                selected_indices=selected,
+                feature_scales=feature_scales,
+                beta=beta_t,
+            )
             for row_idx, qid in enumerate(batch_qids):
                 jac_row = project_selected_margin_jacobian(
                     residual_gradient=residual_gradients[row_idx],
@@ -222,7 +263,9 @@ def _make_production_margin_batch_fn(
         question_ids: Sequence[str],
         beta: Sequence[float],
     ) -> dict[str, Any]:
-        del beta  # local linearization uses current residual; β=0 identity path
+        # Baseline JumpReLU z + unintervened ∂M/∂x. Live activity mask
+        # 1[z + sβ > 0] is applied in build_margin_jacobian_fn (GRAD-014).
+        _ = beta
         qids = tuple(str(q) for q in question_ids)
         rendered = render_mc0_subset(
             corpus_rows=corpus,

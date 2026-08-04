@@ -475,6 +475,12 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 |---|---|---|---|---|---|---|
 | GRAD-013 | `test_adapters__build_grad_fn__nonzero_beta__local_affine_matches_live_margin` (+ hinge) | green | `pixi run --environment test pytest tests/unit/test_grad_local_affine_no_double_count.py -q` → softplus got −σ(1.5)·2 (double-count) vs −σ(−0.5)·2; hinge got −1.0 (flipped active) | same → `2 passed`; related `… test_grad_informative_margin_jac.py test_adapt_objective.py test_grad_zero_margin_jac.py test_grad_wire_default_jac.py test_margin_baseline_cache.py test_grad_adam_moves_beta.py test_projected_adam_grads.py test_objective_batching.py -q` → `14 passed` | `objective/total.py` (`evaluate_objective_with_local_grad`), `runner/adapters/objective.py`, `docs/decisions.md` | \(M_{\mathrm{local}}(\delta)=M(\beta_0)+J\delta\); regularizer on \(\beta_0+\delta\); toy zero-intercept paths keep `evaluate_objective_with_grad` |
 
+## GRAD-014 — Live-β activity mask 1[z + sβ > 0]
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| GRAD-014 | `test_margin_jacobian__suppression_past_relu_boundary__selected_derivative_is_zero` + `…__live_beta_points__match_feasible_finite_difference` | green | `pixi run --environment test pytest tests/unit/test_margin_jacobian_shifted_mask.py -q` → past boundary got `[4.0, 0.5]` (stale `1[z>0]`) vs `[0.0, 0.5]`; FD mismatch at β=`(-0.25,0)` | same → `2 passed`; related `… test_margin_jacobian_builder.py test_margin_jacobian_activity_mask.py test_grad_wire_default_jac.py test_grad_informative_margin_jac.py test_grad_local_affine_no_double_count.py test_grad_adam_moves_beta.py -q` → `12 passed` | `runner/adapters/margin_jacobian.py` (`shift_latents_for_live_beta`), `docs/decisions.md` | Amends DEC-084(7); mask matches `ReLU(z+sβ)`; FD at β=0, interior, boundary, checkpoint |
+
 ## Status definitions
 
 - `not_started`: no test written.
