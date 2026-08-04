@@ -15,7 +15,12 @@ from epistemic_sycophancy.prompts.templates import (
 )
 
 _FS_SPLIT = "feature_selection"
-_ALLOWED_SPLITS = frozenset({"feature_selection", "optimization"})
+# FS / optimize coverage only — never validation or holdout (FSC-007).
+_COVERAGE_SPLITS = frozenset({"feature_selection", "optimization"})
+# Eval paths (DEC-069 full_study) may render behavior_validation via explicit QIDs.
+_RENDER_SPLITS = frozenset(
+    {"feature_selection", "optimization", "behavior_validation"}
+)
 
 
 @dataclass(frozen=True)
@@ -45,9 +50,9 @@ def select_coverage_question_ids(
 
     ``None`` / empty coverage → all IDs in ``split``. Never holdout.
     """
-    if split not in _ALLOWED_SPLITS:
+    if split not in _COVERAGE_SPLITS:
         raise HoldoutAccessError(
-            f"coverage split must be one of {sorted(_ALLOWED_SPLITS)}; got {split!r}"
+            f"coverage split must be one of {sorted(_COVERAGE_SPLITS)}; got {split!r}"
         )
     if split not in split_question_ids:
         raise InvalidExperimentConfig(
@@ -113,7 +118,8 @@ def render_mc0_subset(
     """Select coverage questions and render MC0 neutral (or conditioned) prompts.
 
     Prefer ``question_ids`` when provided; otherwise resolve from ``coverage``
-    (omit / None → full feature_selection split).
+    (omit / None → full feature_selection split). Explicit QIDs may include
+    ``behavior_validation`` rows (DEC-069 eval); holdout splits remain forbidden.
     """
     if question_ids is not None:
         selected = set(str(q) for q in question_ids)
@@ -129,7 +135,7 @@ def render_mc0_subset(
         if qid not in selected:
             continue
         split = str(row["split"])
-        if split not in _ALLOWED_SPLITS:
+        if split not in _RENDER_SPLITS:
             raise HoldoutAccessError(f"corpus row split {split!r} is forbidden")
         if str(row.get("order_regime", order_regime)) != order_regime:
             continue

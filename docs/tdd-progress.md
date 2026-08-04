@@ -512,6 +512,12 @@ Regression: `pixi run --environment test pytest tests/unit/test_optimize_metrics
 
 Regression: `pixi run --environment test pytest tests/unit/test_orch_full_study.py tests/unit/test_adapt_eval_payload.py tests/unit/test_orch_dispatch_full_study_default.py tests/unit/test_phase_m_ship_gate.py tests/unit/test_orch_m1_e2e_no_injectors.py -q` → `6 passed, 2 skipped`.
 
+## render_mc0_subset behavior_validation for eval (DEC-069)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| WIRE-005b | `test_prompts__render_mc0_subset__behavior_validation__allowed_for_eval` | green | `pixi run --environment test pytest tests/unit/test_prompt_render_subset.py::test_prompts__render_mc0_subset__behavior_validation__allowed_for_eval -q` → `HoldoutAccessError: corpus row split 'behavior_validation' is forbidden` | same → `1 passed`; module suite → `2 passed`; related leakage/corpus/eval → `4 passed` | `prompts/render.py`, `tests/unit/test_prompt_render_subset.py` | `_RENDER_SPLITS` includes `behavior_validation`; `_COVERAGE_SPLITS` stays FS/opt; holdout still forbidden |
+
 ## Status definitions
 
 - `not_started`: no test written.
