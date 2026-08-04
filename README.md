@@ -67,13 +67,10 @@ explicit configuration.
 **Exact local coefficient Jacobian.** Feature ranking uses
 
 $$
-\left.
-\frac{\partial \ell_u^{(p)}}{\partial\beta_{\ell,j}}
-\right|_{\beta=0}
-=
-s_{\ell,j}
-\mathbf{1}[z_{\ell,j,t_p^*}^{(p)}>0]
-\left\langle g_{\ell,u}^{(p)}, d_{\ell,j} \right\rangle,
+\frac{\partial \ell_u^{(p)}}{\partial \beta_{\ell,j}}\Big|_{\beta=0}
+= s_{\ell,j}\,
+\mathbf{1}\bigl[z_{\ell,j,t_p^{*}}^{(p)} \gt 0\bigr]
+\,\langle g_{\ell,u}^{(p)}, d_{\ell,j}\rangle
 $$
 
 including decoder projection, prompt-specific ReLU activity, feature scale, and
