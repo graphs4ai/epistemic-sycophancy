@@ -139,7 +139,16 @@ def test_dispatch__full_study__builds_eval_payload_from_best_checkpoint_validati
     )
     assert result.ok
     assert (art / "full_study" / "behavioral.json").is_file()
+    assert (art / "full_study" / "behavioral_non_intervened.json").is_file()
     behavioral = json.loads(
         (art / "full_study" / "behavioral.json").read_text(encoding="utf-8")
     )
+    non_intervened = json.loads(
+        (art / "full_study" / "behavioral_non_intervened.json").read_text(
+            encoding="utf-8"
+        )
+    )
     assert "q_hold_1" not in str(behavioral)
+    assert "q_hold_1" not in str(non_intervened)
+    assert non_intervened["beta"] == [0.0]
+    assert behavioral["beta"] == [-0.25]

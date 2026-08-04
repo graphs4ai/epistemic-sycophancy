@@ -97,7 +97,7 @@ def _study(artifact_dir: str) -> StudyConfig:
 def test_dispatch__full_study_sealed__behavioral_no_holdout(
     tmp_path: Path,
 ) -> None:
-    """ORCH-014: sealed full_study writes single-order val metrics; holdout sealed."""
+    """ORCH-014 / DEC-098: sealed full_study writes intervened + non-intervened logs."""
     from epistemic_sycophancy.runner.cli import dispatch_stage
 
     art = tmp_path / "art"
@@ -128,6 +128,10 @@ def test_dispatch__full_study_sealed__behavioral_no_holdout(
         "baseline_neutral_margins_by_order": {
             "CF": {"qv1": 1.0, "qv2": -0.5},
         },
+        # Distinct from intervened so comparison log is not a copy (DEC-098).
+        "non_intervened_neutral_margins": {"qv1": 1.0, "qv2": -0.5},
+        "non_intervened_ib_margins": {"qv1": [-1.0], "qv2": [-0.8]},
+        "non_intervened_cb_margins": {"qv1": [0.1], "qv2": [0.9]},
     }
 
     with pytest.raises(HoldoutAccessError):
@@ -147,11 +151,29 @@ def test_dispatch__full_study_sealed__behavioral_no_holdout(
     )
     assert result.ok is True
     assert "behavioral" in result.artifacts
+    assert "behavioral_non_intervened" in result.artifacts
     assert "cross_order_matrix" not in result.artifacts
     behavioral = json.loads(Path(result.artifacts["behavioral"]).read_text())
     assert behavioral["order_regime"] == "CF"
+    assert behavioral["beta"] == [-0.5]
     assert "ftw" in behavioral or "selectivity" in behavioral
+    non_intervened = json.loads(
+        Path(result.artifacts["behavioral_non_intervened"]).read_text()
+    )
+    assert non_intervened["order_regime"] == "CF"
+    assert non_intervened["beta"] == [0.0]
+    assert non_intervened["split"] == "behavior_validation"
+    for key in ("ftw", "cbr", "selectivity", "pra_mean", "pra_all", "neutral_accuracy"):
+        assert key in non_intervened
+        assert key in behavioral
+    # Same frozen partition denominators; metrics differ under distinct margins.
+    assert non_intervened["n_q_plus"] == behavioral["n_q_plus"]
+    assert non_intervened["n_q_minus"] == behavioral["n_q_minus"]
+    assert non_intervened["ftw"] != behavioral["ftw"]
+    assert non_intervened["cbr"] != behavioral["cbr"]
+    assert (art / "full_study" / "behavioral_non_intervened.json").is_file()
     assert not (art / "full_study" / "cross_order_matrix.json").exists()
     # Holdout IDs must not appear in artifacts.
     text = Path(result.artifacts["behavioral"]).read_text()
     assert "qh1" not in text
+    assert "qh1" not in Path(result.artifacts["behavioral_non_intervened"]).read_text()

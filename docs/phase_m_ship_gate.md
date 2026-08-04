@@ -100,7 +100,8 @@ Per-study under `run.artifact_dir` (e.g. `artifacts/dev/layer17_n32_CF/`):
 - `identity/`, `baseline/partition_{order}.json`, `feature_selection/`
 - `optimize/trials.jsonl`, `optimize/checkpoints/`, `optimize/best_checkpoint.json`
 - `freeze/frozen_experiment_config.json` (includes `order_regime`)
-- `full_study/behavioral.json` (single-order; **no** in-study 3×3)
+- `full_study/behavioral.json` (intervened best-β; single-order; **no** in-study 3×3)
+- `full_study/behavioral_non_intervened.json` (β=0 comparison; same metric schema; DEC-098)
 - `holdout/` only after unlock
 
 Cross-study assemble root (e.g. `artifacts/dev/layer17_n32_cross_order/`):

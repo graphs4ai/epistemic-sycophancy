@@ -177,9 +177,13 @@ def test_real_model_or_unit__freeze_full_study_sealed__validation_metrics_withou
                 "IF": {"qv1": 0.8, "qv2": -0.4},
                 "RO": {"qv1": 0.9, "qv2": -0.3},
             },
+            "non_intervened_neutral_margins": {"qv1": 1.0, "qv2": -0.5},
+            "non_intervened_ib_margins": {"qv1": [1.0], "qv2": [0.2]},
+            "non_intervened_cb_margins": {"qv1": [0.8], "qv2": [-0.2]},
         },
     )
     assert result.ok is True
     assert Path(result.artifacts["behavioral"]).is_file()
+    assert Path(result.artifacts["behavioral_non_intervened"]).is_file()
     assert "cross_order_matrix" not in result.artifacts
     assert not (Path(study.run.artifact_dir) / "full_study" / "cross_order_matrix.json").exists()

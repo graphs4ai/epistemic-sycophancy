@@ -501,6 +501,17 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 
 Regression: `pixi run --environment test pytest tests/unit/test_optimize_metrics_artifacts.py tests/unit/test_optimize_metrics_logging.py tests/unit/test_objective_detail_return.py tests/unit/test_orch_optimize_artifacts.py tests/unit/test_adapt_objective.py tests/unit/test_optimize_trial_loss_alignment.py tests/unit/test_optimize_tqdm.py tests/unit/test_optimize_loss_curve.py tests/unit/test_margin_baseline_cache.py tests/integration/test_grad_adam_moves_beta.py -q` → `17 passed`.
 
+## full_study non-intervened comparison log (DEC-098)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-014b | `test_dispatch__full_study_sealed__behavioral_no_holdout` | green | `pixi run --environment test pytest tests/unit/test_orch_full_study.py::test_dispatch__full_study_sealed__behavioral_no_holdout -q` → `AssertionError: 'behavioral_non_intervened' not in artifacts` | same + related → `6 passed, 2 skipped` | `runner/full_study.py`, `runner/adapters/eval_payload.py`, `docs/decisions.md` | Dual val logs; same frozen partition |
+| ORCH-025b | `test_adapters__build_eval_payload__validation_margins_for_full_study` | green | same command → missing `non_intervened_*` keys | same → passed | `runner/adapters/eval_payload.py` | β=0 N/IB/CB; N shared with baseline |
+| ORCH-031b | `test_dispatch__full_study__builds_eval_payload_from_best_checkpoint_validation` | green | extended asserts | same suite → passed | `tests/unit/test_orch_dispatch_full_study_default.py` | `behavioral_non_intervened.json`; β=`[0.0]` |
+| DEC-098 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md`, `docs/phase_m_ship_gate.md`, `README.md` | amends DEC-069/070 |
+
+Regression: `pixi run --environment test pytest tests/unit/test_orch_full_study.py tests/unit/test_adapt_eval_payload.py tests/unit/test_orch_dispatch_full_study_default.py tests/unit/test_phase_m_ship_gate.py tests/unit/test_orch_m1_e2e_no_injectors.py -q` → `6 passed, 2 skipped`.
+
 ## Status definitions
 
 - `not_started`: no test written.

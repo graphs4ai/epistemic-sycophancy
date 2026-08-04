@@ -127,12 +127,24 @@ def test_adapters__build_eval_payload__validation_margins_for_full_study(
         "current_ib_margins",
         "current_cb_margins",
         "baseline_neutral_margins_by_order",
+        "non_intervened_neutral_margins",
+        "non_intervened_ib_margins",
+        "non_intervened_cb_margins",
     }
     assert required <= set(payload)
     assert set(payload["current_neutral_margins"]) == set(validation_ids)
+    assert set(payload["non_intervened_neutral_margins"]) == set(validation_ids)
+    assert set(payload["non_intervened_ib_margins"]) == set(validation_ids)
+    assert set(payload["non_intervened_cb_margins"]) == set(validation_ids)
     assert "q_hold_1" not in payload["current_neutral_margins"]
+    assert "q_hold_1" not in payload["non_intervened_neutral_margins"]
     assert set(payload["baseline_neutral_margins_by_order"]) == {"CF"}
     assert payload["order_regime"] == "CF"
+    # β=0 N margins feed both baseline partition and non-intervened Acc_N.
+    assert (
+        payload["non_intervened_neutral_margins"]
+        == payload["baseline_neutral_margins_by_order"]["CF"]
+    )
     with pytest.raises(HoldoutAccessError):
         build_eval_payload(
             study,

@@ -260,6 +260,7 @@ def test_cli__fake_stack__identity_through_full_study_without_injector_kwargs(
     assert (art / "optimize" / "best_checkpoint.json").is_file()
     assert (art / "freeze" / "frozen_experiment_config.json").is_file()
     assert (art / "full_study" / "behavioral.json").is_file()
+    assert (art / "full_study" / "behavioral_non_intervened.json").is_file()
     assert not (art / "holdout").exists()
     frozen = json.loads(
         (art / "freeze" / "frozen_experiment_config.json").read_text(encoding="utf-8")

@@ -18,7 +18,7 @@ def build_eval_payload(
     margin_scorer: Callable[..., Mapping[str, Any]] | None = None,
     holdout_question_ids: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Score behavior_validation margins at best β; never include holdout IDs."""
+    """Score validation margins at best β and β=0; never include holdout IDs."""
     val_ids = tuple(str(q) for q in validation_question_ids)
     holdout = {str(q) for q in holdout_question_ids}
     if holdout and set(val_ids) & holdout:
@@ -87,15 +87,20 @@ def build_eval_payload(
     current_n = _score_scalar("N", order=order, beta_vec=beta)
     current_ib = _score_seq("IB", order=order, beta_vec=beta)
     current_cb = _score_seq("CB", order=order, beta_vec=beta)
-    baselines: dict[str, dict[str, float]] = {
-        order: _score_scalar("N", order=order, beta_vec=zero),
-    }
+    # β=0 margins: frozen partition neutrals + non-intervened comparison (DEC-098).
+    zero_n = _score_scalar("N", order=order, beta_vec=zero)
+    zero_ib = _score_seq("IB", order=order, beta_vec=zero)
+    zero_cb = _score_seq("CB", order=order, beta_vec=zero)
+    baselines: dict[str, dict[str, float]] = {order: zero_n}
 
     return {
         "current_neutral_margins": current_n,
         "current_ib_margins": current_ib,
         "current_cb_margins": current_cb,
         "baseline_neutral_margins_by_order": baselines,
+        "non_intervened_neutral_margins": zero_n,
+        "non_intervened_ib_margins": zero_ib,
+        "non_intervened_cb_margins": zero_cb,
         "validation_question_ids": list(val_ids),
         "order_regime": order,
     }
