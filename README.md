@@ -169,6 +169,40 @@ pixi install
 | `dev` | test + ruff, mypy |
 | `cuda` / `test-cuda` | GPU PyTorch (linux-64-cuda) |
 
+### Pixi tasks
+
+Tasks are declared in `pyproject.toml`. Study stages take `--config <yaml>` after
+`--`; use `--environment test-cuda` for real-model GPU runs.
+
+**Study pipeline** (order: identity → baseline → feature selection → optimize →
+freeze → full study → holdout):
+
+| Task | What it does |
+| --- | --- |
+| `run-identity` | Sanity-check the SAE hook stack at $\beta = 0$: hooked residuals must match the unhooked residual stream. Later stages should not proceed if this fails. |
+| `run-baseline` | Score neutral prompts and freeze order-specific partitions $Q^+$, $Q^-$, and ties. Those partitions stay fixed for the rest of the study. |
+| `run-fs` | Gradient-based feature selection: per-order Jacobians for resistance / recovery / preservation surrogates, then a deterministic common feature pool under `feature_selection/`. |
+| `run-optimize` | Fit SAE coefficients $\beta$ on the optimization split (CMA-ES or projected Adam) using the selected pool. Writes `optimize/best_checkpoint.json`. |
+| `run-freeze` | Seal the study into a `FrozenExperimentConfig` under `freeze/`. Locks revisions, hashes, and selected features before validation / holdout. |
+| `run-study` | Post-freeze evaluation on `behavior_validation` with the best checkpoint (FTW, CBR, Selectivity, …). Requires a sealed freeze; does **not** open holdout. |
+| `run-holdout` | Final unlock: load holdout only after a sealed freeze, mark `holdout_started`, and write holdout artifacts. One-shot terminal stage. |
+
+**Tests** (`test` / `test-cuda` environments):
+
+| Task | What it does |
+| --- | --- |
+| `test-fast` | Fast gate: `pytest` excluding `real_model`, `slow`, and `gpu` markers. |
+| `test` | Full `pytest` collection for the active environment. |
+| `test-gpu` | CUDA env only: `pytest` for `real_model` or `gpu` markers. |
+
+**Lint / typing** (`dev` environment):
+
+| Task | What it does |
+| --- | --- |
+| `lint` | `ruff check .` |
+| `format-check` | `ruff format --check .` |
+| `typecheck` | `mypy src tests` |
+
 ### Run a study from YAML
 
 Author a StudyConfig under `configs/` (`stack` + `experiment` + `run`). Bare
@@ -200,9 +234,6 @@ Run CF, IF, and RO as three sealed studies, then assemble the 3×3 matrix.
 Operational logs go to **stderr**: stage start/end with `elapsed_s`, optimize/FS
 progress, and WARNING audits for freeze seal / holdout unseal. Optional
 `--log-level DEBUG|INFO|WARNING|ERROR` (default `INFO`).
-
-Pixi tasks: `run-identity`, `run-baseline`, `run-fs`, `run-optimize`,
-`run-freeze`, `run-study`, `run-holdout`.
 
 Adapter defaults, artifact layout, cross-order assemble, and real-model gates:
 [`docs/phase_m_ship_gate.md`](docs/phase_m_ship_gate.md).
