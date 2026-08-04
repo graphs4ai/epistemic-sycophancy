@@ -29,6 +29,9 @@ if [ -z "$CFG" ] || [ ! -f "$CFG" ]; then
     exit 1
 fi
 
+# Run identity check
+pixi run --environment test-cuda run-identity -- --config "$CFG"
+
 # Run the baseline partitioning
 pixi run --environment test-cuda run-baseline -- --config "$CFG"
 
