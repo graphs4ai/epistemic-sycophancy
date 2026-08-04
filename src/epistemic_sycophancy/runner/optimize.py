@@ -1,9 +1,10 @@
-"""Optimize stage (ORCH-009 / DEC-066 / DEC-072)."""
+"""Optimize stage (ORCH-009 / DEC-066 / DEC-072 / DEC-097)."""
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+import math
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +14,85 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from epistemic_sycophancy.config.load_study import study_config_fingerprint
 from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.logging.loss_curve import plot_loss_over_trials
+from epistemic_sycophancy.logging.optimize_metrics import (
+    ITERATION_CSV_COLUMNS,
+    STEP_CSV_COLUMNS,
+    count_betas_at_bounds,
+    plot_iteration_metric_curves,
+    write_optimize_metrics_csv,
+)
 from epistemic_sycophancy.logging.pipeline import log_progress
+from epistemic_sycophancy.objective.total import ObjectiveResult
 from epistemic_sycophancy.optimization.checkpoint import dump_checkpoint
 from epistemic_sycophancy.optimization.projected_adam import ProjectedAdam
 from epistemic_sycophancy.reproducibility.phase_gates import require_identity_gate
 from epistemic_sycophancy.runner.progress import adam_step_batch_progress
+
+_LOSS_COMPONENT_KEYS: tuple[str, ...] = (
+    "l_resist",
+    "l_recover",
+    "l_behavior",
+    "l_neutral",
+    "l_correct",
+    "l_beta",
+    "l_total",
+)
+
+
+def coerce_objective(
+    value: float | ObjectiveResult | Mapping[str, Any],
+) -> tuple[float, dict[str, float | None]]:
+    """Normalize float / ObjectiveResult / mapping into ``(l_total, components)``."""
+    if isinstance(value, ObjectiveResult):
+        comps: dict[str, float | None] = {
+            "l_resist": float(value.l_resist),
+            "l_recover": float(value.l_recover),
+            "l_behavior": float(value.l_behavior),
+            "l_neutral": float(value.l_neutral),
+            "l_correct": float(value.l_correct),
+            "l_beta": float(value.l_beta),
+            "l_total": float(value.l_total),
+        }
+        return float(value.l_total), comps
+    if isinstance(value, Mapping):
+        comps = {key: None for key in _LOSS_COMPONENT_KEYS}
+        for key in _LOSS_COMPONENT_KEYS:
+            if key in value and value[key] is not None:
+                comps[key] = float(value[key])
+        if comps["l_total"] is None:
+            raise ValueError("objective mapping must include l_total")
+        return float(comps["l_total"]), comps
+    loss = float(value)
+    comps = {key: None for key in _LOSS_COMPONENT_KEYS}
+    comps["l_total"] = loss
+    return loss, comps
+
+
+def _metric_row(
+    *,
+    index: int,
+    optimizer_kind: str,
+    comps: Mapping[str, float | None],
+    beta: Sequence[float],
+    beta_lower: float,
+    beta_upper: float,
+    step_grad_norm: float | None = None,
+) -> dict[str, Any]:
+    n_lo, n_hi = count_betas_at_bounds(
+        beta, beta_lower=beta_lower, beta_upper=beta_upper
+    )
+    row: dict[str, Any] = {
+        "index": int(index),
+        "optimizer_kind": str(optimizer_kind),
+        "number_at_lower_bound": int(n_lo),
+        "number_at_upper_bound": int(n_hi),
+    }
+    for key in _LOSS_COMPONENT_KEYS:
+        value = comps.get(key)
+        row[key] = "" if value is None else float(value)
+    if step_grad_norm is not None:
+        row["step_grad_norm"] = float(step_grad_norm)
+    return row
 
 
 def resolve_optimize_question_ids(
@@ -42,15 +117,22 @@ def run_optimize_dispatch(
     freeze_status: str,
     identity_passed: bool,
     optimization_question_ids: Sequence[str],
-    objective_fn: Callable[[Sequence[float], Sequence[str]], float],
+    objective_fn: Callable[[Sequence[float], Sequence[str]], Any],
     grad_fn: Callable[[Sequence[float], Sequence[str]], Sequence[float]] | None = None,
     beta_init: Sequence[float] | None = None,
     adam_step_batch_total: int | None = None,
+    n_q_plus: int | None = None,
+    n_q_minus: int | None = None,
 ) -> dict[str, Any]:
     """Run optimize using ``run.optimize`` budgets.
 
-    ``adam_step_batch_total`` is the fixed prompt-microbatch count per Adam step
-    (DEC-092); when omitted for projected Adam, each step bar uses total 0.
+    ``objective_fn`` may return a float, ``ObjectiveResult``, or a mapping with
+    ``l_*`` keys (DEC-097). ``adam_step_batch_total`` is the fixed prompt-microbatch
+    count per Adam step (DEC-092); when omitted for projected Adam, each step bar
+    uses total 0.
+
+    ``n_q_plus`` / ``n_q_minus`` are written once to ``optimize/static.json`` when
+    provided (eligible ∩ frozen partition sizes).
     """
     del freeze_status
     require_identity_gate(identity_passed=identity_passed)
@@ -77,6 +159,8 @@ def run_optimize_dispatch(
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     trials: list[dict[str, Any]] = []
+    step_rows: list[dict[str, Any]] = []
+    iteration_rows: list[dict[str, Any]] = []
     best_beta = list(beta0)
     best_loss = float("inf")
 
@@ -113,6 +197,9 @@ def run_optimize_dispatch(
                 ) as step_bar:
                     current = tuple(float(x) for x in beta_param.detach().tolist())
                     grad = grad_fn(current, eligible)
+                    step_grad_norm = math.sqrt(
+                        sum(float(g) * float(g) for g in grad)
+                    )
                     adam.zero_grad()
                     beta_param.grad = torch.tensor(list(grad), dtype=torch.float64)
                     adam.step()
@@ -121,7 +208,20 @@ def run_optimize_dispatch(
                         if not (exp.beta_lower <= b <= exp.beta_upper):
                             raise ValueError(f"β out of bounds after step: {updated}")
                     # DEC-084 / GRAD-006: log loss at the logged (post-step) β.
-                    loss = float(objective_fn(updated, eligible))
+                    loss, comps = coerce_objective(objective_fn(updated, eligible))
+                    metric = _metric_row(
+                        index=step,
+                        optimizer_kind=kind,
+                        comps=comps,
+                        beta=updated,
+                        beta_lower=float(exp.beta_lower),
+                        beta_upper=float(exp.beta_upper),
+                        step_grad_norm=step_grad_norm,
+                    )
+                    step_rows.append(metric)
+                    iteration_rows.append(
+                        {k: metric[k] for k in ITERATION_CSV_COLUMNS}
+                    )
                     trials.append(
                         {
                             "trial_index": step,
@@ -191,14 +291,36 @@ def run_optimize_dispatch(
             )
             for trial in trial_bar:
                 candidates = opt.ask()[: int(optimize.population_size)]
+
+                def _float_objective(
+                    beta: Sequence[float], qids: Sequence[str]
+                ) -> float:
+                    loss_f, _ = coerce_objective(objective_fn(beta, qids))
+                    return loss_f
+
                 values = [
-                    opt.evaluate_candidate(cand, evaluate_on_questions=objective_fn)
+                    opt.evaluate_candidate(
+                        cand, evaluate_on_questions=_float_objective
+                    )
                     for cand in candidates
                 ]
                 opt.tell(candidates, values)
                 best_idx = min(range(len(values)), key=lambda i: values[i])
                 cand = list(map(float, candidates[best_idx]))
-                loss = float(values[best_idx])
+                loss, comps = coerce_objective(objective_fn(cand, eligible))
+                metric = _metric_row(
+                    index=trial,
+                    optimizer_kind=kind,
+                    comps=comps,
+                    beta=cand,
+                    beta_lower=float(exp.beta_lower),
+                    beta_upper=float(exp.beta_upper),
+                    step_grad_norm=None,
+                )
+                step_rows.append(metric)
+                iteration_rows.append(
+                    {k: metric[k] for k in ITERATION_CSV_COLUMNS}
+                )
                 trials.append(
                     {
                         "trial_index": trial,
@@ -244,6 +366,28 @@ def run_optimize_dispatch(
 
     curve_path = plot_loss_over_trials(trials, out_dir / "loss_curve.png")
 
+    steps_path = write_optimize_metrics_csv(
+        step_rows, out_dir / "steps.csv", columns=STEP_CSV_COLUMNS
+    )
+    iterations_path = write_optimize_metrics_csv(
+        iteration_rows, out_dir / "iterations.csv", columns=ITERATION_CSV_COLUMNS
+    )
+    curves_dir = out_dir / "curves"
+    curve_paths = plot_iteration_metric_curves(iteration_rows, curves_dir)
+
+    static_payload: dict[str, int] = {}
+    if n_q_plus is not None:
+        static_payload["n_q_plus"] = int(n_q_plus)
+    if n_q_minus is not None:
+        static_payload["n_q_minus"] = int(n_q_minus)
+    static_path: Path | None = None
+    if static_payload:
+        static_path = out_dir / "static.json"
+        static_path.write_text(
+            json.dumps(static_payload, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     best_ckpt = dump_checkpoint(
         optimizer_kind=kind,
         beta=best_beta,
@@ -259,9 +403,15 @@ def run_optimize_dispatch(
     artifacts: dict[str, str] = {
         "best_checkpoint": str(best_path),
         "trials": str(trials_path),
+        "steps_csv": str(steps_path),
+        "iterations_csv": str(iterations_path),
     }
     if curve_path is not None:
         artifacts["loss_curve"] = str(curve_path)
+    if curve_paths:
+        artifacts["curves_dir"] = str(curves_dir)
+    if static_path is not None:
+        artifacts["static"] = str(static_path)
     return {
         "metrics": {
             "best_beta": best_beta,
@@ -270,6 +420,8 @@ def run_optimize_dispatch(
             "eligible_question_ids": list(eligible),
             "optimizer_kind": kind,
             "optimize_max_steps": optimize.max_steps,
+            "n_q_plus": n_q_plus,
+            "n_q_minus": n_q_minus,
         },
         "artifacts": artifacts,
     }

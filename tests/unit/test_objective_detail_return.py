@@ -1,4 +1,4 @@
-"""ORCH-024: build_objective_fn + build_grad_fn (DEC-076)."""
+"""ADAPT-OBJ-001: build_objective_fn returns ObjectiveResult; coerce float|result."""
 
 from __future__ import annotations
 
@@ -9,18 +9,18 @@ import pytest
 from epistemic_sycophancy.config.schema import ExperimentConfig
 from epistemic_sycophancy.config.study import (
     StudyConfig,
+    StudyFsCoverageConfig,
     StudyOptimizeConfig,
     StudyOptimizerConfig,
     StudyRunConfig,
-    StudyFsCoverageConfig,
 )
 from epistemic_sycophancy.models.spec import ModelSpec
-from epistemic_sycophancy.objective.total import evaluate_objective
+from epistemic_sycophancy.objective.total import ObjectiveResult, evaluate_objective
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
 from epistemic_sycophancy.stack.config import ExperimentStackConfig, HookSpec
 
 
-def _study(*, artifact_dir: str) -> StudyConfig:
+def _study(artifact_dir: str) -> StudyConfig:
     return StudyConfig(
         stack=ExperimentStackConfig(
             model=ModelSpec(
@@ -75,7 +75,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
             order_regime="CF",
             feature_chunk_size=1024,
             prompt_batch_size=1,
-            fs_coverage=StudyFsCoverageConfig(question_ids=("q1", "q2")),
+            fs_coverage=StudyFsCoverageConfig(question_ids=("q1",)),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
                 adam_lr=0.1,
@@ -86,22 +86,19 @@ def _study(*, artifact_dir: str) -> StudyConfig:
             ),
             optimize=StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
-                max_steps=20,
-                n_questions=2,
+                max_steps=1,
+                question_ids=("q1", "q2"),
             ),
         ),
     )
 
 
 @pytest.mark.unit
-def test_adapters__build_objective_and_grad__live_stack_matches_evaluate_objective(
+def test_build_objective_fn__returns_objective_result_with_components(
     tmp_path: Path,
 ) -> None:
-    """ORCH-024: objective_fn matches evaluate_objective; grad length = m."""
-    from epistemic_sycophancy.runner.adapters.objective import (
-        build_grad_fn,
-        build_objective_fn,
-    )
+    """ADAPT-OBJ-001: production objective_fn returns ObjectiveResult, not bare float."""
+    from epistemic_sycophancy.runner.adapters.objective import build_objective_fn
 
     study = _study(artifact_dir=str(tmp_path / "art"))
     partitions = {"q_plus": frozenset({"q1"}), "q_minus": frozenset({"q2"})}
@@ -120,47 +117,69 @@ def test_adapters__build_objective_and_grad__live_stack_matches_evaluate_objecti
         partitions=partitions,
         margin_scorer=margin_scorer,
     )
-    zero = __import__("torch").zeros(1, dtype=__import__("torch").float64)
+    result = objective_fn((-0.5,), ("q1", "q2"))
+    assert isinstance(result, ObjectiveResult)
+    expected = evaluate_objective(
+        ib_margins_by_question={"q1": (0.25,), "q2": (0.25,)},
+        cb_margins_by_question={"q1": (0.75,), "q2": (0.75,)},
+        baseline_cb_margins={"q1": (0.75,), "q2": (0.75,)},
+        baseline_neutral_margins={"q1": 1.0, "q2": -0.5},
+        current_neutral_margins={"q1": 1.0, "q2": -0.5},
+        q_plus=partitions["q_plus"],
+        q_minus=partitions["q_minus"],
+        beta=(-0.5,),
+        tau=1.0,
+        w_r=0.5,
+        w_u=0.5,
+        delta_n=0.0,
+        delta_c=0.0,
+        lambda_n=0.0,
+        lambda_c=0.0,
+        lambda_beta=0.01,
+    )
+    assert result.l_total == pytest.approx(expected.l_total, abs=1e-12, rel=1e-12)
+    assert result.l_resist == pytest.approx(expected.l_resist, abs=1e-12, rel=1e-12)
+    assert result.l_recover == pytest.approx(expected.l_recover, abs=1e-12, rel=1e-12)
+    assert result.l_behavior == pytest.approx(expected.l_behavior, abs=1e-12, rel=1e-12)
+    assert result.l_neutral == pytest.approx(expected.l_neutral, abs=1e-12, rel=1e-12)
+    assert result.l_correct == pytest.approx(expected.l_correct, abs=1e-12, rel=1e-12)
+    assert result.l_beta == pytest.approx(expected.l_beta, abs=1e-12, rel=1e-12)
 
-    def margin_jacobian_fn(*, beta, question_ids, partitions):
-        del beta, question_ids, partitions
-        return {
-            "ib_margin_jac": {"q1": [zero.clone()], "q2": [zero.clone()]},
-            "cb_margin_jac": {"q1": [zero.clone()], "q2": [zero.clone()]},
-            "neutral_margin_jac": {"q1": zero.clone(), "q2": zero.clone()},
+
+@pytest.mark.unit
+def test_coerce_objective__float_result_and_mapping__normalize_components() -> None:
+    """ADAPT-OBJ-001b: coerce accepts float, ObjectiveResult, or mapping."""
+    from epistemic_sycophancy.runner.optimize import coerce_objective
+
+    loss, comps = coerce_objective(1.25)
+    assert loss == 1.25
+    assert comps["l_total"] == 1.25
+    assert comps["l_resist"] is None
+
+    result = ObjectiveResult(
+        l_resist=0.1,
+        l_recover=0.2,
+        l_behavior=0.15,
+        l_neutral=0.0,
+        l_correct=0.0,
+        l_beta=0.01,
+        l_total=0.16,
+    )
+    loss2, comps2 = coerce_objective(result)
+    assert loss2 == 0.16
+    assert comps2["l_resist"] == 0.1
+    assert comps2["l_total"] == 0.16
+
+    loss3, comps3 = coerce_objective(
+        {
+            "l_resist": 0.3,
+            "l_recover": 0.4,
+            "l_behavior": 0.35,
+            "l_neutral": 0.0,
+            "l_correct": 0.0,
+            "l_beta": 0.0,
+            "l_total": 0.35,
         }
-
-    grad_fn = build_grad_fn(
-        study,
-        stack=object(),
-        partitions=partitions,
-        margin_scorer=margin_scorer,
-        margin_jacobian_fn=margin_jacobian_fn,
     )
-    beta = (-0.5,)
-    eligible = ("q1", "q2")
-    loss = objective_fn(beta, eligible)
-
-    assert loss.l_total == pytest.approx(
-        evaluate_objective(
-            ib_margins_by_question={"q1": (0.25,), "q2": (0.25,)},
-            cb_margins_by_question={"q1": (0.75,), "q2": (0.75,)},
-            baseline_cb_margins={"q1": (0.75,), "q2": (0.75,)},
-            baseline_neutral_margins={"q1": 1.0, "q2": -0.5},
-            current_neutral_margins={"q1": 1.0, "q2": -0.5},
-            q_plus=partitions["q_plus"],
-            q_minus=partitions["q_minus"],
-            beta=beta,
-            tau=1.0,
-            w_r=0.5,
-            w_u=0.5,
-            delta_n=0.0,
-            delta_c=0.0,
-            lambda_n=0.0,
-            lambda_c=0.0,
-            lambda_beta=0.01,
-        ).l_total
-    )
-    grad = grad_fn(beta, eligible)
-    assert len(grad) == study.experiment.coefficient_length
-    assert all(isinstance(x, float) for x in grad)
+    assert loss3 == 0.35
+    assert comps3["l_recover"] == 0.4

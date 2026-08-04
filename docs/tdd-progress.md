@@ -488,6 +488,19 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | GRAD-015 | `test_margin_jacobian__multi_layer_pool__scatters_per_layer_into_length_m_row` | green | `pixi run --environment test pytest tests/unit/test_margin_jacobian_multi_layer.py::test_margin_jacobian__multi_layer_pool__scatters_per_layer_into_length_m_row -q` → `TypeError: … missing 1 required keyword-only argument: 'layer'` | same → `1 passed`; related margin/grad suite → `8 passed` | `runner/adapters/margin_jacobian.py`, FakeStack `layer=` shims | DEC-096; pool `[(17,0),(22,2)]` → `[4.0, 0.5]`; removes “multi-layer margin jac unsupported” |
 | FSC-011 | `test_adapters__build_jacobian_fn__multi_layer_stack__merges_per_layer_maps` | green | `pixi run --environment test pytest tests/unit/test_fs_multi_layer_jacobian.py::test_adapters__build_jacobian_fn__multi_layer_stack__merges_per_layer_maps -q` → `KeyError: 'layer'` | same → `1 passed`; FS+margin regression `… test_fs_multi_layer_jacobian.py test_margin_jacobian_multi_layer.py … test_orch_m1_e2e_no_injectors.py test_grad_adam_moves_beta.py -q` → `19 passed` | `runner/adapters/jacobian.py`, `docs/decisions.md` | DEC-096; loops `stack.sae.layers`; merges `(17,0)=2` and `(22,0)=3` |
 
+## Optimize component / bound / grad-norm logging (DEC-097)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-LOG-CSV-001 | `test_count_betas_at_bounds__…` + `test_write_optimize_metrics_csv__…` | green | `pixi run --environment test pytest tests/unit/test_optimize_metrics_logging.py -q` → `ModuleNotFoundError: …optimize_metrics` | same → `3 passed` | `logging/optimize_metrics.py`, `logging/__init__.py` | bounds + CSV columns |
+| ORCH-PLOT-002 | `test_plot_iteration_metric_curves__writes_png_per_metric` | green | same suite red (missing module) | same → passed | `logging/optimize_metrics.py` | one PNG per metric; empty → none |
+| ADAPT-OBJ-001 | `test_build_objective_fn__returns_objective_result_with_components` + coerce | green | `pytest tests/unit/test_objective_detail_return.py -q` → float not ObjectiveResult; `ImportError: coerce_objective` | same → `2 passed`; `test_adapt_objective` updated | `runner/adapters/objective.py`, `runner/optimize.py` | ObjectiveResult + coerce float/result/mapping |
+| ORCH-LOG-CSV-002 | `test_optimize__writes_step_iteration_csv_curves_and_static` | green | `TypeError: … unexpected keyword argument 'n_q_plus'` | `pixi run --environment test pytest tests/unit/test_optimize_metrics_artifacts.py -q` → `1 passed` | `runner/optimize.py`, `runner/cli.py` | steps/iterations CSV, curves/, static.json |
+| ORCH-011 | `test_dispatch__optimize__writes_trial_records_and_best_checkpoint_artifact` | green | extended asserts for CSV keys | related suite → passed | `tests/unit/test_orch_optimize_artifacts.py` | asserts steps.csv + iterations.csv |
+| DEC-097 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | amends DEC-070/091 |
+
+Regression: `pixi run --environment test pytest tests/unit/test_optimize_metrics_artifacts.py tests/unit/test_optimize_metrics_logging.py tests/unit/test_objective_detail_return.py tests/unit/test_orch_optimize_artifacts.py tests/unit/test_adapt_objective.py tests/unit/test_optimize_trial_loss_alignment.py tests/unit/test_optimize_tqdm.py tests/unit/test_optimize_loss_curve.py tests/unit/test_margin_baseline_cache.py tests/integration/test_grad_adam_moves_beta.py -q` → `17 passed`.
+
 ## Status definitions
 
 - `not_started`: no test written.

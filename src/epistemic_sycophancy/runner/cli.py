@@ -432,6 +432,7 @@ def dispatch_stage(
             )
 
         live_belief_scorer = False
+        partitions: dict[str, Any] | None = None
         if objective_fn is None or (
             grad_fn is None and study.run.optimizer.kind == "projected_adam"
         ):
@@ -641,6 +642,8 @@ def dispatch_stage(
             grad_fn=grad_fn,
             beta_init=beta,
             adam_step_batch_total=adam_step_batch_total,
+            n_q_plus=len(partitions["q_plus"]) if partitions is not None else None,
+            n_q_minus=len(partitions["q_minus"]) if partitions is not None else None,
         )
         metrics = dict(opt_result["metrics"])
         artifacts = dict(opt_result["artifacts"])

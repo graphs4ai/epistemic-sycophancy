@@ -97,7 +97,7 @@ def _study(artifact_dir: str) -> StudyConfig:
 def test_dispatch__optimize__writes_trial_records_and_best_checkpoint_artifact(
     tmp_path: Path,
 ) -> None:
-    """ORCH-011: trials.jsonl + best_checkpoint.json + loss_curve.png (DEC-032/091)."""
+    """ORCH-011: trials.jsonl + best_checkpoint.json + loss_curve.png + metrics CSV (DEC-032/091/097)."""
     from epistemic_sycophancy.optimization.checkpoint import load_checkpoint
     from epistemic_sycophancy.runner.cli import dispatch_stage
 
@@ -113,14 +113,22 @@ def test_dispatch__optimize__writes_trial_records_and_best_checkpoint_artifact(
     assert "trials" in result.artifacts
     assert "best_checkpoint" in result.artifacts
     assert "loss_curve" in result.artifacts
+    assert "steps_csv" in result.artifacts
+    assert "iterations_csv" in result.artifacts
     trials_path = Path(result.artifacts["trials"])
     best_path = Path(result.artifacts["best_checkpoint"])
     curve_path = Path(result.artifacts["loss_curve"])
+    steps_path = Path(result.artifacts["steps_csv"])
+    iters_path = Path(result.artifacts["iterations_csv"])
     assert trials_path.is_file()
     assert best_path.is_file()
     assert curve_path.is_file()
     assert curve_path.stat().st_size > 0
     assert curve_path.name == "loss_curve.png"
+    assert steps_path.is_file()
+    assert iters_path.is_file()
+    assert steps_path.name == "steps.csv"
+    assert iters_path.name == "iterations.csv"
     lines = [json.loads(line) for line in trials_path.read_text().splitlines() if line]
     assert len(lines) == 2
     for row in lines:

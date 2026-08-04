@@ -10,6 +10,7 @@ import torch
 
 from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.objective.total import (
+    ObjectiveResult,
     evaluate_objective,
     evaluate_objective_with_local_grad,
 )
@@ -27,10 +28,12 @@ def build_objective_fn(
     partitions: Mapping[str, Any],
     margin_scorer: Callable[..., Mapping[str, Any]] | None = None,
     baseline_cache: MarginBaselineCache | None = None,
-) -> Callable[[Sequence[float], Sequence[str]], float]:
-    """Build ``(beta, eligible_qids) -> l_total`` with live margins (DEC-076)."""
+) -> Callable[[Sequence[float], Sequence[str]], ObjectiveResult]:
+    """Build ``(beta, eligible_qids) -> ObjectiveResult`` with live margins (DEC-076 / DEC-097)."""
 
-    def objective_fn(beta: Sequence[float], eligible_qids: Sequence[str]) -> float:
+    def objective_fn(
+        beta: Sequence[float], eligible_qids: Sequence[str]
+    ) -> ObjectiveResult:
         payload = build_margin_payload(
             study,
             stack,
@@ -41,7 +44,7 @@ def build_objective_fn(
             baseline_cache=baseline_cache,
         )
         exp = study.experiment
-        result = evaluate_objective(
+        return evaluate_objective(
             ib_margins_by_question=payload["ib_margins_by_question"],
             cb_margins_by_question=payload["cb_margins_by_question"],
             baseline_cb_margins=payload["baseline_cb_margins"],
@@ -59,7 +62,6 @@ def build_objective_fn(
             lambda_c=float(exp.lambda_c),
             lambda_beta=float(exp.lambda_beta),
         )
-        return float(result.l_total)
 
     return objective_fn
 
