@@ -1,6 +1,6 @@
 # epistemic-sycophancy
 
-Library and experiment scaffolding for **additive SAE interventions** against
+Library and experiment for **additive SAE interventions** against
 **epistemic sycophancy**: models deferring to a user's incorrect beliefs even
 when they would answer correctly under a neutral prompt.
 
@@ -85,7 +85,7 @@ surrogates because the optimizer hinges are locally flat at the null
 intervention. Checkpoint selection uses validation metrics only; holdout stays
 sealed until a freeze artifact unlocks it.
 
-**Behavioral claims.** FTW, CBR, Selectivity, PRA, MC1, and MC2 are computed on
+FTW, CBR, Selectivity, PRA, MC1, and MC2 are computed on
 frozen partitions at the original-question level. Uncertainty uses
 question-cluster bootstrap, not prompt-row resampling. Controls include
 random-feature and shuffled-coefficient baselines.
