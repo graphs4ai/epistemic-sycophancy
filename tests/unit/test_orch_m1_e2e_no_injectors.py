@@ -81,8 +81,9 @@ class _FakeStack:
     def fs_projection_batch(self, **kwargs: Any) -> dict[str, Any]:
         qids = list(kwargs.get("question_ids") or ("q_fs_1", "q_fs_2"))
         n = len(qids)
+        layer = int(kwargs.get("layer", 17))
         return {
-            "layer": 17,
+            "layer": layer,
             "residual_gradients": torch.ones(n, 2, dtype=torch.float64),
             "latents": torch.tensor(
                 [[1.0, 0.0, 0.0]] * n, dtype=torch.float64
@@ -114,8 +115,10 @@ class _FakeStack:
         belief_condition: str,
         question_ids: tuple[str, ...],
         beta: tuple[float, ...],
+        layer: int | None = None,
     ):
         """GRAD-010: tiny linear-SAE batch; real coefficient_jacobian still runs."""
+        _ = layer
         del beta
         n = len(question_ids)
         decoder = self.saes[17].decoder_weight

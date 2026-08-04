@@ -1,4 +1,4 @@
-"""Production jacobian_fn adapter (ORCH-022 / DEC-060)."""
+"""Production jacobian_fn adapter (ORCH-022 / DEC-060 / FSC-011)."""
 
 from __future__ import annotations
 
@@ -21,6 +21,76 @@ from epistemic_sycophancy.prompts.render import RenderedPromptRow, render_mc0_su
 from epistemic_sycophancy.runner.adapters.fs_batch import compute_fs_projection_batch
 
 
+def _signed_jacobian_from_batch(
+    *,
+    study: StudyConfig,
+    stack: Any,
+    batch: Mapping[str, Any],
+    question_ids: Sequence[str],
+) -> dict[tuple[int, int], float]:
+    """Project one layer's residual grads into ``(layer, feature_id) → J``."""
+    layer = int(batch["layer"])
+    residual_gradients = batch["residual_gradients"]
+    latents = batch["latents"]
+    batch_qids = [str(q) for q in batch["question_ids"]]
+    if len(batch_qids) != residual_gradients.shape[0]:
+        raise ValueError("fs_projection_batch question_ids length must match batch")
+    sae = stack.saes[layer]
+    decoder = (
+        sae.decoder_weight
+        if hasattr(sae, "decoder_weight")
+        else sae.W_dec
+    )
+    n_features = int(decoder.shape[0])
+    decoder_f64 = decoder.detach().to(dtype=torch.float64)
+    feature_scales = torch.linalg.vector_norm(decoder_f64, dim=1)
+    if not bool(torch.all(feature_scales > 0)):
+        bad = int((feature_scales <= 0).nonzero()[0].item())
+        raise ValueError(f"decoder_norm must be > 0; feature_id={bad} got 0")
+    raw = project_residual_gradient(
+        gradient=residual_gradients.to(dtype=torch.float64),
+        decoder=decoder_f64,
+        feature_chunk_size=int(study.run.feature_chunk_size),
+    )
+    per_prompt = coefficient_jacobian(
+        raw_projection=raw,
+        latents=latents.to(dtype=torch.float64),
+        feature_scales=feature_scales,
+    )
+    if batch.get("weights_applied"):
+        # §11.3 / FSC-003: weights already in residual grads — sum once.
+        macro = per_prompt.sum(dim=0)
+    else:
+        by_question: dict[str, list[torch.Tensor]] = {}
+        for row, qid in enumerate(batch_qids):
+            by_question.setdefault(qid, []).append(per_prompt[row].detach())
+        filtered = {qid: by_question[qid] for qid in question_ids if qid in by_question}
+        missing = set(question_ids) - set(filtered)
+        if missing:
+            raise ValueError(
+                f"jacobian_fn missing projection rows for question_ids={sorted(missing)}"
+            )
+        macro = question_macro_jacobian(filtered)
+    return {
+        (layer, fid): float(macro[fid].item()) for fid in range(n_features)
+    }
+
+
+def _call_fs_projection_batch(
+    stack: Any,
+    *,
+    batch_kwargs: Mapping[str, Any],
+    component: str,
+    layer: int,
+) -> dict[str, Any]:
+    """Call toy/production ``fs_projection_batch`` with required ``layer`` (FSC-011)."""
+    kwargs = {**batch_kwargs, "layer": int(layer)}
+    try:
+        return stack.fs_projection_batch(**kwargs, component=component)
+    except TypeError:
+        return stack.fs_projection_batch(**kwargs)
+
+
 def build_jacobian_fn(
     study: StudyConfig,
     stack: Any,
@@ -32,6 +102,8 @@ def build_jacobian_fn(
 
     Unit/toy stacks may expose ``fs_projection_batch``. Production stacks use
     multi-condition render + ``selection_component_prompts`` (DEC-085).
+    Multi-layer stacks project every ``study.stack.sae.layers`` entry and merge
+    ``(layer, feature_id)`` maps (FSC-011 / DEC-054).
     """
 
     def jacobian_fn(
@@ -44,6 +116,11 @@ def build_jacobian_fn(
         if not qids:
             raise ValueError("jacobian_fn requires nonempty question_ids")
 
+        layers = tuple(int(layer) for layer in study.stack.sae.layers)
+        if not layers:
+            raise ValueError("jacobian_fn requires nonempty stack.sae.layers")
+
+        merged: dict[tuple[int, int], float] = {}
         if hasattr(stack, "fs_projection_batch"):
             batch_kwargs: dict[str, Any] = {
                 "question_ids": qids,
@@ -51,75 +128,55 @@ def build_jacobian_fn(
                 "prompt_batch_size": int(study.run.prompt_batch_size),
                 "order_regime": order_regime,
             }
-            # Toy injectors may ignore component; production fakes may use it.
-            try:
-                batch = stack.fs_projection_batch(**batch_kwargs, component=component)
-            except TypeError:
-                batch = stack.fs_projection_batch(**batch_kwargs)
-        else:
-            if corpus is None or split_question_ids is None:
-                raise ValueError(
-                    "build_jacobian_fn requires stack.fs_projection_batch or "
-                    "corpus+split_question_ids for production projection (ORCH-036)"
+            for layer in layers:
+                batch = _call_fs_projection_batch(
+                    stack,
+                    batch_kwargs=batch_kwargs,
+                    component=component,
+                    layer=layer,
                 )
-            batch = _production_component_batch(
+                merged.update(
+                    _signed_jacobian_from_batch(
+                        study=study,
+                        stack=stack,
+                        batch=batch,
+                        question_ids=qids,
+                    )
+                )
+            return merged
+
+        if corpus is None or split_question_ids is None:
+            raise ValueError(
+                "build_jacobian_fn requires stack.fs_projection_batch or "
+                "corpus+split_question_ids for production projection (ORCH-036)"
+            )
+        # Shared render/partition once; per-layer projection only (FSC-011).
+        selected = _production_component_rows(
+            study=study,
+            corpus=corpus,
+            split_question_ids=split_question_ids,
+            order_regime=order_regime,
+            question_ids=qids,
+            component=component,
+        )
+        if selected is None:
+            return {}
+        for layer in layers:
+            batch = _project_component_rows(
                 study=study,
                 stack=stack,
-                corpus=corpus,
-                split_question_ids=split_question_ids,
-                order_regime=order_regime,
-                question_ids=qids,
-                component=component,
+                selected=selected,
+                layer=layer,
             )
-            if batch is None:
-                return {}
-
-        layer = int(batch["layer"])
-        residual_gradients = batch["residual_gradients"]
-        latents = batch["latents"]
-        batch_qids = [str(q) for q in batch["question_ids"]]
-        if len(batch_qids) != residual_gradients.shape[0]:
-            raise ValueError("fs_projection_batch question_ids length must match batch")
-        sae = stack.saes[layer]
-        decoder = (
-            sae.decoder_weight
-            if hasattr(sae, "decoder_weight")
-            else sae.W_dec
-        )
-        n_features = int(decoder.shape[0])
-        decoder_f64 = decoder.detach().to(dtype=torch.float64)
-        # Full-width decoder norms in one vectorized op (layer17 limited path).
-        feature_scales = torch.linalg.vector_norm(decoder_f64, dim=1)
-        if not bool(torch.all(feature_scales > 0)):
-            bad = int((feature_scales <= 0).nonzero()[0].item())
-            raise ValueError(f"decoder_norm must be > 0; feature_id={bad} got 0")
-        raw = project_residual_gradient(
-            gradient=residual_gradients.to(dtype=torch.float64),
-            decoder=decoder_f64,
-            feature_chunk_size=int(study.run.feature_chunk_size),
-        )
-        per_prompt = coefficient_jacobian(
-            raw_projection=raw,
-            latents=latents.to(dtype=torch.float64),
-            feature_scales=feature_scales,
-        )
-        if batch.get("weights_applied"):
-            # §11.3 / FSC-003: weights already in residual grads — sum once.
-            macro = per_prompt.sum(dim=0)
-        else:
-            by_question: dict[str, list[torch.Tensor]] = {}
-            for row, qid in enumerate(batch_qids):
-                by_question.setdefault(qid, []).append(per_prompt[row].detach())
-            filtered = {qid: by_question[qid] for qid in qids if qid in by_question}
-            missing = set(qids) - set(filtered)
-            if missing:
-                raise ValueError(
-                    f"jacobian_fn missing projection rows for question_ids={sorted(missing)}"
+            merged.update(
+                _signed_jacobian_from_batch(
+                    study=study,
+                    stack=stack,
+                    batch=batch,
+                    question_ids=qids,
                 )
-            macro = question_macro_jacobian(filtered)
-        return {
-            (layer, fid): float(macro[fid].item()) for fid in range(n_features)
-        }
+            )
+        return merged
 
     return jacobian_fn
 
@@ -200,17 +257,16 @@ def _load_fs_partition(
     )
 
 
-def _production_component_batch(
+def _production_component_rows(
     *,
     study: StudyConfig,
-    stack: Any,
     corpus: Sequence[Mapping[str, object]],
     split_question_ids: Mapping[str, Sequence[str]],
     order_regime: str,
     question_ids: Sequence[str],
     component: str,
-) -> dict[str, Any] | None:
-    """Render N/IB/CB, select component rows, project φ grads (DEC-085)."""
+) -> tuple[RenderedPromptRow, ...] | None:
+    """Render N/IB/CB and select component rows once (DEC-085 / FSC-011)."""
     by_condition = render_fs_multi_condition_rows(
         corpus_rows=corpus,
         question_ids=tuple(question_ids),
@@ -225,13 +281,23 @@ def _production_component_batch(
     )
     if not selected:
         return None
+    return selected
+
+
+def _project_component_rows(
+    *,
+    study: StudyConfig,
+    stack: Any,
+    selected: Sequence[RenderedPromptRow],
+    layer: int,
+) -> dict[str, Any]:
+    """Project φ grads for one SAE layer (FSC-011)."""
     tok = stack.tokenizer
     token_a = list(tok.encode(study.experiment.continuation_A, add_special_tokens=False))
     token_b = list(tok.encode(study.experiment.continuation_B, add_special_tokens=False))
-    layer = int(study.stack.sae.layers[0])
     return compute_fs_projection_batch(
         stack,
-        layer=layer,
+        layer=int(layer),
         texts=[r.text for r in selected],
         question_ids=[r.question_id for r in selected],
         continuation_token_ids_A=token_a,
@@ -239,4 +305,35 @@ def _production_component_batch(
         truthful_labels=[r.truthful_label for r in selected],
         tau=float(study.experiment.tau),
         prompt_batch_size=int(study.run.prompt_batch_size),
+    )
+
+
+def _production_component_batch(
+    *,
+    study: StudyConfig,
+    stack: Any,
+    corpus: Sequence[Mapping[str, object]],
+    split_question_ids: Mapping[str, Sequence[str]],
+    order_regime: str,
+    question_ids: Sequence[str],
+    component: str,
+    layer: int | None = None,
+) -> dict[str, Any] | None:
+    """Backward-compatible single-layer production batch (tests / callers)."""
+    selected = _production_component_rows(
+        study=study,
+        corpus=corpus,
+        split_question_ids=split_question_ids,
+        order_regime=order_regime,
+        question_ids=question_ids,
+        component=component,
+    )
+    if selected is None:
+        return None
+    resolved = int(study.stack.sae.layers[0] if layer is None else layer)
+    return _project_component_rows(
+        study=study,
+        stack=stack,
+        selected=selected,
+        layer=resolved,
     )

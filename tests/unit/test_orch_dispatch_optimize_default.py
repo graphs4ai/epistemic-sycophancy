@@ -163,7 +163,9 @@ def test_dispatch__optimize__builds_objective_grad_from_stack_and_run_optimize_b
             belief_condition: str,
             question_ids: tuple[str, ...],
             beta: tuple[float, ...],
+            layer: int | None = None,
         ):
+            _ = layer
             del beta
             n = len(question_ids)
             return {

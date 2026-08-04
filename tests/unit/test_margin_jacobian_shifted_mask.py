@@ -202,7 +202,9 @@ def test_margin_jacobian__suppression_past_relu_boundary__selected_derivative_is
             belief_condition: str,
             question_ids: tuple[str, ...],
             beta: tuple[float, ...],
+            layer: int | None = None,
         ):
+            _ = layer
             # Reproduce production fallback: ignore β, return unshifted latents.
             del beta, belief_condition
             batch = _baseline_batch(toy)
@@ -250,7 +252,9 @@ def test_margin_jacobian__live_beta_points__match_feasible_finite_difference(
             belief_condition: str,
             question_ids: tuple[str, ...],
             beta: tuple[float, ...],
+            layer: int | None = None,
         ):
+            _ = layer
             del beta, belief_condition
             batch = _baseline_batch(toy)
             batch["question_ids"] = list(question_ids)

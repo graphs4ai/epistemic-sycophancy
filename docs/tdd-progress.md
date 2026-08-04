@@ -481,6 +481,13 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 |---|---|---|---|---|---|---|
 | GRAD-014 | `test_margin_jacobian__suppression_past_relu_boundary__selected_derivative_is_zero` + `…__live_beta_points__match_feasible_finite_difference` | green | `pixi run --environment test pytest tests/unit/test_margin_jacobian_shifted_mask.py -q` → past boundary got `[4.0, 0.5]` (stale `1[z>0]`) vs `[0.0, 0.5]`; FD mismatch at β=`(-0.25,0)` | same → `2 passed`; related `… test_margin_jacobian_builder.py test_margin_jacobian_activity_mask.py test_grad_wire_default_jac.py test_grad_informative_margin_jac.py test_grad_local_affine_no_double_count.py test_grad_adam_moves_beta.py -q` → `12 passed` | `runner/adapters/margin_jacobian.py` (`shift_latents_for_live_beta`), `docs/decisions.md` | Amends DEC-084(7); mask matches `ReLU(z+sβ)`; FD at β=0, interior, boundary, checkpoint |
 
+## Multi-layer FS + optimize ∂M/∂β (DEC-096)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| GRAD-015 | `test_margin_jacobian__multi_layer_pool__scatters_per_layer_into_length_m_row` | green | `pixi run --environment test pytest tests/unit/test_margin_jacobian_multi_layer.py::test_margin_jacobian__multi_layer_pool__scatters_per_layer_into_length_m_row -q` → `TypeError: … missing 1 required keyword-only argument: 'layer'` | same → `1 passed`; related margin/grad suite → `8 passed` | `runner/adapters/margin_jacobian.py`, FakeStack `layer=` shims | DEC-096; pool `[(17,0),(22,2)]` → `[4.0, 0.5]`; removes “multi-layer margin jac unsupported” |
+| FSC-011 | `test_adapters__build_jacobian_fn__multi_layer_stack__merges_per_layer_maps` | green | `pixi run --environment test pytest tests/unit/test_fs_multi_layer_jacobian.py::test_adapters__build_jacobian_fn__multi_layer_stack__merges_per_layer_maps -q` → `KeyError: 'layer'` | same → `1 passed`; FS+margin regression `… test_fs_multi_layer_jacobian.py test_margin_jacobian_multi_layer.py … test_orch_m1_e2e_no_injectors.py test_grad_adam_moves_beta.py -q` → `19 passed` | `runner/adapters/jacobian.py`, `docs/decisions.md` | DEC-096; loops `stack.sae.layers`; merges `(17,0)=2` and `(22,0)=3` |
+
 ## Status definitions
 
 - `not_started`: no test written.

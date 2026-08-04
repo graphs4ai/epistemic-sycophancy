@@ -133,7 +133,9 @@ def test_optimize__build_grad_fn_projected_adam__moves_beta_from_zero(
             belief_condition: str,
             question_ids: tuple[str, ...],
             beta: tuple[float, ...],
+            layer: int | None = None,
         ):
+            _ = layer
             del beta
             n = len(question_ids)
             return {

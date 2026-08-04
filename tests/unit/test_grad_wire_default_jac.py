@@ -161,7 +161,9 @@ def test_adapters__build_grad_fn__stack_margin_projection__nonzero_grad(
             belief_condition: str,
             question_ids: tuple[str, ...],
             beta: tuple[float, ...],
+            layer: int | None = None,
         ):
+            _ = layer
             del beta
             # One prompt row per question; residual grad = FEAT-004 g.
             n = len(question_ids)
