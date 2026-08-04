@@ -469,6 +469,12 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | PERF-BASELINE-002 | `test_adapters__objective_and_grad__share_baseline_cache__scores_beta0_once` | green | `pixi run --environment test pytest tests/unit/test_margin_baseline_cache.py::test_adapters__objective_and_grad__share_baseline_cache__scores_beta0_once -q` → `TypeError: … unexpected keyword argument 'baseline_cache'` | same → `1 passed`; + ORCH-024 → `4 passed` in suite | `runner/adapters/objective.py`, `runner/cli.py`, `docs/decisions.md` | Shared cache; CLI pre-warm; DEC-094 |
 | PERF-BASELINE-003 | `test_count_adam_step_prompt_microbatches__matches_grad_plus_objective_graph` | green | `pixi run --environment test pytest tests/unit/test_adam_step_batch_total.py::test_count_adam_step_prompt_microbatches__matches_grad_plus_objective_graph -q` → `assert 39 == 27` | `pixi run --environment test pytest tests/unit/test_adam_step_batch_total.py tests/unit/test_optimize_tqdm.py tests/unit/test_margin_baseline_cache.py tests/unit/test_adapt_margin_payload.py tests/unit/test_adapt_objective.py -q` → `10 passed` | `runner/progress.py`, `docs/decisions.md` | DEC-092 amended; bar total `3·bN+3·bIB+3·bCB` |
 
+## GRAD-013 — Local affine must not double-count β₀ (DEC-095)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| GRAD-013 | `test_adapters__build_grad_fn__nonzero_beta__local_affine_matches_live_margin` (+ hinge) | green | `pixi run --environment test pytest tests/unit/test_grad_local_affine_no_double_count.py -q` → softplus got −σ(1.5)·2 (double-count) vs −σ(−0.5)·2; hinge got −1.0 (flipped active) | same → `2 passed`; related `… test_grad_informative_margin_jac.py test_adapt_objective.py test_grad_zero_margin_jac.py test_grad_wire_default_jac.py test_margin_baseline_cache.py test_grad_adam_moves_beta.py test_projected_adam_grads.py test_objective_batching.py -q` → `14 passed` | `objective/total.py` (`evaluate_objective_with_local_grad`), `runner/adapters/objective.py`, `docs/decisions.md` | \(M_{\mathrm{local}}(\delta)=M(\beta_0)+J\delta\); regularizer on \(\beta_0+\delta\); toy zero-intercept paths keep `evaluate_objective_with_grad` |
+
 ## Status definitions
 
 - `not_started`: no test written.

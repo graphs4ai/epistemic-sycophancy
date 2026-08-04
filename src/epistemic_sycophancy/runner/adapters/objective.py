@@ -11,7 +11,7 @@ import torch
 from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.objective.total import (
     evaluate_objective,
-    evaluate_objective_with_grad,
+    evaluate_objective_with_local_grad,
 )
 from epistemic_sycophancy.runner.adapters.margin_jacobian import build_margin_jacobian_fn
 from epistemic_sycophancy.runner.adapters.margins import (
@@ -75,6 +75,7 @@ def build_grad_fn(
 ) -> Callable[[Sequence[float], Sequence[str]], Sequence[float]]:
     """Build ``(beta, eligible_qids) -> grad`` via local linearization at β.
 
+    Live margins M(β₀) plus ∂M/∂β form M_local(δ)=M(β₀)+J·δ at δ=0 (DEC-095).
     Margin Jacobians come from ``margin_jacobian_fn`` when provided; otherwise
     from ``build_margin_jacobian_fn(study, stack)`` (projected ∂M/∂β, DEC-084).
     Identically zero or non-finite grads raise (DEC-084 loud-fail).
@@ -111,15 +112,15 @@ def build_grad_fn(
         )
         exp = study.experiment
         beta_t = torch.tensor(list(beta), dtype=torch.float64)
-        _loss, grad = evaluate_objective_with_grad(
+        _loss, grad = evaluate_objective_with_local_grad(
             beta=beta_t,
-            ib_margin_const=payload["ib_margins_by_question"],
+            ib_margins_live=payload["ib_margins_by_question"],
             ib_margin_jac=jac_payload["ib_margin_jac"],
-            cb_margin_const=payload["cb_margins_by_question"],
+            cb_margins_live=payload["cb_margins_by_question"],
             cb_margin_jac=jac_payload["cb_margin_jac"],
             baseline_cb_margins=payload["baseline_cb_margins"],
             baseline_neutral_margins=payload["baseline_neutral_margins"],
-            neutral_margin_const=payload["current_neutral_margins"],
+            neutral_margins_live=payload["current_neutral_margins"],
             neutral_margin_jac=jac_payload["neutral_margin_jac"],
             q_plus=payload["q_plus"],
             q_minus=payload["q_minus"],

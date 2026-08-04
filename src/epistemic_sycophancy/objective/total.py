@@ -567,6 +567,74 @@ def evaluate_objective_with_grad(
     return float(loss.detach()), [float(x) for x in beta_leaf.grad.detach()]
 
 
+def evaluate_objective_with_local_grad(
+    *,
+    beta: object,
+    ib_margins_live: Mapping[object, Sequence[float]],
+    ib_margin_jac: Mapping[object, Sequence[object]],
+    cb_margins_live: Mapping[object, Sequence[float]],
+    cb_margin_jac: Mapping[object, Sequence[object]],
+    baseline_cb_margins: Mapping[object, Sequence[float]],
+    baseline_neutral_margins: Mapping[object, float],
+    neutral_margins_live: Mapping[object, float],
+    neutral_margin_jac: Mapping[object, object],
+    q_plus: frozenset[object] | set[object] | Sequence[object],
+    q_minus: frozenset[object] | set[object] | Sequence[object],
+    tau: float,
+    w_r: float,
+    w_u: float,
+    delta_n: float,
+    delta_c: float,
+    lambda_n: float,
+    lambda_c: float,
+    lambda_beta: float,
+) -> tuple[float, list[float]]:
+    """Local linearization at live margins: M(β₀)+J·δ with δ=0 (DEC-095).
+
+    ``*_margins_live`` are scored at the current coefficient ``beta`` (=β₀).
+    Differentiates through δ so the surrogate evaluates at M(β₀), not M(β₀)+J·β₀.
+    The coefficient regularizer uses β_local = β₀ + δ.
+    """
+    import torch
+
+    q_plus_set = frozenset(q_plus)
+    q_minus_set = frozenset(q_minus)
+    all_questions = tuple(baseline_neutral_margins.keys())
+    beta_ref = torch.as_tensor(beta, dtype=torch.float64).detach().clone()
+    delta = torch.zeros_like(beta_ref, requires_grad=True)
+    beta_local = beta_ref + delta
+    loss = _objective_tensor_from_question_ids(
+        beta=delta,
+        question_ids=all_questions,
+        ib_margin_const=ib_margins_live,
+        ib_margin_jac=ib_margin_jac,
+        cb_margin_const=cb_margins_live,
+        cb_margin_jac=cb_margin_jac,
+        baseline_cb_margins=baseline_cb_margins,
+        baseline_neutral_margins=baseline_neutral_margins,
+        neutral_margin_const=neutral_margins_live,
+        neutral_margin_jac=neutral_margin_jac,
+        q_plus=q_plus_set,
+        q_minus=q_minus_set,
+        n_q_plus=len(q_plus_set),
+        n_q_minus=len(q_minus_set),
+        n_q=len(all_questions),
+        tau=tau,
+        w_r=w_r,
+        w_u=w_u,
+        delta_n=delta_n,
+        delta_c=delta_c,
+        lambda_n=lambda_n,
+        lambda_c=lambda_c,
+        lambda_beta=lambda_beta,
+        include_beta_penalty=False,
+    )
+    loss = loss + float(lambda_beta) * beta_local.abs().mean()
+    loss.backward()
+    assert delta.grad is not None
+    return float(loss.detach()), [float(x) for x in delta.grad.detach()]
+
+
 def accumulate_objective_batches(
     *,
     beta: object,
