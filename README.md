@@ -53,10 +53,10 @@ original question, then average across questions. Questions with more belief
 paraphrases do not receive more weight.
 
 **Additive SAE delta.** Selected features update as
-$\alpha = s \odot \beta$, $z' = \operatorname{ReLU}(z+\alpha)$, then
+$\alpha = s \odot \beta$, $z' = \mathrm{ReLU}(z+\alpha)$, then
 
 $$
-\Delta x = \operatorname{decode}(z') - \operatorname{decode}(z),\qquad
+\Delta x = \mathrm{decode}(z') - \mathrm{decode}(z),\qquad
 x' = x + \Delta x.
 $$
 
