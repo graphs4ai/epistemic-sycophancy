@@ -187,6 +187,8 @@ def _parse_optimize(raw: dict[str, Any]) -> StudyOptimizeConfig:
         kwargs["n_questions"] = int(raw["n_questions"])
     if "question_ids" in raw and raw["question_ids"] is not None:
         kwargs["question_ids"] = tuple(str(q) for q in raw["question_ids"])
+    if "patience" in raw and raw["patience"] is not None:
+        kwargs["patience"] = int(raw["patience"])
     return StudyOptimizeConfig(**kwargs)
 
 
@@ -354,6 +356,7 @@ def _fingerprint_payload(study: StudyConfig) -> dict[str, Any]:
                 "question_ids": list(optimize.question_ids)
                 if optimize.question_ids is not None
                 else None,
+                "patience": optimize.patience,
             },
         },
     }

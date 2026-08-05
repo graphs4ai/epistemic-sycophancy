@@ -524,6 +524,16 @@ Regression: `pixi run --environment test pytest tests/unit/test_orch_full_study.
 |---|---|---|---|---|---|---|
 | ORCH-081b | `test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts` | green | `pixi run --environment test pytest tests/unit/test_orch_optimize_partition.py::test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts -q` → `AssertionError: assert ['q_opt_1', 'q_opt_4'] == ['q_opt_1', … 'q_opt_4']` (zip kept 2) | same command → `1 passed` | `runner/cli.py`, `docs/decisions.md` | Natural 3/1 Q+/Q−; eligible retains all 4; amends DEC-081 |
 
+## Adam early stopping patience (DEC-099)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| OPT-ES-001a | `test_optimize_config__patience__must_be_positive_int_when_set` | green | `pixi run --environment test pytest tests/unit/test_optimize_early_stopping.py::test_optimize_config__patience__must_be_positive_int_when_set -q` → `TypeError: StudyOptimizeConfig.__init__() got an unexpected keyword argument 'patience'` | same command → `1 passed` | `config/study.py`, `config/load_study.py`, `docs/decisions.md` | Optional; Adam-only; reject ≤0 and CMA |
+| OPT-ES-001 | `test_optimize__projected_adam_patience__stops_after_stale_steps_without_improvement` | green | `pixi run --environment test pytest tests/unit/test_optimize_early_stopping.py::test_optimize__projected_adam_patience__stops_after_stale_steps_without_improvement -q` → `TypeError: ... unexpected keyword argument 'patience'` | same → `1 passed`; related optimize suite → `11 passed` | `runner/optimize.py`, `config/study.py`, `config/load_study.py`, `docs/decisions.md` | Stop after `patience` consecutive non-improving opt-split `l_total`; `stopped_early` metric |
+| DEC-099 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Amends DEC-066 optimize schema |
+
+Regression: `pixi run --environment test pytest tests/unit/test_optimize_early_stopping.py tests/unit/test_study_optimize_config.py tests/unit/test_orch_optimize_artifacts.py tests/unit/test_orch_dispatch_optimize_default.py tests/unit/test_optimize_tqdm.py tests/unit/test_optimize_trial_loss_alignment.py tests/unit/test_optimize_loss_curve.py tests/unit/test_optimize_metrics_artifacts.py -q` → `11 passed`.
+
 ## Status definitions
 
 - `not_started`: no test written.

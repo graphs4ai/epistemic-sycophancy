@@ -163,6 +163,8 @@ def run_optimize_dispatch(
     iteration_rows: list[dict[str, Any]] = []
     best_beta = list(beta0)
     best_loss = float("inf")
+    stopped_early = False
+    patience = optimize.patience
 
     if kind == "projected_adam":
         import torch
@@ -188,6 +190,7 @@ def run_optimize_dispatch(
         step_batch_total = (
             int(adam_step_batch_total) if adam_step_batch_total is not None else 0
         )
+        stale_steps = 0
         with logging_redirect_tqdm():
             for step in range(n_steps):
                 with adam_step_batch_progress(
@@ -231,7 +234,13 @@ def run_optimize_dispatch(
                             "question_ids": list(eligible),
                         }
                     )
-                    best_so_far = min(best_loss, loss)
+                    if loss < best_loss:
+                        best_loss = loss
+                        best_beta = list(updated)
+                        stale_steps = 0
+                    else:
+                        stale_steps += 1
+                    best_so_far = best_loss
                     step_bar.set_postfix(
                         l_total=f"{loss:.4g}", best_l_total=f"{best_so_far:.4g}"
                     )
@@ -242,10 +251,9 @@ def run_optimize_dispatch(
                         l_total=loss,
                         best_l_total=best_so_far,
                         n_steps=n_steps,
+                        stale_steps=stale_steps,
+                        patience=patience,
                     )
-                    if loss < best_loss:
-                        best_loss = loss
-                        best_beta = list(updated)
                     ckpt = dump_checkpoint(
                         optimizer_kind=kind,
                         beta=list(updated),
@@ -258,6 +266,10 @@ def run_optimize_dispatch(
                         json.dumps(ckpt, sort_keys=True, indent=2) + "\n",
                         encoding="utf-8",
                     )
+                    # DEC-099: stop after ``patience`` consecutive non-improving steps.
+                    if patience is not None and stale_steps >= int(patience):
+                        stopped_early = True
+                        break
     elif kind == "cmaes":
         from epistemic_sycophancy.optimization.cmaes import CMAESOptimizer
 
@@ -420,6 +432,8 @@ def run_optimize_dispatch(
             "eligible_question_ids": list(eligible),
             "optimizer_kind": kind,
             "optimize_max_steps": optimize.max_steps,
+            "patience": patience,
+            "stopped_early": stopped_early,
             "n_q_plus": n_q_plus,
             "n_q_minus": n_q_minus,
         },

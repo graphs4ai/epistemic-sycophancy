@@ -128,6 +128,7 @@ class StudyOptimizeConfig:
     population_size: int | None = None
     n_questions: int | None = None
     question_ids: tuple[str, ...] | None = None
+    patience: int | None = None
 
     def __post_init__(self) -> None:
         if self.budget_match_on not in _ALLOWED_BUDGET_MATCH_ON:
@@ -174,6 +175,22 @@ class StudyOptimizeConfig:
                 raise InvalidExperimentConfig(
                     "run.optimize.population_size must be a positive int; "
                     f"got {self.population_size!r}"
+                )
+
+        if self.patience is not None:
+            if not has_adam:
+                raise InvalidExperimentConfig(
+                    "run.optimize.patience is only valid with max_steps (projected Adam); "
+                    "got CMA budgets"
+                )
+            if (
+                not isinstance(self.patience, int)
+                or isinstance(self.patience, bool)
+                or self.patience < 1
+            ):
+                raise InvalidExperimentConfig(
+                    "run.optimize.patience must be a positive int when set; "
+                    f"got {self.patience!r}"
                 )
 
         has_allowlist = self.question_ids is not None
