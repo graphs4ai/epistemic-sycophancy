@@ -44,7 +44,7 @@ experiment:
   pool_eligibility_override: false
   pool_quota_per_list: 8
 run:
-  artifact_dir: artifacts/gemma3_4b_resid_post_65k_medium_l17l22_CF
+  artifact_dir: artifacts/gemma3_4b_resid_post_65k_medium_l17l22_CF-softplusObjective_and_fullOptSplit
   order_regime: CF
   feature_chunk_size: 1024
   prompt_batch_size: 1
