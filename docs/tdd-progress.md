@@ -560,6 +560,8 @@ Regression: `pixi run --environment test pytest tests/unit/test_optimize_multi_b
 
 Related regression: `pixi run --environment test pytest tests/unit/test_logistic_loss.py tests/unit/test_objective_neutral.py tests/unit/test_objective_correct.py tests/unit/test_objective_total.py tests/unit/test_objective_logging.py tests/unit/test_feature_components.py tests/unit/test_fs_preservation_surrogate.py tests/unit/test_grad_local_affine_no_double_count.py tests/integration/test_objective_batching.py tests/property/test_objective_invariance.py -q` → `42 passed`. Broader: `tests/unit/test_objective_*.py tests/unit/test_optimizer_*.py tests/unit/test_adapt_objective.py tests/unit/test_objective_detail_return.py tests/integration/test_feature_gradients.py tests/integration/test_grad_adam_moves_beta.py -q` → `29 passed`.
 
+| E2E-003 | soft-hinge golden refresh | green | hard-hinge `L_neutral=0.2166…` vs soft `0.79445…` after DEC-101 | `pixi run --environment test pytest tests/integration/test_e2e_toy.py::test_e2e_toy__known_beta__matches_hand_computed_latents_delta_logits_and_objective -q` → `1 passed`; suite → `7 passed` | `tests/fixtures/e2e/corpus.py` | Independent softplus re-derivation of L_neutral/L_correct/L_total; latents/Δx/logits/φ unchanged |
+
 ## Status definitions
 
 - `not_started`: no test written.
