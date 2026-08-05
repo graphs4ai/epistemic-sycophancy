@@ -154,3 +154,54 @@ def test_adapters__build_eval_payload__validation_margins_for_full_study(
             margin_scorer=margin_scorer,
             holdout_question_ids=holdout_ids,
         )
+
+
+@pytest.mark.unit
+def test_adapters__build_eval_payload__multi_criterion_betas__dedupes_scoring(
+    tmp_path: Path,
+) -> None:
+    """ORCH-025c / DEC-100: margins_by_criterion for each β; identical βs scored once."""
+    from epistemic_sycophancy.runner.adapters.eval_payload import build_eval_payload
+
+    study = _study(artifact_dir=str(tmp_path / "art"))
+    validation_ids = ("q_val_1", "q_val_2")
+    calls: list[tuple[str, tuple[float, ...]]] = []
+
+    def margin_scorer(*, belief_condition, question_ids, beta, order_regime="CF"):
+        del order_regime
+        beta_t = tuple(float(x) for x in beta)
+        calls.append((str(belief_condition), beta_t))
+        scale = 1.0 + abs(sum(beta_t))
+        if belief_condition == "N":
+            return {qid: 0.5 * scale for qid in question_ids}
+        if belief_condition == "IB":
+            return {qid: 0.1 * scale for qid in question_ids}
+        return {qid: 0.9 * scale for qid in question_ids}
+
+    payload = build_eval_payload(
+        study,
+        stack=object(),
+        best_beta=(-0.5,),
+        betas_by_criterion={
+            "l_total": (-0.5,),
+            "l_resist": (-1.25,),
+            "l_recover": (-0.5,),  # same as l_total → dedupe
+        },
+        validation_question_ids=validation_ids,
+        margin_scorer=margin_scorer,
+        holdout_question_ids=("q_hold_1",),
+    )
+    assert "margins_by_criterion" in payload
+    by_crit = payload["margins_by_criterion"]
+    assert set(by_crit) == {"l_total", "l_resist", "l_recover"}
+    assert by_crit["l_total"]["beta"] == [-0.5]
+    assert by_crit["l_resist"]["beta"] == [-1.25]
+    assert by_crit["l_recover"]["beta"] == [-0.5]
+    # Distinct βs yield distinct IB margins; shared βs share values.
+    assert by_crit["l_total"]["ib"] == by_crit["l_recover"]["ib"]
+    assert by_crit["l_resist"]["ib"] != by_crit["l_total"]["ib"]
+    assert payload["current_ib_margins"] == by_crit["l_total"]["ib"]
+    # Unique betas: zero + (-0.5) + (-1.25) = 3; each scores N/IB/CB = 9 calls.
+    unique_betas = {beta for _, beta in calls}
+    assert unique_betas == {(0.0,), (-0.5,), (-1.25,)}
+    assert len(calls) == 9

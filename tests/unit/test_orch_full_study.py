@@ -177,3 +177,96 @@ def test_dispatch__full_study_sealed__behavioral_no_holdout(
     text = Path(result.artifacts["behavioral"]).read_text()
     assert "qh1" not in text
     assert "qh1" not in Path(result.artifacts["behavioral_non_intervened"]).read_text()
+
+
+def _write_ckpt(path: Path, beta: list[float], *, best_by: str) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "checkpoint_version": "v1",
+                "optimizer_kind": "projected_adam",
+                "beta": beta,
+                "optimizer_state": {"best_by": best_by, "index": 0, "value": 0.1},
+                "config_hash": "abc",
+                "objective_version": "v1",
+                "ro_manifest_hash": "ro",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.unit
+def test_dispatch__full_study_sealed__writes_behavioral_best_by_criterion(
+    tmp_path: Path,
+) -> None:
+    """ORCH-014c / DEC-100: per-criterion best-β behavioral logs on validation."""
+    from epistemic_sycophancy.runner.cli import dispatch_stage
+
+    art = tmp_path / "art"
+    study = _study(str(art))
+    opt_dir = art / "optimize"
+    opt_dir.mkdir(parents=True)
+    _write_ckpt(opt_dir / "best_checkpoint.json", [-0.5], best_by="l_total")
+    _write_ckpt(opt_dir / "best_checkpoint_by_l_total.json", [-0.5], best_by="l_total")
+    _write_ckpt(opt_dir / "best_checkpoint_by_l_resist.json", [-1.25], best_by="l_resist")
+
+    total_margins = {
+        "neutral": {"qv1": 1.0, "qv2": -0.5},
+        "ib": {"qv1": [1.0], "qv2": [0.2]},
+        "cb": {"qv1": [0.8], "qv2": [-0.2]},
+        "beta": [-0.5],
+    }
+    # IB on Q+ flips negative so FTW differs from the l_total intervened log.
+    resist_margins = {
+        "neutral": {"qv1": 0.8, "qv2": -0.2},
+        "ib": {"qv1": [-1.5], "qv2": [0.9]},
+        "cb": {"qv1": [0.4], "qv2": [0.6]},
+        "beta": [-1.25],
+    }
+    eval_payload = {
+        "validation_question_ids": ("qv1", "qv2"),
+        "current_neutral_margins": total_margins["neutral"],
+        "current_ib_margins": total_margins["ib"],
+        "current_cb_margins": total_margins["cb"],
+        "baseline_neutral_margins_by_order": {"CF": {"qv1": 1.0, "qv2": -0.5}},
+        "non_intervened_neutral_margins": {"qv1": 1.0, "qv2": -0.5},
+        "non_intervened_ib_margins": {"qv1": [-1.0], "qv2": [-0.8]},
+        "non_intervened_cb_margins": {"qv1": [0.1], "qv2": [0.9]},
+        "margins_by_criterion": {
+            "l_total": total_margins,
+            "l_resist": resist_margins,
+        },
+    }
+
+    result = dispatch_stage(
+        "full_study",
+        study=study,
+        freeze_status="sealed",
+        eval_payload=eval_payload,
+        holdout_question_ids=("qh1",),
+    )
+    assert result.ok is True
+    assert "behavioral" in result.artifacts
+    assert "behavioral_non_intervened" in result.artifacts
+    assert "behavioral_best_by_l_total" in result.artifacts
+    assert "behavioral_best_by_l_resist" in result.artifacts
+
+    by_total = json.loads(
+        Path(result.artifacts["behavioral_best_by_l_total"]).read_text()
+    )
+    by_resist = json.loads(
+        Path(result.artifacts["behavioral_best_by_l_resist"]).read_text()
+    )
+    legacy = json.loads(Path(result.artifacts["behavioral"]).read_text())
+    assert by_total["beta"] == [-0.5]
+    assert by_resist["beta"] == [-1.25]
+    assert by_total["selection_criterion"] == "l_total"
+    assert by_resist["selection_criterion"] == "l_resist"
+    assert by_total["selection_split"] == "optimization"
+    assert by_resist["selection_split"] == "optimization"
+    assert legacy["beta"] == by_total["beta"]
+    assert legacy["ftw"] == by_total["ftw"]
+    assert by_resist["ftw"] != by_total["ftw"]
+    assert (art / "full_study" / "behavioral_best_by_l_resist.json").is_file()
+    assert "qh1" not in Path(result.artifacts["behavioral_best_by_l_resist"]).read_text()

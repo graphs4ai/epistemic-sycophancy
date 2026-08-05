@@ -534,6 +534,18 @@ Regression: `pixi run --environment test pytest tests/unit/test_orch_full_study.
 
 Regression: `pixi run --environment test pytest tests/unit/test_optimize_early_stopping.py tests/unit/test_study_optimize_config.py tests/unit/test_orch_optimize_artifacts.py tests/unit/test_orch_dispatch_optimize_default.py tests/unit/test_optimize_tqdm.py tests/unit/test_optimize_trial_loss_alignment.py tests/unit/test_optimize_loss_curve.py tests/unit/test_optimize_metrics_artifacts.py -q` → `11 passed`.
 
+## Multi-criterion opt-split best checkpoints (DEC-100)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| OPT-MULTI-001 | `test_optimize__multi_criterion_opt_split__writes_best_checkpoint_by_metric` | green | `pixi run --environment test pytest tests/unit/test_optimize_multi_best_checkpoints.py::test_optimize__multi_criterion_opt_split__writes_best_checkpoint_by_metric -q` → `AssertionError: missing best_checkpoint_by_l_resist.json` | same → `1 passed`; related optimize → `5 passed` | `runner/optimize.py`, `docs/decisions.md` | Per-key opt-split minima; `best_checkpoint.json` = `l_total` |
+| ORCH-014c | `test_dispatch__full_study_sealed__writes_behavioral_best_by_criterion` | green | `pixi run --environment test pytest tests/unit/test_orch_full_study.py::test_dispatch__full_study_sealed__writes_behavioral_best_by_criterion -q` → missing `behavioral_best_by_l_total` artifact | same suite → `2 passed` | `runner/full_study.py` | Per-criterion val behavioral logs + non-intervened |
+| ORCH-025c | `test_adapters__build_eval_payload__multi_criterion_betas__dedupes_scoring` | green | `TypeError: unexpected keyword argument 'betas_by_criterion'` | adapt+dispatch+full_study+ship → `8 passed, 2 skipped` | `runner/adapters/eval_payload.py` | `margins_by_criterion`; unique β scored once |
+| ORCH-031c | `test_dispatch__full_study__multi_criterion_checkpoints__scores_each_beta` | green | `ValueError: margins_by_criterion['l_resist']` missing | same → passed | `runner/cli.py`, `runner/full_study.py` | Discovers `best_checkpoint_by_*`; scores each β |
+| DEC-100 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md`, `README.md`, `docs/phase_m_ship_gate.md` | Amends DEC-069/070/098; not DEC-033 |
+
+Regression: `pixi run --environment test pytest tests/unit/test_optimize_multi_best_checkpoints.py tests/unit/test_orch_full_study.py tests/unit/test_adapt_eval_payload.py tests/unit/test_orch_dispatch_full_study_default.py tests/unit/test_phase_m_ship_gate.py tests/unit/test_orch_optimize_artifacts.py tests/unit/test_optimize_metrics_artifacts.py tests/unit/test_optimize_early_stopping.py -q` → `13 passed, 2 skipped`.
+
 ## Status definitions
 
 - `not_started`: no test written.

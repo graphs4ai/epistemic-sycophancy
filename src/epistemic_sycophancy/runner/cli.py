@@ -163,10 +163,21 @@ def dispatch_stage(
         from epistemic_sycophancy.optimization.checkpoint import load_checkpoint
 
         if eval_payload is None:
+            from epistemic_sycophancy.runner.full_study import (
+                discover_best_betas_by_criterion,
+            )
+
             stack = resolve_stack(study, stack_loader=stack_loader)
-            ckpt_path = Path(study.run.artifact_dir) / "optimize" / "best_checkpoint.json"
-            ckpt = load_checkpoint(json.loads(ckpt_path.read_text(encoding="utf-8")))
-            best_beta = tuple(float(x) for x in ckpt["beta"])
+            opt_dir = Path(study.run.artifact_dir) / "optimize"
+            betas_by_criterion = discover_best_betas_by_criterion(opt_dir)
+            best_beta = betas_by_criterion.get("l_total")
+            if best_beta is None:
+                # Should not happen when discover succeeds, but keep a loud path.
+                ckpt_path = opt_dir / "best_checkpoint.json"
+                ckpt = load_checkpoint(
+                    json.loads(ckpt_path.read_text(encoding="utf-8"))
+                )
+                best_beta = tuple(float(x) for x in ckpt["beta"])
             val_ids = tuple(validation_question_ids or ())
             if not val_ids:
                 from epistemic_sycophancy.runner.adapters.resolve import (
@@ -210,6 +221,7 @@ def dispatch_stage(
                 study,
                 stack,
                 best_beta=best_beta,
+                betas_by_criterion=betas_by_criterion,
                 validation_question_ids=val_ids,
                 margin_scorer=margin_scorer,
                 holdout_question_ids=holdout_question_ids or (),

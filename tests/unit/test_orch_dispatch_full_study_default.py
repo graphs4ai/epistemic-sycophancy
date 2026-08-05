@@ -152,3 +152,86 @@ def test_dispatch__full_study__builds_eval_payload_from_best_checkpoint_validati
     assert "q_hold_1" not in str(non_intervened)
     assert non_intervened["beta"] == [0.0]
     assert behavioral["beta"] == [-0.25]
+
+
+@pytest.mark.unit
+def test_dispatch__full_study__multi_criterion_checkpoints__scores_each_beta(
+    tmp_path: Path,
+) -> None:
+    """ORCH-031c / DEC-100: default adapter scores each best_checkpoint_by_* β."""
+    clear_stack_cache()
+    art = tmp_path / "art"
+    study = _study(artifact_dir=str(art))
+    opt = art / "optimize"
+    opt.mkdir(parents=True)
+
+    def _dump(beta: list[float], *, best_by: str) -> dict:
+        return dump_checkpoint(
+            optimizer_kind="projected_adam",
+            beta=beta,
+            optimizer_state={"best_by": best_by, "index": 0, "value": 0.1},
+            config_hash="cfg",
+            objective_version="v1",
+            ro_manifest_hash="ro",
+        )
+
+    (opt / "best_checkpoint.json").write_text(
+        json.dumps(_dump([-0.25], best_by="l_total")) + "\n", encoding="utf-8"
+    )
+    (opt / "best_checkpoint_by_l_total.json").write_text(
+        json.dumps(_dump([-0.25], best_by="l_total")) + "\n", encoding="utf-8"
+    )
+    (opt / "best_checkpoint_by_l_resist.json").write_text(
+        json.dumps(_dump([-1.5], best_by="l_resist")) + "\n", encoding="utf-8"
+    )
+
+    scored_betas: list[tuple[float, ...]] = []
+
+    class _Stack:
+        def score_belief_margins(
+            self, *, belief_condition, question_ids, beta, order_regime="CF"
+        ):
+            del order_regime
+            beta_t = tuple(float(x) for x in beta)
+            if belief_condition == "N":
+                scored_betas.append(beta_t)
+            scale = 1.0 + abs(sum(beta_t))
+            if belief_condition == "N":
+                return {
+                    qid: (0.5 if qid.endswith("1") else -0.5) * scale
+                    for qid in question_ids
+                }
+            if belief_condition == "IB":
+                # Flip Q+ under the resist β so FTW differs.
+                if beta_t == (-1.5,):
+                    return {qid: -1.0 for qid in question_ids}
+                return {qid: 0.1 for qid in question_ids}
+            return {qid: 0.9 for qid in question_ids}
+
+    result = dispatch_stage(
+        "full_study",
+        study=study,
+        freeze_status="sealed",
+        stack_loader=lambda _s: _Stack(),
+        eval_payload=None,
+        validation_question_ids=("q_val_1", "q_val_2"),
+        holdout_question_ids=("q_hold_1",),
+    )
+    assert result.ok
+    assert "behavioral_best_by_l_total" in result.artifacts
+    assert "behavioral_best_by_l_resist" in result.artifacts
+    by_total = json.loads(
+        Path(result.artifacts["behavioral_best_by_l_total"]).read_text(encoding="utf-8")
+    )
+    by_resist = json.loads(
+        Path(result.artifacts["behavioral_best_by_l_resist"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert by_total["beta"] == [-0.25]
+    assert by_resist["beta"] == [-1.5]
+    assert by_total["selection_criterion"] == "l_total"
+    assert by_resist["selection_criterion"] == "l_resist"
+    assert by_resist["ftw"] != by_total["ftw"]
+    assert set(scored_betas) == {(0.0,), (-0.25,), (-1.5,)}
+    assert "q_hold_1" not in str(by_resist)

@@ -98,10 +98,11 @@ Unit e2e without injectors (fake `stack_loader` only): ORCH-033.
 Per-study under `run.artifact_dir` (e.g. `artifacts/dev/layer17_n32_CF/`):
 
 - `identity/`, `baseline/partition_{order}.json`, `feature_selection/`
-- `optimize/trials.jsonl`, `optimize/checkpoints/`, `optimize/best_checkpoint.json`
+- `optimize/trials.jsonl`, `optimize/checkpoints/`, `optimize/best_checkpoint.json`, `optimize/best_checkpoint_by_{metric}.json` (DEC-100)
 - `freeze/frozen_experiment_config.json` (includes `order_regime`)
 - `full_study/behavioral.json` (intervened best-β; single-order; **no** in-study 3×3)
 - `full_study/behavioral_non_intervened.json` (β=0 comparison; same metric schema; DEC-098)
+- `full_study/behavioral_best_by_{metric}.json` (per opt-split criterion; DEC-100)
 - `holdout/` only after unlock
 
 Cross-study assemble root (e.g. `artifacts/dev/layer17_n32_cross_order/`):

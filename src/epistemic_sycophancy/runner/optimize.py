@@ -95,6 +95,30 @@ def _metric_row(
     return row
 
 
+def _update_best_by_criterion(
+    best_by: dict[str, dict[str, Any]],
+    *,
+    index: int,
+    beta: Sequence[float],
+    comps: Mapping[str, float | None],
+) -> None:
+    """Track opt-split minima per DEC-097 loss key (DEC-100)."""
+    for key in _LOSS_COMPONENT_KEYS:
+        value = comps.get(key)
+        if value is None:
+            continue
+        value_f = float(value)
+        if not math.isfinite(value_f):
+            continue
+        current = best_by.get(key)
+        if current is None or value_f < float(current["value"]):
+            best_by[key] = {
+                "index": int(index),
+                "beta": [float(x) for x in beta],
+                "value": value_f,
+            }
+
+
 def resolve_optimize_question_ids(
     *,
     study: StudyConfig,
@@ -161,6 +185,7 @@ def run_optimize_dispatch(
     trials: list[dict[str, Any]] = []
     step_rows: list[dict[str, Any]] = []
     iteration_rows: list[dict[str, Any]] = []
+    best_by_criterion: dict[str, dict[str, Any]] = {}
     best_beta = list(beta0)
     best_loss = float("inf")
     stopped_early = False
@@ -233,6 +258,12 @@ def run_optimize_dispatch(
                             "l_total": loss,
                             "question_ids": list(eligible),
                         }
+                    )
+                    _update_best_by_criterion(
+                        best_by_criterion,
+                        index=step,
+                        beta=updated,
+                        comps=comps,
                     )
                     if loss < best_loss:
                         best_loss = loss
@@ -342,6 +373,12 @@ def run_optimize_dispatch(
                         "question_ids": list(eligible),
                     }
                 )
+                _update_best_by_criterion(
+                    best_by_criterion,
+                    index=trial,
+                    beta=cand,
+                    comps=comps,
+                )
                 best_so_far = min(best_loss, loss)
                 trial_bar.set_postfix(
                     l_total=f"{loss:.4g}", best_l_total=f"{best_so_far:.4g}"
@@ -400,11 +437,29 @@ def run_optimize_dispatch(
             encoding="utf-8",
         )
 
+    # Prefer tracked l_total winner; fall back to running best_beta (float-only path).
+    l_total_winner = best_by_criterion.get("l_total")
+    if l_total_winner is not None:
+        best_beta = list(l_total_winner["beta"])
+        best_loss = float(l_total_winner["value"])
+
+    config_hash = study_config_fingerprint(study)
     best_ckpt = dump_checkpoint(
         optimizer_kind=kind,
         beta=best_beta,
-        optimizer_state={"best": True},
-        config_hash=study_config_fingerprint(study),
+        optimizer_state={
+            "best": True,
+            "best_by": "l_total",
+            "index": (
+                int(l_total_winner["index"]) if l_total_winner is not None else -1
+            ),
+            "value": (
+                float(l_total_winner["value"])
+                if l_total_winner is not None
+                else (best_loss if best_loss < float("inf") else None)
+            ),
+        },
+        config_hash=config_hash,
         objective_version="v1",
         ro_manifest_hash="orch-fixed-ro",
     )
@@ -418,6 +473,24 @@ def run_optimize_dispatch(
         "steps_csv": str(steps_path),
         "iterations_csv": str(iterations_path),
     }
+    for metric, winner in best_by_criterion.items():
+        by_ckpt = dump_checkpoint(
+            optimizer_kind=kind,
+            beta=list(winner["beta"]),
+            optimizer_state={
+                "best_by": metric,
+                "index": int(winner["index"]),
+                "value": float(winner["value"]),
+            },
+            config_hash=config_hash,
+            objective_version="v1",
+            ro_manifest_hash="orch-fixed-ro",
+        )
+        by_path = out_dir / f"best_checkpoint_by_{metric}.json"
+        by_path.write_text(
+            json.dumps(by_ckpt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
+        artifacts[f"best_checkpoint_by_{metric}"] = str(by_path)
     if curve_path is not None:
         artifacts["loss_curve"] = str(curve_path)
     if curve_paths:
