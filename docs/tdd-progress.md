@@ -523,6 +523,7 @@ Regression: `pixi run --environment test pytest tests/unit/test_orch_full_study.
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | ORCH-081b | `test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts` | green | `pixi run --environment test pytest tests/unit/test_orch_optimize_partition.py::test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts -q` → `AssertionError: assert ['q_opt_1', 'q_opt_4'] == ['q_opt_1', … 'q_opt_4']` (zip kept 2) | same command → `1 passed` | `runner/cli.py`, `docs/decisions.md` | Natural 3/1 Q+/Q−; eligible retains all 4; amends DEC-081 |
+| ORCH-081c | `test_dispatch__optimize__dec081_grow__n_questions_does_not_retrim_eligible` | green | `pixi run --environment test pytest tests/unit/test_orch_optimize_partition.py::test_dispatch__optimize__dec081_grow__n_questions_does_not_retrim_eligible -q` → `DataIntegrityError: missing IB variants for Q+ question 'q_opt_3'` | same + module → `2 passed` | `runner/cli.py`, `docs/decisions.md` | Pin `question_ids=grow`, clear `n_questions` after DEC-081 |
 
 ## Adam early stopping patience (DEC-099)
 

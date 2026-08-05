@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -554,11 +554,24 @@ def dispatch_stage(
                     assert built is not None
                     # Keep the full scored grow pool (DEC-081 amended): expand only
                     # for non-degeneracy; never zip-trim to force |Q+|≈|Q-|.
+                    # Pin question_ids so run_optimize_dispatch does not re-apply
+                    # run.optimize.n_questions and drop partition members (ORCH-081c).
                     opt_qids = tuple(str(q) for q in grow)
                     partitions = {
                         "q_plus": frozenset(built.q_plus),
                         "q_minus": frozenset(built.q_minus),
                     }
+                    study_for_opt = replace(
+                        study_for_opt,
+                        run=replace(
+                            study_for_opt.run,
+                            optimize=replace(
+                                study_for_opt.run.optimize,
+                                question_ids=opt_qids,
+                                n_questions=None,
+                            ),
+                        ),
+                    )
             else:
                 raise ValueError(
                     f"optimize default adapters require baseline partition at {part_path}"

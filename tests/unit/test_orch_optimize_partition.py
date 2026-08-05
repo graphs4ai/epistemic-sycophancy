@@ -1,4 +1,4 @@
-"""ORCH-081b: DEC-081 rebuild keeps the full optimization eligible set (no zip trim)."""
+"""ORCH-081b/c: DEC-081 rebuild keeps the full optimization eligible set (no zip/re-trim)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,11 @@ _NEUTRAL_MARGINS = {
 }
 
 
-def _study(*, artifact_dir: str) -> StudyConfig:
+def _study(
+    *,
+    artifact_dir: str,
+    optimize: StudyOptimizeConfig | None = None,
+) -> StudyConfig:
     return StudyConfig(
         stack=ExperimentStackConfig(
             model=ModelSpec(
@@ -97,7 +101,8 @@ def _study(*, artifact_dir: str) -> StudyConfig:
                 adam_eps=1e-8,
                 adam_microbatch_questions=1,
             ),
-            optimize=StudyOptimizeConfig(
+            optimize=optimize
+            or StudyOptimizeConfig(
                 budget_match_on="n_objective_evals",
                 max_steps=1,
             ),
@@ -105,14 +110,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
     )
 
 
-@pytest.mark.unit
-def test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts(
-    tmp_path: Path,
-) -> None:
-    """ORCH-081b: DEC-081 rebuild must not zip-trim to 2·min(|Q+|,|Q-|)."""
-    clear_stack_cache()
-    art = tmp_path / "art"
-    study = _study(artifact_dir=str(art))
+def _write_optimize_artifacts(art: Path) -> None:
     (art / "identity").mkdir(parents=True)
     (art / "identity" / "identity_result.json").write_text(
         json.dumps({"identity_passed": True, "max_abs_diff": 0.0}) + "\n",
@@ -151,6 +149,8 @@ def test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_c
         encoding="utf-8",
     )
 
+
+def _fake_stack():
     decoder = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float64)
     latents_row = torch.tensor([0.0, 1.0], dtype=torch.float64)
     scales = torch.tensor([1.0, 1.0], dtype=torch.float64)
@@ -189,11 +189,24 @@ def test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_c
                 "belief_condition": belief_condition,
             }
 
+    return _Stack()
+
+
+@pytest.mark.unit
+def test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts(
+    tmp_path: Path,
+) -> None:
+    """ORCH-081b: DEC-081 rebuild must not zip-trim to 2·min(|Q+|,|Q-|)."""
+    clear_stack_cache()
+    art = tmp_path / "art"
+    study = _study(artifact_dir=str(art))
+    _write_optimize_artifacts(art)
+
     result = dispatch_stage(
         "optimize",
         study=study,
         freeze_status="unsealed",
-        stack_loader=lambda _s: _Stack(),
+        stack_loader=lambda _s: _fake_stack(),
         objective_fn=None,
         grad_fn=None,
         identity_passed=None,
@@ -211,3 +224,44 @@ def test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_c
     assert static == {"n_q_plus": 3, "n_q_minus": 1}
     assert result.metrics["n_q_plus"] == 3
     assert result.metrics["n_q_minus"] == 1
+
+
+@pytest.mark.unit
+def test_dispatch__optimize__dec081_grow__n_questions_does_not_retrim_eligible(
+    tmp_path: Path,
+) -> None:
+    """ORCH-081c: DEC-081 grow must not be re-trimmed by run.optimize.n_questions."""
+    clear_stack_cache()
+    art = tmp_path / "art"
+    # Smoke-style n_questions cap; CLI still receives the full scored grow pool.
+    study = _study(
+        artifact_dir=str(art),
+        optimize=StudyOptimizeConfig(
+            budget_match_on="n_objective_evals",
+            max_steps=1,
+            n_questions=2,
+        ),
+    )
+    _write_optimize_artifacts(art)
+
+    result = dispatch_stage(
+        "optimize",
+        study=study,
+        freeze_status="unsealed",
+        stack_loader=lambda _s: _fake_stack(),
+        objective_fn=None,
+        grad_fn=None,
+        identity_passed=None,
+        # Full grow (4) with natural 3/1 partitions; n_questions=2 must not win.
+        optimization_question_ids=_OPT_IDS,
+    )
+    assert result.ok
+
+    eligible = list(result.metrics["eligible_question_ids"])
+    assert sorted(eligible) == sorted(_OPT_IDS)
+    assert len(eligible) == 4
+
+    static = json.loads(Path(result.artifacts["static"]).read_text(encoding="utf-8"))
+    assert static == {"n_q_plus": 3, "n_q_minus": 1}
+    # Eligible must cover every partition ID (avoids missing-IB validate failures).
+    assert set(eligible) == set(_OPT_IDS)
