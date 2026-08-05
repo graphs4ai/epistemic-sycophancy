@@ -324,7 +324,7 @@ Use separate component outputs for:
 - neutral preservation surrogate;
 - correct-belief preservation surrogate.
 
-The optimizer's hinge preservation penalties remain unchanged. Feature selection uses non-flat preservation surrogates because the hinge penalties are locally flat at the null intervention.
+The optimizer uses soft-hinge preservation penalties softplus((M0-M-δ)/τ) (DEC-101). Feature selection uses separate absolute logistic surrogates φ(M), not baseline-relative soft-hinges.
 
 ### 5.10 Suppression-only sign
 

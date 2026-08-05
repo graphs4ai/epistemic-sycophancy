@@ -546,6 +546,19 @@ Regression: `pixi run --environment test pytest tests/unit/test_optimize_early_s
 
 Regression: `pixi run --environment test pytest tests/unit/test_optimize_multi_best_checkpoints.py tests/unit/test_orch_full_study.py tests/unit/test_adapt_eval_payload.py tests/unit/test_orch_dispatch_full_study_default.py tests/unit/test_phase_m_ship_gate.py tests/unit/test_orch_optimize_artifacts.py tests/unit/test_optimize_metrics_artifacts.py tests/unit/test_optimize_early_stopping.py -q` → `13 passed, 2 skipped`.
 
+### DEC-101 — soft-hinge preservation (2026-08-05)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| LOSS-007 | `test_soft_hinge__excess__matches_stable_softplus` | green | `pixi run --environment test pytest tests/unit/test_logistic_loss.py::test_soft_hinge__excess__matches_stable_softplus -q` → `TypeError: unexpected keyword argument 'tau'` | same → `5 passed` | `objective/losses.py` | `d=softplus((M0-M-δ)/τ)`; hard hinge kept as `baseline_relative_hard_hinge` |
+| OBJ-005/006/008/010 | neutral/correct/total goldens | green | (cluster after LOSS-007; hard-hinge goldens obsolete) | `… test_objective_neutral.py test_objective_correct.py test_objective_total.py test_objective_logging.py -q` → passed in related suite | `objective/total.py`, `tests/fixtures/objective/golden_objective.py` | Hand softplus goldens; L_neutral≈0.5463; L_correct≈0.8203; L_total≈3.1538 |
+| FEAT-011 | hard-hinge contrast | green | — | still green via `baseline_relative_hard_hinge` | `tests/unit/test_feature_components.py`, `test_fs_preservation_surrogate.py` | Documents why FS must not use hard ReLU hinges |
+| GRAD-013b | soft-hinge local affine | green | prior inactive→zero assumption obsolete | `… test_grad_local_affine_no_double_count.py -q` → `2 passed` | `objective/total.py` (torch softplus path) | Local ∂L/∂β = −σ(excess); double-count differs |
+| OBJ-018 | `objective_version` | green | — | `v2_soft_hinge_no_residual` default | `logging/trial_records.py` | Amends DEC-029 family; residual still excluded |
+| DEC-101 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md`, `AGENTS.md`, `README.md`, spec §13.1/OBJ-005 | Reuses experiment `tau`; FS φ(M) unchanged |
+
+Related regression: `pixi run --environment test pytest tests/unit/test_logistic_loss.py tests/unit/test_objective_neutral.py tests/unit/test_objective_correct.py tests/unit/test_objective_total.py tests/unit/test_objective_logging.py tests/unit/test_feature_components.py tests/unit/test_fs_preservation_surrogate.py tests/unit/test_grad_local_affine_no_double_count.py tests/integration/test_objective_batching.py tests/property/test_objective_invariance.py -q` → `42 passed`. Broader: `tests/unit/test_objective_*.py tests/unit/test_optimizer_*.py tests/unit/test_adapt_objective.py tests/unit/test_objective_detail_return.py tests/integration/test_feature_gradients.py tests/integration/test_grad_adam_moves_beta.py -q` → `29 passed`.
+
 ## Status definitions
 
 - `not_started`: no test written.

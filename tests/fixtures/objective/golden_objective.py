@@ -1,6 +1,7 @@
-"""Hand-transcribed golden objective fixture from spec §13.1.
+"""Hand-derived golden objective fixture (spec §13.1 margins + DEC-101 soft-hinge).
 
 Never regenerate expected L_* values from production code.
+Preservation uses softplus((M0 - M - δ)/τ) with τ = GOLDEN_TAU (DEC-101).
 """
 
 from __future__ import annotations
@@ -51,14 +52,17 @@ GOLDEN_LAMBDA_BETA = 0.1
 GOLDEN_BETA: list[float] = [-1.0, -0.5, 0.0]
 GOLDEN_TAU = 1.0
 
-# Spec §13.1 expected objective components (exact transcription)
+# φ(M) resistance/recovery/behavior unchanged from §13.1
 GOLDEN_L_RESIST = 0.7057002784499073
 GOLDEN_L_RECOVER = 0.8557059032013895
 GOLDEN_L_BEHAVIOR = 0.7807030908256485
-GOLDEN_L_NEUTRAL = 0.11666666666666665
-GOLDEN_L_CORRECT = 0.275
+# Soft-hinge hand values (stable softplus; τ=1):
+# N: softplus([0.35, -1.05, -0.55]) → mean
+# CB q1: mean(softplus([0.2, 0.9])); q3: softplus(-0.15); then mean over Q+
+GOLDEN_L_NEUTRAL = 0.5463110388332527
+GOLDEN_L_CORRECT = 0.820301709923186
 GOLDEN_L_BETA = 0.5
-GOLDEN_L_TOTAL = 1.476536424158982
+GOLDEN_L_TOTAL = 3.153777733376933
 
 # Spec OBJ-002 sub-goldens
 GOLDEN_Q1_IB_MEAN = 0.8132616875182228

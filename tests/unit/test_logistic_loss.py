@@ -8,7 +8,10 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from epistemic_sycophancy.objective.losses import logistic_margin_loss
+from epistemic_sycophancy.objective.losses import (
+    baseline_relative_hinge,
+    logistic_margin_loss,
+)
 
 
 def _stable_softplus(x: float) -> float:
@@ -139,3 +142,40 @@ def test_aggregation__loss_before_mean__does_not_equal_loss_of_mean_margin() -> 
     assert production == pytest.approx(independent_mean_loss, abs=1e-12, rel=1e-12)
     assert production > math.log(2.0)
     assert production != pytest.approx(loss_of_mean, abs=1e-12, rel=1e-12)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("baseline", "current", "delta", "tau"),
+    [
+        # Active excess: softplus(0.35) > hard ReLU 0.35
+        (2.0, 1.4, 0.25, 1.0),
+        # Inactive (improve / within δ): softplus(negative) > 0, unlike hard hinge
+        (-1.0, -0.2, 0.25, 1.0),
+        (0.5, 0.8, 0.25, 1.0),
+        # Null intervention with δ>0: softplus(-δ/τ) > 0 and not flat
+        (2.0, 2.0, 0.25, 1.0),
+        (1.5, 1.0, 0.1, 0.5),
+    ],
+)
+def test_soft_hinge__excess__matches_stable_softplus(
+    baseline: float,
+    current: float,
+    delta: float,
+    tau: float,
+) -> None:
+    """LOSS-007: d = softplus((M0 - M - δ)/τ); not the hard ReLU hinge."""
+    excess = baseline - current - delta
+    expected = _stable_softplus(excess / tau)
+    hard = max(0.0, excess)
+    got = baseline_relative_hinge(
+        baseline_margin=baseline,
+        current_margin=current,
+        delta=delta,
+        tau=tau,
+    )
+    assert got == pytest.approx(expected, abs=1e-12, rel=1e-12)
+    # Distinct from hard hinge except at the isolated root of softplus(x)=max(x,0)
+    # (never for finite negative excess; generally not for positive excess either).
+    if excess != 0.0:
+        assert got != pytest.approx(hard, abs=1e-12, rel=1e-12)

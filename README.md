@@ -79,11 +79,11 @@ positive $J$ predicts that suppressing the feature decreases loss. CF/IF/RO
 rankings stay separate; a deterministic quota-union builds one common pool.
 
 **Objective.** Optimization mixes resistance (incorrect belief on $Q^+$),
-recovery (correct belief on $Q^-$), neutral and correct-belief preservation
-hinges, and mean $|\beta|$. Feature selection uses non-flat preservation
-surrogates because the optimizer hinges are locally flat at the null
-intervention. Checkpoint selection uses validation metrics only; holdout stays
-sealed until a freeze artifact unlocks it.
+recovery (correct belief on $Q^-$), neutral and correct-belief soft-hinge
+preservation penalties $\mathrm{softplus}((M_0-M-\delta)/\tau)$, and
+mean $|\beta|$. Feature selection still uses absolute logistic surrogates
+$\phi(M)$ (not baseline-relative soft-hinges). Checkpoint selection uses
+validation metrics only; holdout stays sealed until a freeze artifact unlocks it.
 
 FTW, CBR, Selectivity, PRA, MC1, and MC2 are computed on
 frozen partitions at the original-question level. Uncertainty uses
@@ -106,7 +106,7 @@ data / prompts
         ├──► feature Jacobians / rankings / common pool
         │
         ▼
-   objective (resistance, recovery, hinges, β reg)
+   objective (resistance, recovery, soft-hinges, β reg)
         │
         ├──► CMA-ES / projected Adam
         │

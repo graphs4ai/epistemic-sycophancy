@@ -8,6 +8,9 @@ from dataclasses import asdict, dataclass
 from epistemic_sycophancy.objective.total import ObjectiveResult
 
 OBJECTIVE_VERSION_V1 = "v1_no_residual"
+OBJECTIVE_VERSION_V2 = "v2_soft_hinge_no_residual"
+# Current default: softplus preservation hinges (DEC-101); residual still excluded.
+OBJECTIVE_VERSION_CURRENT = OBJECTIVE_VERSION_V2
 
 
 @dataclass(frozen=True)
@@ -76,7 +79,7 @@ def build_objective_components(
     lambda_c: float,
     lambda_beta: float,
     l_residual_perturbation: float = 0.0,
-    objective_version: str = OBJECTIVE_VERSION_V1,
+    objective_version: str = OBJECTIVE_VERSION_CURRENT,
 ) -> ObjectiveComponents:
     """Build logged components and verify the weighted sum identity."""
     components = ObjectiveComponents(

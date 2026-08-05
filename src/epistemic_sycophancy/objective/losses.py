@@ -1,4 +1,4 @@
-"""Logistic margin loss φ(M) = softplus(-M/τ)."""
+"""Logistic margin loss φ(M) = softplus(-M/τ) and soft preservation hinges."""
 
 from __future__ import annotations
 
@@ -33,17 +33,16 @@ def mean_logistic_margin_loss(margins: list[float], *, tau: float) -> float:
     return total / float(len(margins))
 
 
-def baseline_relative_hinge(
+def baseline_relative_hard_hinge(
     *,
     baseline_margin: float | object,
     current_margin: float | object,
     delta: float,
 ) -> float | object:
-    """Return [M0 - M(β) - δ]_+.
+    """Return hard [M0 - M(β) - δ]_+ (FEAT-011 contrast / historical hinge).
 
-    Accepts Python floats or torch tensors. At β=0 with δ>0 the hinge is
-    exactly zero and locally flat (FEAT-011), so it must not be used for
-    null-intervention ranking.
+    Kept for tests that document why hard hinges are flat at β=0 when δ>0.
+    The optimizer uses :func:`baseline_relative_hinge` (softplus) instead.
     """
     excess = baseline_margin - current_margin - float(delta)
     try:
@@ -54,3 +53,32 @@ def baseline_relative_hinge(
     except ImportError:
         pass
     return max(0.0, float(excess))
+
+
+def baseline_relative_hinge(
+    *,
+    baseline_margin: float | object,
+    current_margin: float | object,
+    delta: float,
+    tau: float,
+) -> float | object:
+    """Return softplus((M0 - M(β) - δ)/τ) for τ > 0.
+
+    Soft-hinge of the baseline-relative excess (DEC-101). Accepts Python
+    floats or torch tensors. Unlike the hard ReLU hinge, this is C^∞ and
+    nonzero (with nonzero ∂/∂M) at the null intervention when δ > 0.
+    """
+    if float(tau) <= 0.0:
+        raise ValueError(f"tau must be strictly positive; got {tau!r}")
+    excess = baseline_margin - current_margin - float(delta)
+    scaled = excess / float(tau)
+    try:
+        import torch
+
+        if isinstance(scaled, torch.Tensor):
+            return torch.nn.functional.softplus(scaled)
+        if isinstance(excess, torch.Tensor):
+            return torch.nn.functional.softplus(excess / float(tau))
+    except ImportError:
+        pass
+    return _softplus(float(scaled))

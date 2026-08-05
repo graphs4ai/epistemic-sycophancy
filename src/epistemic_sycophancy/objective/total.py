@@ -111,14 +111,16 @@ def neutral_question_penalties(
     baseline_neutral_margins: Mapping[object, float],
     current_neutral_margins: Mapping[object, float],
     delta_n: float,
+    tau: float,
 ) -> dict[object, float]:
-    """Per-question neutral hinge d_q,N = [M0 - M(β) - δ_N]_+."""
+    """Per-question neutral soft-hinge d_q,N = softplus((M0 - M(β) - δ_N)/τ)."""
     return {
         question_id: float(
             baseline_relative_hinge(
                 baseline_margin=float(baseline_neutral_margins[question_id]),
                 current_margin=float(current_neutral_margins[question_id]),
                 delta=delta_n,
+                tau=tau,
             )
         )
         for question_id in baseline_neutral_margins
@@ -130,12 +132,14 @@ def neutral_preservation_loss(
     baseline_neutral_margins: Mapping[object, float],
     current_neutral_margins: Mapping[object, float],
     delta_n: float,
+    tau: float,
 ) -> float:
     """L_neutral = (1/|Q|) Σ_q d_q,N over the full optimization question set."""
     penalties = neutral_question_penalties(
         baseline_neutral_margins=baseline_neutral_margins,
         current_neutral_margins=current_neutral_margins,
         delta_n=delta_n,
+        tau=tau,
     )
     if not penalties:
         raise ValueError("neutral_preservation_loss requires at least one question")
@@ -148,8 +152,9 @@ def correct_belief_question_penalties(
     current_cb_margins: Mapping[object, Sequence[float]],
     q_plus: frozenset[object] | set[object] | Sequence[object],
     delta_c: float,
+    tau: float,
 ) -> dict[object, list[float]]:
-    """Per-variant CB hinges for each q∈Q+: [M0 - M(β) - δ_C]_+."""
+    """Per-variant CB soft-hinges for each q∈Q+: softplus((M0 - M(β) - δ_C)/τ)."""
     q_plus_set = frozenset(q_plus)
     result: dict[object, list[float]] = {}
     for question_id in q_plus_set:
@@ -165,6 +170,7 @@ def correct_belief_question_penalties(
                     baseline_margin=float(b0),
                     current_margin=float(m),
                     delta=delta_c,
+                    tau=tau,
                 )
             )
             for b0, m in zip(baselines, currents, strict=True)
@@ -178,14 +184,16 @@ def correct_belief_preservation_loss(
     current_cb_margins: Mapping[object, Sequence[float]],
     q_plus: frozenset[object] | set[object] | Sequence[object],
     delta_c: float,
+    tau: float,
 ) -> float:
-    """Question-macro correct-belief hinge over Q+."""
+    """Question-macro correct-belief soft-hinge over Q+."""
     return question_macro_mean(
         correct_belief_question_penalties(
             baseline_cb_margins=baseline_cb_margins,
             current_cb_margins=current_cb_margins,
             q_plus=q_plus,
             delta_c=delta_c,
+            tau=tau,
         )
     )
 
@@ -291,12 +299,14 @@ def evaluate_objective(
         baseline_neutral_margins=baseline_neutral_margins,
         current_neutral_margins=current_neutral_margins,
         delta_n=delta_n,
+        tau=tau,
     )
     l_correct = correct_belief_preservation_loss(
         baseline_cb_margins=baseline_cb_margins,
         current_cb_margins=cb_margins_by_question,
         q_plus=q_plus,
         delta_c=delta_c,
+        tau=tau,
     )
     l_beta = coefficient_regularizer(beta=beta)
     l_total = (
@@ -336,10 +346,14 @@ def _softplus_neg_margin(margin: object, *, tau: float) -> object:
     return torch.nn.functional.softplus(-margin / float(tau))
 
 
-def _hinge_excess(baseline: float, current: object, *, delta: float) -> object:
+def _hinge_excess(
+    baseline: float, current: object, *, delta: float, tau: float
+) -> object:
     import torch
 
-    return torch.relu(float(baseline) - current - float(delta))
+    return torch.nn.functional.softplus(
+        (float(baseline) - current - float(delta)) / float(tau)
+    )
 
 
 def _sum_question_means_phi(
@@ -378,6 +392,7 @@ def _sum_question_means_hinge(
     margin_jac: Mapping[object, Sequence[object]],
     beta: object,
     delta: float,
+    tau: float,
 ) -> object:
     import torch
 
@@ -392,7 +407,7 @@ def _sum_question_means_hinge(
         )
         baselines = baseline_margins[question_id]
         hinges = [
-            _hinge_excess(float(b0), m, delta=delta)
+            _hinge_excess(float(b0), m, delta=delta, tau=tau)
             for b0, m in zip(baselines, currents, strict=True)
         ]
         means.append(torch.stack(hinges).mean())
@@ -409,6 +424,7 @@ def _sum_neutral_hinges(
     neutral_margin_jac: Mapping[object, object],
     beta: object,
     delta_n: float,
+    tau: float,
 ) -> object:
     import torch
 
@@ -422,6 +438,7 @@ def _sum_neutral_hinges(
                 float(baseline_neutral_margins[question_id]),
                 current,
                 delta=delta_n,
+                tau=tau,
             )
         )
     if not terms:
@@ -481,6 +498,7 @@ def _objective_tensor_from_question_ids(
         neutral_margin_jac=neutral_margin_jac,
         beta=beta,
         delta_n=delta_n,
+        tau=tau,
     )
     correct_sum = _sum_question_means_hinge(
         question_ids=question_ids,
@@ -490,6 +508,7 @@ def _objective_tensor_from_question_ids(
         margin_jac=cb_margin_jac,
         beta=beta,
         delta=delta_c,
+        tau=tau,
     )
     l_resist = resist_sum / float(n_q_plus)
     l_recover = recover_sum / float(n_q_minus)
@@ -699,6 +718,7 @@ def accumulate_objective_batches(
             neutral_margin_jac=neutral_margin_jac,
             beta=beta_leaf,
             delta_n=delta_n,
+            tau=tau,
         )
         correct_sum = correct_sum + _sum_question_means_hinge(
             question_ids=batch,
@@ -708,6 +728,7 @@ def accumulate_objective_batches(
             margin_jac=cb_margin_jac,
             beta=beta_leaf,
             delta=delta_c,
+            tau=tau,
         )
 
     l_resist = resist_sum / float(n_q_plus)

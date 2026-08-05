@@ -19,7 +19,9 @@ from epistemic_sycophancy.logging.pipeline import (
     log_stage_start,
 )
 from epistemic_sycophancy.logging.trial_records import (
+    OBJECTIVE_VERSION_CURRENT,
     OBJECTIVE_VERSION_V1,
+    OBJECTIVE_VERSION_V2,
     ObjectiveComponents,
     TrialRecord,
     build_objective_components,
@@ -27,7 +29,9 @@ from epistemic_sycophancy.logging.trial_records import (
 )
 
 __all__ = [
+    "OBJECTIVE_VERSION_CURRENT",
     "OBJECTIVE_VERSION_V1",
+    "OBJECTIVE_VERSION_V2",
     "ITERATION_CSV_COLUMNS",
     "ITERATION_PLOT_METRICS",
     "ObjectiveComponents",

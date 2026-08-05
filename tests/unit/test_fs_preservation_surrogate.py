@@ -8,7 +8,7 @@ import torch
 from epistemic_sycophancy.feature_selection.components import (
     logistic_preservation_surrogate,
 )
-from epistemic_sycophancy.objective.losses import baseline_relative_hinge
+from epistemic_sycophancy.objective.losses import baseline_relative_hard_hinge
 
 
 @pytest.mark.unit
@@ -30,8 +30,8 @@ def test_fs_adapter__preservation_components__use_phi_nonzero_at_beta_zero(
     assert grad is not None
     assert abs(float(grad.item())) > 0.0
 
-    # Contrasts with forbidden hinge (flat at β=0 when δ>0).
-    hinge = baseline_relative_hinge(
+    # Contrasts with forbidden hard hinge (flat at β=0 when δ>0).
+    hinge = baseline_relative_hard_hinge(
         baseline_margin=baseline,
         current_margin=torch.tensor(baseline, dtype=torch.float64, requires_grad=True),
         delta=0.25,

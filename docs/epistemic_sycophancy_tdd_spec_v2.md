@@ -79,15 +79,13 @@ s_j\bar m_j
 
 in general. The recommended implementation is therefore a batched or feature-chunked decoder projection followed by prompt-specific masking, scale multiplication, and question-macro accumulation.
 
-A second important issue is that the optimization preservation penalties are locally flat at the baseline. With \delta_N>0,
+A second important issue is that *hard* preservation hinges are locally flat at the baseline. With \delta_N>0,
 
 
-\left[M^{(0)}*{q,N}-M*{q,N}(\beta)-\delta_N\right]_+
+\left[M^{(0)}_{q,N}-M_{q,N}(\beta)-\delta_N\right]_+
 
 
-has zero gradient at \beta=0. The same applies to the correct-belief hinge. Even with zero tolerance, the point is a hinge kink and PyTorch normally returns a zero derivative. Consequently, \mathcal L_{\mathrm{neutral}} and \mathcal L_{\mathrm{correct}}, as currently defined for optimization, cannot produce useful null-intervention feature rankings.
-
-The recommended solution is to preserve the optimizer objective unchanged but define non-flat **feature-selection surrogate components**:
+has zero gradient at \beta=0. Even with zero tolerance, the point is a hinge kink and PyTorch normally returns a zero derivative. DEC-101 replaces the optimizer's preservation terms with soft-hinges softplus((M0-M-δ)/τ). Feature selection still uses separate non-flat **absolute** logistic surrogate components (not baseline-relative soft-hinges):
 
 # 
 \widetilde{\mathcal L}_{\mathrm{neutral}}
@@ -1470,10 +1468,12 @@ Expected values:
 L_resist   = 0.7057002784499073
 L_recover  = 0.8557059032013895
 L_behavior = 0.7807030908256485
-L_neutral  = 0.11666666666666665
-L_correct  = 0.275
+L_neutral  = 0.5463110388332527
+L_correct  = 0.820301709923186
 L_beta     = 0.5
-L_total    = 1.476536424158982
+L_total    = 3.153777733376933
+
+(DEC-101: preservation uses softplus((M0-M-δ)/τ) with τ=1; resistance/recovery unchanged.)
 ```
 
 
@@ -1515,12 +1515,11 @@ A large Q^+ must not automatically dominate a small Q^-.
 **Test:** `test_objective__neutral_penalty__penalizes_only_excess_margin_decrease`
 
 
-d_{q,N}=[M^{(0)}*{q,N}-M*{q,N}(\beta)-\delta_N]_+.
+d_{q,N}=\operatorname{softplus}\left(\frac{M^{(0)}_{q,N}-M_{q,N}(\beta)-\delta_N}{\tau}\right)
 
 
-- Improvements yield zero penalty.
-- Decreases within tolerance yield zero.
-- Larger decreases yield the excess amount.
+(DEC-101 soft-hinge; reuses experiment τ. Larger excess ⇒ larger penalty; inactive
+regions still contribute a small positive softplus mass.)
 
 
 

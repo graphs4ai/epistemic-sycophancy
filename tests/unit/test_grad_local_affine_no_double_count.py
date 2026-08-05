@@ -159,12 +159,12 @@ def test_adapters__build_grad_fn__nonzero_beta__local_affine_matches_live_margin
 def test_adapters__build_grad_fn__nonzero_beta__hinge_uses_live_margin_not_double_count(
     tmp_path: Path,
 ) -> None:
-    """GRAD-013b: double-counting can flip preservation hinges.
+    """GRAD-013b: soft-hinge local affine must use live M, not double-count β₀.
 
-    Neutral hinge at δ_n=0.1, baseline=1.0, M_live=0.95 → inactive (excess=-0.05).
-    With J=1, β₀=-0.5, buggy M=0.45 → active excess=0.45 and nonzero ∂L/∂β.
-    Correct local surrogate keeps the hinge inactive → ∂L/∂β = 0; build_grad_fn
-    then loud-fails (DEC-084). The rejected live-as-const path stays nonzero.
+    Neutral soft-hinge (DEC-101): δ_n=0.1, baseline=1.0, M_live=0.95, τ=1,
+    excess=-0.05. With two identical questions and J=1:
+      ∂d/∂M = -σ(-0.05), L_neutral mean ⇒ ∂L/∂β = -σ(-0.05).
+    Double-counting evaluates at buggy M=0.45 (excess=+0.45) ⇒ -σ(0.45).
     """
     from epistemic_sycophancy.objective.total import (
         evaluate_objective_with_grad,
@@ -203,9 +203,15 @@ def test_adapters__build_grad_fn__nonzero_beta__hinge_uses_live_margin_not_doubl
             "neutral_margin_jac": {"q1": j.clone(), "q2": j.clone()},
         }
 
-    assert (m_baseline_n - m_live_n - 0.1) < 0.0
+    live_excess = m_baseline_n - m_live_n - 0.1
+    assert live_excess == pytest.approx(-0.05)
     buggy_m = m_live_n + jac_val * beta0[0]
-    assert (m_baseline_n - buggy_m - 0.1) > 0.0
+    buggy_excess = m_baseline_n - buggy_m - 0.1
+    assert buggy_excess == pytest.approx(0.45)
+
+    expected_local = -1.0 / (1.0 + math.exp(-live_excess))
+    expected_buggy = -1.0 / (1.0 + math.exp(-buggy_excess))
+    assert expected_local != pytest.approx(expected_buggy, abs=1e-6)
 
     live_n = {"q1": m_live_n, "q2": m_live_n}
     baseline_n = {"q1": m_baseline_n, "q2": m_baseline_n}
@@ -238,7 +244,7 @@ def test_adapters__build_grad_fn__nonzero_beta__hinge_uses_live_margin_not_doubl
         neutral_margins_live=live_n,
         **common,
     )
-    assert float(local_grad[0]) == pytest.approx(0.0, abs=1e-12)
+    assert float(local_grad[0]) == pytest.approx(expected_local, abs=1e-8, rel=1e-6)
 
     _, buggy_grad = evaluate_objective_with_grad(
         beta=beta_t,
@@ -247,7 +253,7 @@ def test_adapters__build_grad_fn__nonzero_beta__hinge_uses_live_margin_not_doubl
         neutral_margin_const=live_n,
         **common,
     )
-    assert float(buggy_grad[0]) != pytest.approx(0.0, abs=1e-6)
+    assert float(buggy_grad[0]) == pytest.approx(expected_buggy, abs=1e-8, rel=1e-6)
 
     grad_fn = build_grad_fn(
         study,
@@ -256,5 +262,5 @@ def test_adapters__build_grad_fn__nonzero_beta__hinge_uses_live_margin_not_doubl
         margin_scorer=margin_scorer,
         margin_jacobian_fn=margin_jacobian_fn,
     )
-    with pytest.raises(ValueError, match="identically zero"):
-        grad_fn(beta0, ("q1", "q2"))
+    grad = grad_fn(beta0, ("q1", "q2"))
+    assert float(grad[0]) == pytest.approx(expected_local, abs=1e-8, rel=1e-6)
