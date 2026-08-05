@@ -57,4 +57,5 @@ run:
     adam_microbatch_questions: 1
   optimize:
     budget_match_on: n_objective_evals
-    max_steps: 50
+    max_steps: 120
+    patience: 10
