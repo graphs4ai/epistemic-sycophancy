@@ -540,24 +540,12 @@ def dispatch_stage(
                         nxt = min(len(full_opt), max(len(grow) * 2, len(grow) + 8))
                         grow = list(full_opt[:nxt])
                     assert built is not None
-                    # Eligible set must come from the scored grow pool so N/IB/CB exist.
-                    n_target = max(2, len(opt_qids) if opt_qids else 2)
-                    chosen: list[str] = []
-                    for p_id, m_id in zip(
-                        sorted(built.q_plus), sorted(built.q_minus), strict=False
-                    ):
-                        chosen.extend([p_id, m_id])
-                        if len(chosen) >= n_target:
-                            break
-                    if len(chosen) < 2:
-                        raise DegenerateBaselineError(
-                            "optimize expand found partitions but could not pick "
-                            "one Q+ and one Q- eligible id"
-                        )
-                    opt_qids = tuple(chosen[:n_target])
+                    # Keep the full scored grow pool (DEC-081 amended): expand only
+                    # for non-degeneracy; never zip-trim to force |Q+|≈|Q-|.
+                    opt_qids = tuple(str(q) for q in grow)
                     partitions = {
-                        "q_plus": frozenset(built.q_plus) & frozenset(opt_qids),
-                        "q_minus": frozenset(built.q_minus) & frozenset(opt_qids),
+                        "q_plus": frozenset(built.q_plus),
+                        "q_minus": frozenset(built.q_minus),
                     }
             else:
                 raise ValueError(

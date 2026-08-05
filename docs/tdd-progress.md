@@ -518,6 +518,12 @@ Regression: `pixi run --environment test pytest tests/unit/test_orch_full_study.
 |---|---|---|---|---|---|---|
 | WIRE-005b | `test_prompts__render_mc0_subset__behavior_validation__allowed_for_eval` | green | `pixi run --environment test pytest tests/unit/test_prompt_render_subset.py::test_prompts__render_mc0_subset__behavior_validation__allowed_for_eval -q` → `HoldoutAccessError: corpus row split 'behavior_validation' is forbidden` | same → `1 passed`; module suite → `2 passed`; related leakage/corpus/eval → `4 passed` | `prompts/render.py`, `tests/unit/test_prompt_render_subset.py` | `_RENDER_SPLITS` includes `behavior_validation`; `_COVERAGE_SPLITS` stays FS/opt; holdout still forbidden |
 
+## DEC-081 full optimization set (no zip trim)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-081b | `test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts` | green | `pixi run --environment test pytest tests/unit/test_orch_optimize_partition.py::test_dispatch__optimize__disjoint_fs_partition__keeps_full_opt_set_natural_counts -q` → `AssertionError: assert ['q_opt_1', 'q_opt_4'] == ['q_opt_1', … 'q_opt_4']` (zip kept 2) | same command → `1 passed` | `runner/cli.py`, `docs/decisions.md` | Natural 3/1 Q+/Q−; eligible retains all 4; amends DEC-081 |
+
 ## Status definitions
 
 - `not_started`: no test written.
