@@ -216,9 +216,9 @@ def _fs_projection_microbatch(
     pre = work @ enc_w.float() + enc_b.float()
     latents = jumprelu(pre, threshold.float())
 
-    del residual, grads, outputs, logits, encoded
-    if device.type == "cuda":
-        torch.cuda.empty_cache()
+    # del residual, grads, outputs, logits, encoded
+    # if device.type == "cuda":
+    #     torch.cuda.empty_cache()
 
     return {
         "residual_gradients": residual_gradients.to(dtype=torch.float64),

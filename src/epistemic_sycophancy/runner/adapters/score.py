@@ -87,9 +87,9 @@ def build_score_fn(
                     install_hooks_cm=None,
                 )
                 margins.extend(float(m) for m in batch.margins)
-                del batch
-                if stack.device.type == "cuda":
-                    torch.cuda.empty_cache()
+                # del batch
+                # if stack.device.type == "cuda":
+                #     torch.cuda.empty_cache()
             return margins
 
         if install_hooks_cm is None:
