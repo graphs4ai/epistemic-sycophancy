@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+import torch
+
 from epistemic_sycophancy.config.study import StudyConfig
 from epistemic_sycophancy.prompts.render import render_mc0_subset
 from epistemic_sycophancy.stack.scoring import score_batch_through_hooks
@@ -24,6 +26,7 @@ def build_score_fn(
 
     When ``install_hooks_cm`` is None, scoring is unhooked (identity / baseline).
     Continuations come from ``study.experiment.continuation_A/B`` via tokenizer.encode.
+    Microbatches rendered prompts by ``run.prompt_batch_size`` (DEC-090 amend / ADAPT-011).
     """
     tok = stack.tokenizer
     token_a = list(tok.encode(study.experiment.continuation_A, add_special_tokens=False))
@@ -32,6 +35,11 @@ def build_score_fn(
         raise ValueError(
             "ORCH-021 requires single-token continuations; "
             f"got A={token_a!r}, B={token_b!r}"
+        )
+    prompt_batch_size = int(study.run.prompt_batch_size)
+    if prompt_batch_size < 1:
+        raise ValueError(
+            f"run.prompt_batch_size must be positive; got {prompt_batch_size!r}"
         )
 
     # Coverage omitted → render requested question_ids only.
@@ -61,19 +69,38 @@ def build_score_fn(
                 continue
             seen.add(row.question_id)
             uniq.append(row)
-        batch = score_batch_through_hooks(
-            model=stack.model,
-            tokenizer=stack.tokenizer,
-            prompts=[row.text for row in uniq],
-            continuation_token_ids_A=token_a,
-            continuation_token_ids_B=token_b,
-            truthful_labels=tuple(row.truthful_label for row in uniq),
-            device=stack.device,
-            install_hooks_cm=install_hooks_cm,
-        )
+
+        def _score_microbatches() -> list[float]:
+            margins: list[float] = []
+            n = len(uniq)
+            for start in range(0, n, prompt_batch_size):
+                end = min(start + prompt_batch_size, n)
+                slice_rows = uniq[start:end]
+                batch = score_batch_through_hooks(
+                    model=stack.model,
+                    tokenizer=stack.tokenizer,
+                    prompts=[row.text for row in slice_rows],
+                    continuation_token_ids_A=token_a,
+                    continuation_token_ids_B=token_b,
+                    truthful_labels=tuple(row.truthful_label for row in slice_rows),
+                    device=stack.device,
+                    install_hooks_cm=None,
+                )
+                margins.extend(float(m) for m in batch.margins)
+                del batch
+                if stack.device.type == "cuda":
+                    torch.cuda.empty_cache()
+            return margins
+
+        if install_hooks_cm is None:
+            all_margins = _score_microbatches()
+        else:
+            with install_hooks_cm:
+                all_margins = _score_microbatches()
+
         return {
-            row.question_id: float(margin)
-            for row, margin in zip(uniq, batch.margins, strict=True)
+            row.question_id: margin
+            for row, margin in zip(uniq, all_margins, strict=True)
         }
 
     return score_fn

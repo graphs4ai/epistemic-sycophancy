@@ -1,9 +1,11 @@
-"""ORCH-021: build_score_fn from StudyConfig + InterventionStack (β=0 neutrals)."""
+"""ORCH-021 / ADAPT-011: build_score_fn + prompt_batch_size microbatches."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -23,7 +25,11 @@ from epistemic_sycophancy.runner.adapters.corpus import load_processed_mc0_corpu
 from epistemic_sycophancy.sae.spec import SaeSiteSpec
 from epistemic_sycophancy.scoring.margins import truthful_margin
 from epistemic_sycophancy.stack.config import ExperimentStackConfig, HookSpec
-from epistemic_sycophancy.stack.scoring import score_batch_with_lm_logits
+from epistemic_sycophancy.stack.scoring import (
+    StackScoreBatch,
+    score_batch_through_hooks,
+    score_batch_with_lm_logits,
+)
 
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "adapters"
 PROCESSED_JSONL = FIXTURE_ROOT / "processed_mc0_tiny.jsonl"
@@ -40,15 +46,20 @@ class _ToyCausalLM(nn.Module):
         batch, seq = input_ids.shape
         vocab = self.vocab_logits.shape[0]
         logits = torch.zeros(batch, seq, vocab, dtype=torch.float64)
-        logits[:, -1, :] = self.vocab_logits
+        # Distinct last-token bias per row so microbatch concat order matters.
+        for i in range(batch):
+            logits[i, -1, :] = self.vocab_logits + 0.01 * float(input_ids[i, 0].item())
         return SimpleNamespace(logits=logits)
 
 
 class _Tok:
     def __call__(self, texts, return_tensors="pt", padding=True):
         batch = len(texts)
+        input_ids = torch.zeros(batch, 3, dtype=torch.long)
+        for i, text in enumerate(texts):
+            input_ids[i, :] = (sum(ord(c) for c in text) % 97) + 1
         return {
-            "input_ids": torch.zeros(batch, 3, dtype=torch.long),
+            "input_ids": input_ids,
             "attention_mask": torch.ones(batch, 3, dtype=torch.long),
         }
 
@@ -64,7 +75,7 @@ class _FakeStack:
         self.device = torch.device("cpu")
 
 
-def _study(*, artifact_dir: str) -> StudyConfig:
+def _study(*, artifact_dir: str, prompt_batch_size: int = 1) -> StudyConfig:
     return StudyConfig(
         stack=ExperimentStackConfig(
             model=ModelSpec(
@@ -118,7 +129,7 @@ def _study(*, artifact_dir: str) -> StudyConfig:
             artifact_dir=artifact_dir,
             order_regime="CF",
             feature_chunk_size=1024,
-            prompt_batch_size=1,
+            prompt_batch_size=prompt_batch_size,
             fs_coverage=StudyFsCoverageConfig(question_ids=("q_fs_1", "q_fs_2")),
             optimizer=StudyOptimizerConfig(
                 kind="projected_adam",
@@ -189,3 +200,62 @@ def test_adapters__build_score_fn__beta0_neutral_margins_match_hand_toy_stack(
         score_b=expected_batch.score_b[0],
         truthful_label=rendered[0].truthful_label,
     )
+
+
+@pytest.mark.unit
+def test_adapters__build_score_fn__prompt_microbatches__match_full_batch_margins(
+    tmp_path: Path,
+) -> None:
+    """ADAPT-011: baseline score_fn honors run.prompt_batch_size (DEC-090 amend)."""
+    from epistemic_sycophancy.runner.adapters.score import build_score_fn
+
+    vocab_logits = torch.tensor([2.0, -1.0, 0.0], dtype=torch.float64)
+    corpus = load_processed_mc0_corpus(jsonl_paths=(PROCESSED_JSONL,), ro_seed=42)
+    split_ids = {
+        "feature_selection": ("q_fs_1", "q_fs_2"),
+        "optimization": ("q_opt_1",),
+    }
+    qids = ("q_fs_1", "q_fs_2")
+
+    study_full = _study(artifact_dir=str(tmp_path / "full"), prompt_batch_size=8)
+    stack_full = _FakeStack(_ToyCausalLM(vocab_logits), _Tok())
+    score_full = build_score_fn(
+        study_full,
+        stack_full,
+        corpus=corpus,
+        split_question_ids=split_ids,
+        order_regime="CF",
+        belief_condition="N",
+    )
+    full_margins = score_full(qids)
+
+    batch_sizes: list[int] = []
+    real_score = score_batch_through_hooks
+
+    def _spy_score(**kwargs: Any) -> StackScoreBatch:
+        batch_sizes.append(len(kwargs["prompts"]))
+        return real_score(**kwargs)
+
+    study_micro = _study(artifact_dir=str(tmp_path / "micro"), prompt_batch_size=1)
+    stack_micro = _FakeStack(_ToyCausalLM(vocab_logits), _Tok())
+    score_micro = build_score_fn(
+        study_micro,
+        stack_micro,
+        corpus=corpus,
+        split_question_ids=split_ids,
+        order_regime="CF",
+        belief_condition="N",
+    )
+    with patch(
+        "epistemic_sycophancy.runner.adapters.score.score_batch_through_hooks",
+        side_effect=_spy_score,
+    ):
+        micro_margins = score_micro(qids)
+
+    assert set(micro_margins) == set(full_margins) == set(qids)
+    for qid in qids:
+        assert micro_margins[qid] == pytest.approx(full_margins[qid])
+
+    assert batch_sizes, "expected score_batch_through_hooks to be called"
+    assert max(batch_sizes) <= 1
+    assert len(batch_sizes) == 2

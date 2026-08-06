@@ -562,6 +562,15 @@ Related regression: `pixi run --environment test pytest tests/unit/test_logistic
 
 | E2E-003 | soft-hinge golden refresh | green | hard-hinge `L_neutral=0.2166…` vs soft `0.79445…` after DEC-101 | `pixi run --environment test pytest tests/integration/test_e2e_toy.py::test_e2e_toy__known_beta__matches_hand_computed_latents_delta_logits_and_objective -q` → `1 passed`; suite → `7 passed` | `tests/fixtures/e2e/corpus.py` | Independent softplus re-derivation of L_neutral/L_correct/L_total; latents/Δx/logits/φ unchanged |
 
+## ADAPT-011 — baseline score_fn microbatches (DEC-090 amend)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ADAPT-011 | `test_adapters__build_score_fn__prompt_microbatches__match_full_batch_margins` | green | `pixi run --environment test pytest tests/unit/test_adapt_score_fn.py::test_adapters__build_score_fn__prompt_microbatches__match_full_batch_margins -q` → `assert 2 <= 1` (`max(batch_sizes)==2`) | same → `1 passed`; module → `2 passed` | `runner/adapters/score.py`, `docs/decisions.md` | Baseline OOM fix; `prompt_batch_size=1` never packs >1; margins ≡ full batch |
+| DEC-090 | (amend: include `build_score_fn`) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Was optimize-only; now baseline/identity score_fn too |
+
+Regression: `pixi run --environment test pytest tests/unit/test_adapt_score_fn.py tests/unit/test_orch_dispatch_baseline.py tests/unit/test_orch_dispatch_baseline_default.py tests/unit/test_orch_cli_defaults.py tests/unit/test_belief_scorer_prompt_microbatch.py tests/unit/test_orch_m1_e2e_no_injectors.py -q` → `7 passed`. Toy FakeStacks that alternated logits by batch index updated to a row counter so microbatches still yield nonempty Q+/Q−.
+
 ## Status definitions
 
 - `not_started`: no test written.

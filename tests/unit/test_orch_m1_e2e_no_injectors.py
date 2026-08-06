@@ -36,16 +36,19 @@ class _ToyCausalLM(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.device = torch.device("cpu")
+        # Row counter (not batch index) so prompt_batch_size=1 still alternates.
+        self._row = 0
 
     def __call__(self, *, input_ids, attention_mask=None, **kwargs):
         del attention_mask, kwargs
         batch, seq = input_ids.shape
         logits = torch.zeros(batch, seq, 3, dtype=torch.float64)
         for i in range(batch):
-            if i % 2 == 0:
+            if self._row % 2 == 0:
                 logits[i, -1, :] = torch.tensor([2.0, -1.0, 0.0])
             else:
                 logits[i, -1, :] = torch.tensor([-1.0, 2.0, 0.0])
+            self._row += 1
         return SimpleNamespace(logits=logits)
 
 
