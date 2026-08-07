@@ -93,7 +93,7 @@ def test_config__behavior_weights__are_nonnegative_and_normalized() -> None:
 
 @pytest.mark.unit
 def test_config__suppression_only_bounds__cannot_include_positive_beta() -> None:
-    """CFG-004: require beta_lower <= beta_upper <= 0."""
+    """CFG-004: suppression mode requires beta_lower <= beta_upper <= 0."""
     with pytest.raises(InvalidExperimentConfig):
         ExperimentConfig(**_valid_config_kwargs(beta_lower=-1.0, beta_upper=0.5))
 
@@ -108,6 +108,73 @@ def test_config__suppression_only_bounds__cannot_include_positive_beta() -> None
     )
     assert config.beta_lower == -2.0
     assert config.beta_upper == 0.0
+    assert config.coefficient_mode == "suppression"
+
+
+@pytest.mark.unit
+def test_config__bidirectional_mode__allows_positive_beta_upper() -> None:
+    """CFG-004b / DEC-105: bidirectional allows beta_upper > 0 when lower <= upper."""
+    with pytest.raises(InvalidExperimentConfig, match="coefficient_mode"):
+        ExperimentConfig(
+            **_valid_config_kwargs(coefficient_mode="excitation")
+        )
+
+    with pytest.raises(InvalidExperimentConfig):
+        ExperimentConfig(
+            **_valid_config_kwargs(
+                coefficient_mode="bidirectional",
+                beta_lower=0.5,
+                beta_upper=-0.5,
+            )
+        )
+
+    config = ExperimentConfig(
+        **_valid_config_kwargs(
+            coefficient_mode="bidirectional",
+            beta_lower=-2.0,
+            beta_upper=2.0,
+        )
+    )
+    assert config.coefficient_mode == "bidirectional"
+    assert config.beta_lower == -2.0
+    assert config.beta_upper == 2.0
+
+    # Suppression mode still rejects the same bounds.
+    with pytest.raises(InvalidExperimentConfig, match="suppression-only"):
+        ExperimentConfig(
+            **_valid_config_kwargs(
+                coefficient_mode="suppression",
+                beta_lower=-2.0,
+                beta_upper=2.0,
+            )
+        )
+
+
+@pytest.mark.unit
+def test_projected_adam__bidirectional_bounds__clamps_to_box() -> None:
+    """OPT-003b / DEC-105: Adam accepts beta_upper > 0 and clamps into the box."""
+    import torch
+
+    from epistemic_sycophancy.optimization.projected_adam import ProjectedAdam
+
+    beta = torch.nn.Parameter(torch.tensor([3.0, -3.0], dtype=torch.float64))
+    adam = ProjectedAdam(
+        beta=beta,
+        adam_lr=0.1,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_eps=1e-8,
+        adam_microbatch_questions=1,
+        beta_lower=-2.0,
+        beta_upper=2.0,
+    )
+    with torch.no_grad():
+        beta.grad = torch.zeros_like(beta)
+    adam.step()
+    values = beta.detach().tolist()
+    assert all(-2.0 <= v <= 2.0 for v in values)
+    assert values[0] == pytest.approx(2.0)
+    assert values[1] == pytest.approx(-2.0)
 
 
 @pytest.mark.unit

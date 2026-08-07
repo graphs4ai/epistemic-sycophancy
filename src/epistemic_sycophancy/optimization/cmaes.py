@@ -26,9 +26,10 @@ class CMAESOptimizer:
     ) -> None:
         if cma_seed is None:
             raise ValueError("cma_seed is required (DEC-030)")
-        if not (beta_lower <= beta_upper <= 0):
+        if not (beta_lower <= beta_upper):
             raise ValueError(
-                "suppression-only bounds require beta_lower <= beta_upper <= 0"
+                "bounds require beta_lower <= beta_upper; "
+                f"got beta_lower={beta_lower!r}, beta_upper={beta_upper!r}"
             )
         self.beta_lower = float(beta_lower)
         self.beta_upper = float(beta_upper)

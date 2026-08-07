@@ -350,6 +350,105 @@ def test_dispatch__full_study_sealed__writes_validation_margins_jsonl(
 
 
 @pytest.mark.unit
+def test_dispatch__full_study_sealed__writes_margin_subset_summary(
+    tmp_path: Path,
+) -> None:
+    """ORCH-DIAG-001 / DEC-104: per-criterion success/fail subset summary JSON."""
+    from epistemic_sycophancy.runner.cli import dispatch_stage
+
+    art = tmp_path / "art"
+    study = _study(str(art))
+    opt_dir = art / "optimize"
+    opt_dir.mkdir(parents=True)
+    _write_ckpt(opt_dir / "best_checkpoint.json", [-0.5], best_by="l_total")
+    _write_ckpt(opt_dir / "best_checkpoint_by_l_total.json", [-0.5], best_by="l_total")
+
+    # Same hand fixtures as ORCH-014d: IB qv1 on q_plus is baseline_failing;
+    # CB qv2 on q_minus is baseline_successful (baseline CB mean 0.9).
+    eval_payload = {
+        "validation_question_ids": ("qv1", "qv2"),
+        "current_neutral_margins": {"qv1": 1.2, "qv2": -0.1},
+        "current_ib_margins": {"qv1": (0.5, 1.5), "qv2": (0.2,)},
+        "current_cb_margins": {"qv1": (0.8,), "qv2": (-0.2,)},
+        "baseline_neutral_margins_by_order": {"CF": {"qv1": 1.0, "qv2": -0.5}},
+        "non_intervened_neutral_margins": {"qv1": 1.0, "qv2": -0.5},
+        "non_intervened_ib_margins": {"qv1": (-1.0, 0.0), "qv2": (-0.8,)},
+        "non_intervened_cb_margins": {"qv1": (0.1,), "qv2": (0.9,)},
+    }
+
+    result = dispatch_stage(
+        "full_study",
+        study=study,
+        freeze_status="sealed",
+        eval_payload=eval_payload,
+    )
+    assert result.ok is True
+    assert "margin_subset_summary_best_by_l_total" in result.artifacts
+    path = Path(result.artifacts["margin_subset_summary_best_by_l_total"])
+    assert path.name == "margin_subset_summary_best_by_l_total.json"
+    summary = json.loads(path.read_text(encoding="utf-8"))
+    assert summary["resistance"]["baseline_failing"]["n"] == 1
+    assert summary["resistance"]["baseline_successful"]["n"] == 0
+    assert summary["recovery"]["baseline_successful"]["n"] == 1
+    assert summary["recovery"]["baseline_failing"]["n"] == 0
+    assert summary["resistance"]["baseline_failing"]["n_flip_to_truthful"] == 1
+    assert summary["resistance"]["baseline_failing"]["mean_favorable_delta"] == pytest.approx(
+        1.5
+    )
+
+
+@pytest.mark.unit
+def test_dispatch__full_study_sealed__writes_context_contrast(
+    tmp_path: Path,
+) -> None:
+    """ORCH-DIAG-002 / DEC-104: context-contrast JSONL + summary per criterion."""
+    from epistemic_sycophancy.runner.cli import dispatch_stage
+
+    art = tmp_path / "art"
+    study = _study(str(art))
+    opt_dir = art / "optimize"
+    opt_dir.mkdir(parents=True)
+    _write_ckpt(opt_dir / "best_checkpoint.json", [-0.5], best_by="l_total")
+    _write_ckpt(opt_dir / "best_checkpoint_by_l_total.json", [-0.5], best_by="l_total")
+
+    eval_payload = {
+        "validation_question_ids": ("qv1", "qv2"),
+        "current_neutral_margins": {"qv1": 1.2, "qv2": -0.1},
+        "current_ib_margins": {"qv1": (0.5, 1.5), "qv2": (0.2,)},
+        "current_cb_margins": {"qv1": (0.8,), "qv2": (-0.2,)},
+        "baseline_neutral_margins_by_order": {"CF": {"qv1": 1.0, "qv2": -0.5}},
+        "non_intervened_neutral_margins": {"qv1": 1.0, "qv2": -0.5},
+        "non_intervened_ib_margins": {"qv1": (-1.0, 0.0), "qv2": (-0.8,)},
+        "non_intervened_cb_margins": {"qv1": (0.1,), "qv2": (0.9,)},
+    }
+
+    result = dispatch_stage(
+        "full_study",
+        study=study,
+        freeze_status="sealed",
+        eval_payload=eval_payload,
+    )
+    assert result.ok is True
+    assert "context_contrast_best_by_l_total" in result.artifacts
+    assert "context_contrast_summary_best_by_l_total" in result.artifacts
+    jsonl_path = Path(result.artifacts["context_contrast_best_by_l_total"])
+    summary_path = Path(result.artifacts["context_contrast_summary_best_by_l_total"])
+    rows = [
+        json.loads(line)
+        for line in jsonl_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert {r["question_id"] for r in rows} == {"qv1", "qv2"}
+    by_q = {r["question_id"]: r for r in rows}
+    # qv1 q_plus: ΔN=0.2, ΔIB=1.5 → delta_D_R = 1.3; neutral does not beat IB
+    assert by_q["qv1"]["delta_d_r"] == pytest.approx(1.3)
+    assert by_q["qv1"]["neutral_beats_ib_favorable"] is False
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["q_plus"]["n"] == 1
+    assert summary["q_minus"]["n"] == 1
+
+
+@pytest.mark.unit
 def test_dispatch__full_study_sealed__writes_validation_figures(
     tmp_path: Path,
 ) -> None:
@@ -403,9 +502,13 @@ def test_dispatch__full_study_sealed__writes_validation_figures(
     assert "figure_margins_ib_mean_favorable_delta" in result.artifacts
     assert "figure_margins_scatter_l_total" in result.artifacts
     assert "figure_margins_delta_hist_l_total" in result.artifacts
+    assert "figure_margins_subset_mean_favorable_delta_l_total" in result.artifacts
+    assert "figure_margins_context_contrast_delta_l_total" in result.artifacts
     figs = art / "full_study" / "figures"
     assert (figs / "metric_ftw.png").is_file()
     assert (figs / "metric_ftw.png").stat().st_size > 0
     assert (figs / "margins_ib_mean_favorable_delta.png").is_file()
     assert (figs / "margins_scatter_baseline_vs_intervened_l_total.png").is_file()
     assert (figs / "margins_favorable_delta_hist_l_total.png").is_file()
+    assert (figs / "margins_subset_mean_favorable_delta_l_total.png").is_file()
+    assert (figs / "margins_context_contrast_delta_l_total.png").is_file()

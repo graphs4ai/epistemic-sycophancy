@@ -592,6 +592,30 @@ Regression: `pixi run --environment test pytest tests/unit/test_ensure_selected_
 | ORCH-014e | `test_dispatch__full_study_sealed__writes_validation_figures` | green | missing `figure_metric_ftw` artifact | full_study + plots + dispatch → `12 passed` | `runner/full_study.py` | Writes `full_study/figures/` |
 | DEC-103 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md`, README, ship gate | Amends DEC-070/102 |
 
+## DEC-104 — success/fail subsets + context contrast (2026-08-07)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-DIAG-001 | `test_margin_subsets__resistance_and_recovery__split_by_baseline_truthful` | green | `ModuleNotFoundError: ...analysis` | `pixi run --environment test pytest tests/unit/test_margin_subsets.py -q` → `1 passed` | `analysis/margin_subsets.py` | Exact `δ==0` for zero count |
+| ORCH-DIAG-001b | `test_dispatch__full_study_sealed__writes_margin_subset_summary` | green | missing artifact key | full_study + subsets → passed | `runner/full_study.py` | Per-criterion JSON |
+| ORCH-PLOT-005 | `test_full_study_plots__subset_mean_delta__writes_png` | green | `ImportError: plot_subset_mean_favorable_delta_l_total` | plots + full_study → passed | `logging/full_study_plots.py` | l_total grouped bars |
+| ORCH-DIAG-002 | `test_context_contrast__paired_deltas__match_hand_derivation` | green | `ModuleNotFoundError: ...context_contrast` | `pixi run --environment test pytest tests/unit/test_context_contrast.py -q` → `1 passed` | `analysis/context_contrast.py` | D_R/D_U + ΔD |
+| ORCH-DIAG-002b | `test_dispatch__full_study_sealed__writes_context_contrast` | green | missing artifact keys | full_study suite → passed | `runner/full_study.py` | JSONL + summary |
+| ORCH-PLOT-006 | `test_full_study_plots__context_contrast_delta__writes_png` | green | missing plot import | plots + full_study → `14 passed` | `logging/full_study_plots.py` | mean ΔD by partition |
+| DEC-104 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Amends DEC-102/103 |
+
+## DEC-105 — bidirectional coefficient mode (2026-08-07)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| CFG-004b | `test_config__bidirectional_mode__allows_positive_beta_upper` | green | suppression-only reject / no mode | `pixi run --environment test pytest tests/unit/test_config_schema.py -q` → passed | `config/schema.py`, `load_study.py` | Mode-gated bounds |
+| OPT-003b | `test_projected_adam__bidirectional_bounds__clamps_to_box` | green | `ValueError: suppression-only bounds` | schema + adam suite → passed | `optimization/projected_adam.py`, `cmaes.py` | Clamp only |
+| FEAT-025b | `test_feature_pool__bidirectional__ranks_by_abs_jacobian_and_keeps_negative` | green | `TypeError: ...coefficient_mode` | `pixi run --environment test pytest tests/unit/test_feature_pool.py -q` → passed | `feature_selection/pool.py`, `runner/fs_dispatch.py` | \|J\| quota-union + preferred signs |
+| CFGFILE-BIDIR | `test_load_study__bidirectional_yaml__sets_mode_and_bounds` | green | — | load test → passed | `configs/..._CF_bidirectional.yaml` | β∈[-2,+2], new artifact_dir |
+| ORCH-DIAG-003 | `test_compare_studies__reads_behavioral_and_diagnostics` | green | — | compare helper → passed | `analysis/compare_studies.py` | Side-by-side loader |
+| DEC-105 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md` | Amends DEC-019/030/031 |
+| RUN-BIDIR | pipeline `scripts/run_bidirectional_l17l22_cf.sh` | in_progress | — | launched `test-cuda` identity→…→study; log under bidirectional artifact_dir | `scripts/run_bidirectional_l17l22_cf.sh` | Suppression diagnostics backfilled offline |
+
 ## Status definitions
 
 - `not_started`: no test written.

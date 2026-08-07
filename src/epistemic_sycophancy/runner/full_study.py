@@ -8,6 +8,11 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from epistemic_sycophancy.analysis.context_contrast import (
+    build_context_contrast_rows,
+    summarize_context_contrast,
+)
+from epistemic_sycophancy.analysis.margin_subsets import summarize_margin_subsets
 from epistemic_sycophancy.config.study import StudyConfig, study_order_regime
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
 from epistemic_sycophancy.logging.full_study_plots import write_full_study_figures
@@ -322,6 +327,30 @@ def run_full_study_dispatch(
                 handle.write(json.dumps(row, sort_keys=True) + "\n")
         artifacts[f"validation_margins_best_by_{metric}"] = str(margins_path)
         margins_by_criterion[metric] = margin_rows
+        subset_summary = summarize_margin_subsets(margin_rows)
+        subset_path = out_dir / f"margin_subset_summary_best_by_{metric}.json"
+        subset_path.write_text(
+            json.dumps(subset_summary, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        artifacts[f"margin_subset_summary_best_by_{metric}"] = str(subset_path)
+        contrast_rows = build_context_contrast_rows(margin_rows)
+        contrast_path = out_dir / f"context_contrast_best_by_{metric}.jsonl"
+        with contrast_path.open("w", encoding="utf-8") as handle:
+            for row in contrast_rows:
+                handle.write(json.dumps(row, sort_keys=True) + "\n")
+        artifacts[f"context_contrast_best_by_{metric}"] = str(contrast_path)
+        contrast_summary = summarize_context_contrast(contrast_rows)
+        contrast_summary_path = (
+            out_dir / f"context_contrast_summary_best_by_{metric}.json"
+        )
+        contrast_summary_path.write_text(
+            json.dumps(contrast_summary, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        artifacts[f"context_contrast_summary_best_by_{metric}"] = str(
+            contrast_summary_path
+        )
         metrics_out[f"{metric}_ftw"] = metrics.ftw
         metrics_out[f"{metric}_cbr"] = metrics.cbr
         metrics_out[f"{metric}_selectivity"] = metrics.selectivity
@@ -334,6 +363,8 @@ def run_full_study_dispatch(
             selectivity=metrics.selectivity,
             path=str(by_path),
             validation_margins_path=str(margins_path),
+            margin_subset_summary_path=str(subset_path),
+            context_contrast_path=str(contrast_path),
             n_margin_rows=len(margin_rows),
         )
         if metric == "l_total":

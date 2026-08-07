@@ -261,3 +261,46 @@ def test_feature_pool__quota_union_deduplication_and_fill__matches_frozen_policy
     assert (1, 0) not in pool.feature_ids
     assert (0, 8) not in pool.feature_ids
     assert pool.scales == (1.0, 2.0, 3.0, 0.25)
+
+
+@pytest.mark.unit
+def test_feature_pool__bidirectional__ranks_by_abs_jacobian_and_keeps_negative() -> None:
+    """FEAT-025b / DEC-105: bidirectional pool uses |J| rank; includes J<0.
+
+    Hand-derived with quota=2 per list:
+      resistance: (0,1)=+2.0, (0,2)=-3.0, (0,3)=+0.5
+        top-|J|: (0,2) then (0,1); (0,3) cut
+      recovery: (1,0)=-1.5, (1,1)=+1.0
+        top-|J|: (1,0) then (1,1)
+      union ascending (layer,fid): (0,1),(0,2),(1,0),(1,1)
+      preferred signs: -sign(J) → -1, +1, +1, -1
+    """
+    from epistemic_sycophancy.feature_selection import build_common_feature_pool
+
+    lists = {
+        ("CF", "resistance"): {(0, 1): 2.0, (0, 2): -3.0, (0, 3): 0.5},
+        ("CF", "recovery"): {(1, 0): -1.5, (1, 1): 1.0},
+    }
+    scales = {(0, 1): 1.0, (0, 2): 2.0, (0, 3): 3.0, (1, 0): 1.5, (1, 1): 0.5}
+    suppression = build_common_feature_pool(
+        lists_by_order_and_component=lists,
+        feature_scales=scales,
+        pool_quota_per_list=2,
+        coefficient_mode="suppression",
+    )
+    # Suppression keeps only J>0: res top2=(0,1),(0,3); rec=(1,1)
+    assert suppression.feature_ids == ((0, 1), (0, 3), (1, 1))
+
+    bidirectional = build_common_feature_pool(
+        lists_by_order_and_component=lists,
+        feature_scales=scales,
+        pool_quota_per_list=2,
+        coefficient_mode="bidirectional",
+    )
+    assert bidirectional.feature_ids == ((0, 1), (0, 2), (1, 0), (1, 1))
+    assert bidirectional.scales == (1.0, 2.0, 1.5, 0.5)
+    assert bidirectional.preferred_bidirectional_signs == (-1.0, 1.0, 1.0, -1.0)
+    # Negative-J excitation candidate present; zero-J never eligible.
+    assert (0, 2) in bidirectional.feature_ids
+    assert (0, 2) not in suppression.feature_ids
+

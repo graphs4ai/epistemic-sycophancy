@@ -101,6 +101,7 @@ def _parse_experiment(raw: dict[str, Any]) -> ExperimentConfig:
         w_u=float(_require_key(raw, "w_u", label="experiment")),
         beta_lower=float(_require_key(raw, "beta_lower", label="experiment")),
         beta_upper=float(_require_key(raw, "beta_upper", label="experiment")),
+        coefficient_mode=str(raw.get("coefficient_mode", "suppression")),
         feature_ids=_parse_feature_ids(
             _require_key(raw, "feature_ids", label="experiment")
         ),
@@ -316,6 +317,7 @@ def _fingerprint_payload(study: StudyConfig) -> dict[str, Any]:
             "w_u": exp.w_u,
             "beta_lower": exp.beta_lower,
             "beta_upper": exp.beta_upper,
+            "coefficient_mode": exp.coefficient_mode,
             "feature_ids": feature_ids,
             "feature_scales": list(exp.feature_scales),
             "coefficient_length": exp.coefficient_length,

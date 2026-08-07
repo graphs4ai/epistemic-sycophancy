@@ -4,9 +4,11 @@ from epistemic_sycophancy.logging.full_study_plots import (
     BEHAVIORAL_PLOT_METRICS,
     ordered_behavioral_labels,
     plot_behavioral_metric_bars,
+    plot_context_contrast_delta_l_total,
     plot_ib_mean_favorable_delta,
     plot_margins_delta_hist_l_total,
     plot_margins_scatter_l_total,
+    plot_subset_mean_favorable_delta_l_total,
     write_full_study_figures,
 )
 from epistemic_sycophancy.logging.loss_curve import plot_loss_over_trials
@@ -59,11 +61,13 @@ __all__ = [
     "log_stage_start",
     "ordered_behavioral_labels",
     "plot_behavioral_metric_bars",
+    "plot_context_contrast_delta_l_total",
     "plot_ib_mean_favorable_delta",
     "plot_iteration_metric_curves",
     "plot_loss_over_trials",
     "plot_margins_delta_hist_l_total",
     "plot_margins_scatter_l_total",
+    "plot_subset_mean_favorable_delta_l_total",
     "write_full_study_figures",
     "write_optimize_metrics_csv",
 ]

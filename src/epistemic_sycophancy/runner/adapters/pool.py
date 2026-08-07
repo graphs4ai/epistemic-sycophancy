@@ -37,7 +37,21 @@ def load_common_pool_artifact(path: str | Path) -> CommonFeaturePool:
         raise ValueError(
             f"pool feature_ids length {len(feature_ids)} != scales {len(scales)}"
         )
-    return CommonFeaturePool(feature_ids=feature_ids, scales=scales)
+    raw_signs = payload.get("preferred_bidirectional_signs")
+    if raw_signs is None:
+        preferred = ()
+    else:
+        preferred = tuple(float(x) for x in raw_signs)
+        if len(preferred) != len(feature_ids):
+            raise ValueError(
+                "pool preferred_bidirectional_signs length "
+                f"{len(preferred)} != feature_ids {len(feature_ids)}"
+            )
+    return CommonFeaturePool(
+        feature_ids=feature_ids,
+        scales=scales,
+        preferred_bidirectional_signs=preferred,
+    )
 
 
 def study_with_selected_pool(
@@ -57,6 +71,7 @@ def study_with_selected_pool(
         w_u=float(exp.w_u),
         beta_lower=float(exp.beta_lower),
         beta_upper=float(exp.beta_upper),
+        coefficient_mode=exp.coefficient_mode,
         feature_ids=pool.feature_ids,
         feature_scales=pool.scales,
         coefficient_length=len(pool.feature_ids),

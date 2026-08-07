@@ -26,7 +26,9 @@ from epistemic_sycophancy.feature_selection.pool import (
     CommonFeaturePool,
     EligibilityResult,
     build_common_feature_pool,
+    eligible_bidirectional_candidates,
     eligible_suppression_candidates,
+    rank_bidirectional_candidates,
 )
 from epistemic_sycophancy.feature_selection.projected_gradient import (
     AttributionScopeResolution,
@@ -70,6 +72,7 @@ __all__ = [
     "coefficient_jacobian",
     "coefficient_jacobian_aggregate_first",
     "component_question_subset",
+    "eligible_bidirectional_candidates",
     "eligible_suppression_candidates",
     "final_prompt_token_index",
     "freeze_feature_selection_artifact",
@@ -79,6 +82,7 @@ __all__ = [
     "project_residual_gradient",
     "question_macro_jacobian",
     "question_macro_prompt_weights",
+    "rank_bidirectional_candidates",
     "rank_suppression_candidates",
     "resolve_attribution_scope",
     "select_final_token_states",

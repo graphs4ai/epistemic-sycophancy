@@ -271,6 +271,122 @@ def plot_margins_delta_hist_l_total(
     return path
 
 
+def plot_subset_mean_favorable_delta_l_total(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    output_path: Path | str,
+) -> Path | None:
+    """Grouped bars: mean favorable_delta by baseline success/fail (DEC-104).
+
+    Resistance = IB on q_plus; recovery = CB on q_minus. Empty → None.
+    """
+    from epistemic_sycophancy.analysis.margin_subsets import summarize_margin_subsets
+
+    if not rows:
+        return None
+    summary = summarize_margin_subsets(rows)
+    labels = [
+        "resist_fail",
+        "resist_ok",
+        "recover_fail",
+        "recover_ok",
+    ]
+    buckets = [
+        summary["resistance"]["baseline_failing"],
+        summary["resistance"]["baseline_successful"],
+        summary["recovery"]["baseline_failing"],
+        summary["recovery"]["baseline_successful"],
+    ]
+    if all(int(b["n"]) == 0 for b in buckets):
+        return None
+    values = [
+        float(b["mean_favorable_delta"]) if b["mean_favorable_delta"] is not None else 0.0
+        for b in buckets
+    ]
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.0))
+    xs = list(range(len(labels)))
+    ax.bar(xs, values, color="#55A868", edgecolor="black", linewidth=0.4)
+    ax.set_xticks(xs)
+    ax.set_xticklabels(labels, rotation=20, ha="right")
+    ax.set_ylabel("mean favorable_delta")
+    ax.set_title("l_total mean ΔM by baseline success/fail")
+    ax.axhline(0.0, color="black", linewidth=0.6)
+    ax.grid(True, axis="y", alpha=0.3)
+    for x, bucket in zip(xs, buckets, strict=True):
+        ax.text(x, values[x], f"n={bucket['n']}", ha="center", va="bottom", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
+def plot_context_contrast_delta_l_total(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    output_path: Path | str,
+) -> Path | None:
+    """Grouped bars: mean delta_D_R / delta_D_U by partition (DEC-104)."""
+    from epistemic_sycophancy.analysis.context_contrast import (
+        build_context_contrast_rows,
+        summarize_context_contrast,
+    )
+
+    if not rows:
+        return None
+    summary = summarize_context_contrast(build_context_contrast_rows(rows))
+    partitions = ("q_plus", "q_minus")
+    if all(int(summary[p]["n"]) == 0 for p in partitions):
+        return None
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    labels = list(partitions)
+    d_r = [
+        float(summary[p]["mean_delta_d_r"])
+        if summary[p]["mean_delta_d_r"] is not None
+        else 0.0
+        for p in labels
+    ]
+    d_u = [
+        float(summary[p]["mean_delta_d_u"])
+        if summary[p]["mean_delta_d_u"] is not None
+        else 0.0
+        for p in labels
+    ]
+    xs = np.arange(len(labels))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(6.5, 4.0))
+    ax.bar(xs - width / 2, d_r, width, label="mean ΔD_R", color="#4C72B0")
+    ax.bar(xs + width / 2, d_u, width, label="mean ΔD_U", color="#C44E52")
+    ax.set_xticks(list(xs))
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("mean delta contrast")
+    ax.set_title("l_total context-contrast ΔD by partition")
+    ax.axhline(0.0, color="black", linewidth=0.6)
+    ax.legend(loc="best")
+    ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path)
+    plt.close(fig)
+    return path
+
+
 def write_full_study_figures(
     *,
     behavioral_by_label: Mapping[str, Mapping[str, Any]],
@@ -323,5 +439,20 @@ def write_full_study_figures(
         )
         if hist is not None:
             artifacts["figure_margins_delta_hist_l_total"] = str(hist)
+        subset = plot_subset_mean_favorable_delta_l_total(
+            l_total_rows,
+            output_path=directory
+            / "margins_subset_mean_favorable_delta_l_total.png",
+        )
+        if subset is not None:
+            artifacts["figure_margins_subset_mean_favorable_delta_l_total"] = str(
+                subset
+            )
+        contrast = plot_context_contrast_delta_l_total(
+            l_total_rows,
+            output_path=directory / "margins_context_contrast_delta_l_total.png",
+        )
+        if contrast is not None:
+            artifacts["figure_margins_context_contrast_delta_l_total"] = str(contrast)
 
     return artifacts

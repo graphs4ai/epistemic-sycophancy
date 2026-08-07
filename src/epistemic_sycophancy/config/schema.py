@@ -41,6 +41,7 @@ class ExperimentConfig:
         attribution_scope: object,
         pool_eligibility_override: object,
         pool_quota_per_list: object,
+        coefficient_mode: object = "suppression",
     ) -> None:
         if tau <= 0:
             raise InvalidExperimentConfig(
@@ -65,7 +66,17 @@ class ExperimentConfig:
             raise InvalidExperimentConfig(
                 f"behavioral weights must sum to 1; got w_r={w_r!r}, w_u={w_u!r}"
             )
-        if not (beta_lower <= beta_upper <= 0):
+        if coefficient_mode not in ("suppression", "bidirectional"):
+            raise InvalidExperimentConfig(
+                "coefficient_mode must be 'suppression' or 'bidirectional'; "
+                f"got {coefficient_mode!r}"
+            )
+        if not (beta_lower <= beta_upper):
+            raise InvalidExperimentConfig(
+                "bounds require beta_lower <= beta_upper; "
+                f"got beta_lower={beta_lower!r}, beta_upper={beta_upper!r}"
+            )
+        if coefficient_mode == "suppression" and not (beta_upper <= 0):
             raise InvalidExperimentConfig(
                 "suppression-only bounds require beta_lower <= beta_upper <= 0; "
                 f"got beta_lower={beta_lower!r}, beta_upper={beta_upper!r}"
@@ -162,6 +173,7 @@ class ExperimentConfig:
         self.w_u = w_u
         self.beta_lower = beta_lower
         self.beta_upper = beta_upper
+        self.coefficient_mode = str(coefficient_mode)
         self.feature_ids = ids
         self.feature_scales = scales
         self.coefficient_length = coefficient_length

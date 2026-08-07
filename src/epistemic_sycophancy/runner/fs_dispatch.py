@@ -112,7 +112,11 @@ def run_feature_selection_dispatch(
             key
             for scores in behavior_lists.values()
             for key, value in scores.items()
-            if float(value) > 0.0
+            if (
+                abs(float(value)) > 0.0
+                if str(study.experiment.coefficient_mode) == "bidirectional"
+                else float(value) > 0.0
+            )
         }
     )
     scales_map = dict(scale_fn(provisional_keys))
@@ -120,22 +124,30 @@ def run_feature_selection_dispatch(
         lists_by_order_and_component=behavior_lists,
         feature_scales=scales_map,
         pool_quota_per_list=int(study.experiment.pool_quota_per_list),
+        coefficient_mode=str(study.experiment.coefficient_mode),
     )
     fingerprint = study_config_fingerprint(study)
     out_dir = Path(study.run.artifact_dir) / "feature_selection"
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "common_pool.json"
     provenance: dict[str, dict[str, object]] = {}
+    mode = str(study.experiment.coefficient_mode)
     for layer, fid in pool.feature_ids:
         key = f"{layer}:{fid}"
         nominators: list[dict[str, object]] = []
         for (order, component), scores in behavior_lists.items():
-            if (layer, fid) in scores and float(scores[(layer, fid)]) > 0.0:
+            if (layer, fid) not in scores:
+                continue
+            signed = float(scores[(layer, fid)])
+            eligible_nom = (
+                abs(signed) > 0.0 if mode == "bidirectional" else signed > 0.0
+            )
+            if eligible_nom:
                 nominators.append(
                     {
                         "order": order,
                         "component": component,
-                        "signed_jacobian": float(scores[(layer, fid)]),
+                        "signed_jacobian": signed,
                     }
                 )
         surrogates: dict[str, float] = {}
@@ -144,10 +156,19 @@ def run_feature_selection_dispatch(
             if (layer, fid) in scores:
                 surrogates[surr] = float(scores[(layer, fid)])
         provenance[key] = {"nominators": nominators, "surrogates": surrogates}
+    preferred_by_key = {
+        f"{layer}:{fid}": float(sign)
+        for (layer, fid), sign in zip(
+            pool.feature_ids, pool.preferred_bidirectional_signs, strict=True
+        )
+    }
     payload = {
         "schema_version": 2,
+        "coefficient_mode": mode,
         "feature_ids": [[layer, fid] for layer, fid in pool.feature_ids],
         "feature_scales": list(pool.scales),
+        "preferred_bidirectional_signs": list(pool.preferred_bidirectional_signs),
+        "preferred_bidirectional_signs_by_feature": preferred_by_key,
         "pool_size": len(pool.feature_ids),
         "scale_source": "decoder_norm",
         "study_yaml_fingerprint": fingerprint,

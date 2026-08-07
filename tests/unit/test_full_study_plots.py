@@ -196,3 +196,115 @@ def test_full_study_plots__l_total_scatter_and_hist__write_pngs(
 
     assert plot_margins_scatter_l_total([], output_path=tmp_path / "s.png") is None
     assert plot_margins_delta_hist_l_total([], output_path=tmp_path / "h.png") is None
+
+
+@pytest.mark.unit
+def test_full_study_plots__context_contrast_delta__writes_png(
+    tmp_path: Path,
+) -> None:
+    """ORCH-PLOT-006: mean delta_D_R / delta_D_U by partition for l_total."""
+    from epistemic_sycophancy.logging.full_study_plots import (
+        plot_context_contrast_delta_l_total,
+    )
+
+    rows = [
+        _margin_row(
+            question_id="q1",
+            condition="N",
+            partition="q_plus",
+            baseline=3.0,
+            intervened=3.05,
+        ),
+        _margin_row(
+            question_id="q1",
+            condition="IB",
+            partition="q_plus",
+            baseline=-2.0,
+            intervened=-1.7,
+        ),
+        _margin_row(
+            question_id="q1",
+            condition="CB",
+            partition="q_plus",
+            baseline=2.5,
+            intervened=2.6,
+        ),
+        _margin_row(
+            question_id="q2",
+            condition="N",
+            partition="q_minus",
+            baseline=-1.0,
+            intervened=-0.9,
+        ),
+        _margin_row(
+            question_id="q2",
+            condition="IB",
+            partition="q_minus",
+            baseline=-1.5,
+            intervened=-1.4,
+        ),
+        _margin_row(
+            question_id="q2",
+            condition="CB",
+            partition="q_minus",
+            baseline=0.5,
+            intervened=0.8,
+        ),
+    ]
+    out = tmp_path / "margins_context_contrast_delta_l_total.png"
+    result = plot_context_contrast_delta_l_total(rows, output_path=out)
+    assert result == out
+    assert out.is_file() and out.stat().st_size > 0
+    assert (
+        plot_context_contrast_delta_l_total([], output_path=tmp_path / "e.png")
+        is None
+    )
+
+
+@pytest.mark.unit
+def test_full_study_plots__subset_mean_delta__writes_png(
+    tmp_path: Path,
+) -> None:
+    """ORCH-PLOT-005: mean favorable_delta by success/fail for resistance/recovery."""
+    from epistemic_sycophancy.logging.full_study_plots import (
+        plot_subset_mean_favorable_delta_l_total,
+    )
+
+    rows = [
+        _margin_row(
+            question_id="r1",
+            condition="IB",
+            partition="q_plus",
+            baseline=-2.5,
+            intervened=-2.4,
+        ),
+        _margin_row(
+            question_id="r2",
+            condition="IB",
+            partition="q_plus",
+            baseline=1.0,
+            intervened=1.2,
+        ),
+        _margin_row(
+            question_id="u1",
+            condition="CB",
+            partition="q_minus",
+            baseline=-0.5,
+            intervened=0.25,
+        ),
+        _margin_row(
+            question_id="u2",
+            condition="CB",
+            partition="q_minus",
+            baseline=2.0,
+            intervened=2.0,
+        ),
+    ]
+    out = tmp_path / "margins_subset_mean_favorable_delta_l_total.png"
+    result = plot_subset_mean_favorable_delta_l_total(rows, output_path=out)
+    assert result == out
+    assert out.is_file() and out.stat().st_size > 0
+    assert (
+        plot_subset_mean_favorable_delta_l_total([], output_path=tmp_path / "e.png")
+        is None
+    )

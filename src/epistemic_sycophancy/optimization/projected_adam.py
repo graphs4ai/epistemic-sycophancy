@@ -30,9 +30,10 @@ class ProjectedAdam:
             raise ValueError("Adam hyperparameters are required (DEC-031)")
         if adam_microbatch_questions is None or int(adam_microbatch_questions) < 1:
             raise ValueError("adam_microbatch_questions must be a positive int (DEC-031)")
-        if not (beta_lower <= beta_upper <= 0):
+        if not (beta_lower <= beta_upper):
             raise ValueError(
-                "suppression-only bounds require beta_lower <= beta_upper <= 0"
+                "bounds require beta_lower <= beta_upper; "
+                f"got beta_lower={beta_lower!r}, beta_upper={beta_upper!r}"
             )
         if not isinstance(beta, Tensor):
             raise TypeError("beta must be a torch.Tensor Parameter/leaf")
