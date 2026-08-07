@@ -270,3 +270,80 @@ def test_dispatch__full_study_sealed__writes_behavioral_best_by_criterion(
     assert by_resist["ftw"] != by_total["ftw"]
     assert (art / "full_study" / "behavioral_best_by_l_resist.json").is_file()
     assert "qh1" not in Path(result.artifacts["behavioral_best_by_l_resist"]).read_text()
+
+
+@pytest.mark.unit
+def test_dispatch__full_study_sealed__writes_validation_margins_jsonl(
+    tmp_path: Path,
+) -> None:
+    """ORCH-014d / DEC-102: per-question validation margins JSONL for each criterion."""
+    from epistemic_sycophancy.runner.cli import dispatch_stage
+
+    art = tmp_path / "art"
+    study = _study(str(art))
+    opt_dir = art / "optimize"
+    opt_dir.mkdir(parents=True)
+    _write_ckpt(opt_dir / "best_checkpoint.json", [-0.5], best_by="l_total")
+    _write_ckpt(opt_dir / "best_checkpoint_by_l_total.json", [-0.5], best_by="l_total")
+
+    # Hand-derived (ε=1e-6, merge_into_q_minus):
+    # β=0 N: qv1=1.0 → q_plus; qv2=-0.5 → q_minus.
+    # IB qv1 variants (-1.0, 0.0) → mean -0.5; intervened (0.5, 1.5) → mean 1.0.
+    # raw_delta = 1.0 - (-0.5) = 1.5; favorable_delta = raw_delta.
+    eval_payload = {
+        "validation_question_ids": ("qv1", "qv2"),
+        "current_neutral_margins": {"qv1": 1.2, "qv2": -0.1},
+        "current_ib_margins": {"qv1": (0.5, 1.5), "qv2": (0.2,)},
+        "current_cb_margins": {"qv1": (0.8,), "qv2": (-0.2,)},
+        "baseline_neutral_margins_by_order": {"CF": {"qv1": 1.0, "qv2": -0.5}},
+        "non_intervened_neutral_margins": {"qv1": 1.0, "qv2": -0.5},
+        "non_intervened_ib_margins": {"qv1": (-1.0, 0.0), "qv2": (-0.8,)},
+        "non_intervened_cb_margins": {"qv1": (0.1,), "qv2": (0.9,)},
+    }
+
+    result = dispatch_stage(
+        "full_study",
+        study=study,
+        freeze_status="sealed",
+        eval_payload=eval_payload,
+        holdout_question_ids=("qh1",),
+    )
+    assert result.ok is True
+    assert "validation_margins_best_by_l_total" in result.artifacts
+    path = Path(result.artifacts["validation_margins_best_by_l_total"])
+    assert path.name == "validation_margins_best_by_l_total.jsonl"
+    rows = [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    by_key = {(r["question_id"], r["condition"]): r for r in rows}
+    assert set(by_key) == {
+        ("qv1", "N"),
+        ("qv1", "IB"),
+        ("qv1", "CB"),
+        ("qv2", "N"),
+        ("qv2", "IB"),
+        ("qv2", "CB"),
+    }
+
+    ib_qv1 = by_key[("qv1", "IB")]
+    assert ib_qv1["partition"] == "q_plus"
+    assert ib_qv1["baseline_margin"] == pytest.approx(-0.5)
+    assert ib_qv1["intervened_margin"] == pytest.approx(1.0)
+    assert ib_qv1["raw_delta"] == pytest.approx(1.5)
+    assert ib_qv1["favorable_delta"] == pytest.approx(1.5)
+    assert ib_qv1["baseline_truthful"] is False
+    assert ib_qv1["intervened_truthful"] is True
+
+    n_qv2 = by_key[("qv2", "N")]
+    assert n_qv2["partition"] == "q_minus"
+    assert n_qv2["baseline_margin"] == pytest.approx(-0.5)
+    assert n_qv2["intervened_margin"] == pytest.approx(-0.1)
+    assert n_qv2["raw_delta"] == pytest.approx(0.4)
+    assert n_qv2["favorable_delta"] == pytest.approx(0.4)
+    assert n_qv2["baseline_truthful"] is False
+    assert n_qv2["intervened_truthful"] is False
+
+    text = path.read_text(encoding="utf-8")
+    assert "qh1" not in text

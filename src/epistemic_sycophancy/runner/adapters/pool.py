@@ -74,3 +74,20 @@ def study_with_selected_pool(
         pool_quota_per_list=exp.pool_quota_per_list,
     )
     return StudyConfig(stack=study.stack, experiment=new_exp, run=study.run)
+
+
+def ensure_selected_pool(study: StudyConfig) -> StudyConfig:
+    """Overlay ``common_pool.json`` when YAML has empty coefficient length (DEC-073).
+
+    If ``experiment.coefficient_length < 1``, load
+    ``{artifact_dir}/feature_selection/common_pool.json`` and return a new
+    StudyConfig with populated ``feature_ids`` / ``feature_scales`` /
+    ``coefficient_length``. Otherwise return ``study`` unchanged.
+    """
+    if int(study.experiment.coefficient_length) >= 1:
+        return study
+    pool_path = (
+        Path(study.run.artifact_dir) / "feature_selection" / "common_pool.json"
+    )
+    pool = load_common_pool_artifact(pool_path)
+    return study_with_selected_pool(study, pool)

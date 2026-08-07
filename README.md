@@ -184,7 +184,7 @@ freeze → full study → holdout):
 | `run-fs` | Gradient-based feature selection: per-order Jacobians for resistance / recovery / preservation surrogates, then a deterministic common feature pool under `feature_selection/`. |
 | `run-optimize` | Fit SAE coefficients $\beta$ on the optimization split (CMA-ES or projected Adam) using the selected pool. Writes `optimize/best_checkpoint.json` (best opt-split `l_total`) plus `optimize/best_checkpoint_by_{metric}.json` for each logged loss component. |
 | `run-freeze` | Seal the study into a `FrozenExperimentConfig` under `freeze/`. Locks revisions, hashes, and selected features before validation / holdout. |
-| `run-study` | Post-freeze evaluation on `behavior_validation` for each opt-split best-by-metric β **and** a β=0 non-intervened comparison (same FTW/CBR/Selectivity/… schema). Writes `full_study/behavioral.json` (alias of best-by-`l_total`), `full_study/behavioral_best_by_{metric}.json`, and `full_study/behavioral_non_intervened.json`. Requires a sealed freeze; does **not** open holdout. |
+| `run-study` | Post-freeze evaluation on `behavior_validation` for each opt-split best-by-metric β **and** a β=0 non-intervened comparison (same FTW/CBR/Selectivity/… schema). Writes `full_study/behavioral.json` (alias of best-by-`l_total`), `full_study/behavioral_best_by_{metric}.json`, `full_study/behavioral_non_intervened.json`, and `full_study/validation_margins_best_by_{metric}.jsonl` (per-question continuous margins; DEC-102). Requires a sealed freeze; does **not** open holdout. |
 | `run-holdout` | Final unlock: load holdout only after a sealed freeze, mark `holdout_started`, and write holdout artifacts. One-shot terminal stage. |
 
 **Tests** (`test` / `test-cuda` environments):

@@ -571,6 +571,18 @@ Related regression: `pixi run --environment test pytest tests/unit/test_logistic
 
 Regression: `pixi run --environment test pytest tests/unit/test_adapt_score_fn.py tests/unit/test_orch_dispatch_baseline.py tests/unit/test_orch_dispatch_baseline_default.py tests/unit/test_orch_cli_defaults.py tests/unit/test_belief_scorer_prompt_microbatch.py tests/unit/test_orch_m1_e2e_no_injectors.py -q` → `7 passed`. Toy FakeStacks that alternated logits by batch index updated to a row counter so microbatches still yield nonempty Q+/Q−.
 
+## DEC-102 — full_study/freeze pool overlay + validation margins (2026-08-07)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-038 | `test_adapters__ensure_selected_pool__empty_yaml__overlays_common_pool` | green | `pixi run --environment test pytest tests/unit/test_ensure_selected_pool.py -q` → `ImportError: cannot import name 'ensure_selected_pool'` | same + populated unchanged → `2 passed` | `runner/adapters/pool.py` | Shared helper; optimize refactored to call it |
+| ORCH-031d | `test_dispatch__full_study__empty_yaml_features__overlays_pool_before_scorer` | green | `…test_orch_dispatch_full_study_default.py::…overlays_pool… -q` → `assert 0 == 2` (scorer got empty YAML study) | full_study default suite → `3 passed`; FS/optimize regression → `2 passed` | `runner/cli.py` | Length checks vs best β; DEC-073 |
+| ADAPT-012 | `test_belief_scorer__nonzero_beta_empty_features__raises` (+ log + length mismatch) | green | `pixi run --environment test pytest tests/unit/test_belief_scorer_hook_gate.py -q` → DID NOT RAISE / missing log fields | hook_gate + microbatch + full_study default → `7 passed` | `runner/adapters/belief_scorer.py`, `runner/cli.py` | Fail loud; `belief_scorer_hooks` progress log |
+| ORCH-013b | `test_dispatch__freeze__empty_yaml_features__overlays_pool_in_frozen_config` | green | `pixi run --environment test pytest tests/unit/test_orch_freeze.py::test_dispatch__freeze__empty_yaml_features__overlays_pool_in_frozen_config -q` → `assert [] == [[17, 1], [17, 7]]` | freeze suite → `2 passed` | `runner/cli.py` | Freeze seals populated experiment (DEC-073) |
+| ORCH-014d | `test_dispatch__full_study_sealed__writes_validation_margins_jsonl` | green | `pixi run --environment test pytest tests/unit/test_orch_full_study.py::test_dispatch__full_study_sealed__writes_validation_margins_jsonl -q` → missing `validation_margins_best_by_l_total` artifact | full_study + dispatch default → `7 passed` | `runner/full_study.py` | Per-criterion JSONL; IB/CB = variant mean; favorable=raw |
+
+Regression: `pixi run --environment test pytest tests/unit/test_ensure_selected_pool.py tests/unit/test_belief_scorer_hook_gate.py tests/unit/test_belief_scorer_prompt_microbatch.py tests/unit/test_orch_freeze.py tests/unit/test_orch_full_study.py tests/unit/test_orch_dispatch_full_study_default.py tests/unit/test_orch_dispatch_optimize_default.py tests/unit/test_adapt_eval_payload.py tests/unit/test_phase_m_ship_gate.py -q` → `19 passed, 2 skipped`.
+
 ## Status definitions
 
 - `not_started`: no test written.

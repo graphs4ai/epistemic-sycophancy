@@ -18,6 +18,7 @@ from epistemic_sycophancy.metrics.baseline_partition import (
 from epistemic_sycophancy.metrics.behavioral import (
     BehavioralMetrics,
     compute_behavioral_metrics,
+    is_truthful_margin,
 )
 from epistemic_sycophancy.optimization.checkpoint import load_checkpoint
 
@@ -86,6 +87,89 @@ def discover_best_betas_by_criterion(opt_dir: Path | str) -> dict[str, tuple[flo
             f"(and no best_checkpoint_by_*.json under {directory})"
         )
     return found
+
+
+def _scalar_margin(value: Any) -> float:
+    """Collapse a scalar or variant sequence to one question-level margin mean."""
+    if isinstance(value, (list, tuple)):
+        if not value:
+            raise ValueError("empty variant margin sequence")
+        return float(sum(float(x) for x in value) / len(value))
+    return float(value)
+
+
+def _partition_label(
+    question_id: str,
+    *,
+    q_plus: frozenset[str],
+    q_minus: frozenset[str],
+    q_tie: frozenset[str],
+) -> str:
+    if question_id in q_plus:
+        return "q_plus"
+    if question_id in q_minus:
+        return "q_minus"
+    if question_id in q_tie:
+        return "q_tie"
+    raise ValueError(
+        f"question_id {question_id!r} missing from baseline partition "
+        "(q_plus/q_minus/q_tie)"
+    )
+
+
+def build_validation_margin_rows(
+    *,
+    question_ids: Sequence[str],
+    baseline_neutral: Mapping[str, Any],
+    baseline_ib: Mapping[str, Any],
+    baseline_cb: Mapping[str, Any],
+    intervened_neutral: Mapping[str, Any],
+    intervened_ib: Mapping[str, Any],
+    intervened_cb: Mapping[str, Any],
+    q_plus: frozenset[str],
+    q_minus: frozenset[str],
+    q_tie: frozenset[str],
+    epsilon: float,
+) -> list[dict[str, Any]]:
+    """Build per-(question, condition) validation margin rows (DEC-102)."""
+    condition_maps = (
+        ("N", baseline_neutral, intervened_neutral),
+        ("IB", baseline_ib, intervened_ib),
+        ("CB", baseline_cb, intervened_cb),
+    )
+    rows: list[dict[str, Any]] = []
+    for qid in question_ids:
+        qid_s = str(qid)
+        partition = _partition_label(
+            qid_s, q_plus=q_plus, q_minus=q_minus, q_tie=q_tie
+        )
+        for condition, baseline_map, intervened_map in condition_maps:
+            if qid_s not in baseline_map or qid_s not in intervened_map:
+                raise ValueError(
+                    f"missing margins for question_id={qid_s!r} "
+                    f"condition={condition!r}"
+                )
+            baseline_margin = _scalar_margin(baseline_map[qid_s])
+            intervened_margin = _scalar_margin(intervened_map[qid_s])
+            raw_delta = intervened_margin - baseline_margin
+            rows.append(
+                {
+                    "question_id": qid_s,
+                    "condition": condition,
+                    "partition": partition,
+                    "baseline_margin": baseline_margin,
+                    "intervened_margin": intervened_margin,
+                    "raw_delta": raw_delta,
+                    "favorable_delta": raw_delta,
+                    "baseline_truthful": is_truthful_margin(
+                        baseline_margin, epsilon=epsilon
+                    ),
+                    "intervened_truthful": is_truthful_margin(
+                        intervened_margin, epsilon=epsilon
+                    ),
+                }
+            )
+    return rows
 
 
 def _criterion_margins(
@@ -215,6 +299,24 @@ def run_full_study_dispatch(
             encoding="utf-8",
         )
         artifacts[f"behavioral_best_by_{metric}"] = str(by_path)
+        margin_rows = build_validation_margin_rows(
+            question_ids=val_ids,
+            baseline_neutral=ni_neutral,
+            baseline_ib=ni_ib,
+            baseline_cb=ni_cb,
+            intervened_neutral=neutral,
+            intervened_ib=ib,
+            intervened_cb=cb,
+            q_plus=partition.q_plus,
+            q_minus=partition.q_minus,
+            q_tie=partition.q_tie,
+            epsilon=epsilon,
+        )
+        margins_path = out_dir / f"validation_margins_best_by_{metric}.jsonl"
+        with margins_path.open("w", encoding="utf-8") as handle:
+            for row in margin_rows:
+                handle.write(json.dumps(row, sort_keys=True) + "\n")
+        artifacts[f"validation_margins_best_by_{metric}"] = str(margins_path)
         metrics_out[f"{metric}_ftw"] = metrics.ftw
         metrics_out[f"{metric}_cbr"] = metrics.cbr
         metrics_out[f"{metric}_selectivity"] = metrics.selectivity
@@ -226,6 +328,8 @@ def run_full_study_dispatch(
             cbr=metrics.cbr,
             selectivity=metrics.selectivity,
             path=str(by_path),
+            validation_margins_path=str(margins_path),
+            n_margin_rows=len(margin_rows),
         )
         if metric == "l_total":
             # Legacy DEC-069/098 path name (same payload as best-by-l_total).

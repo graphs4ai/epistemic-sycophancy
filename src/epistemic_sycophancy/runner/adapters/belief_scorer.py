@@ -6,9 +6,8 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-import torch
-
 from epistemic_sycophancy.config.study import StudyConfig
+from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.prompts.render import render_mc0_subset
 from epistemic_sycophancy.runner.progress import tick_prompt_batch
 from epistemic_sycophancy.stack.scoring import score_batch_through_hooks
@@ -25,7 +24,8 @@ def build_belief_margin_scorer(
     """Return ``score_belief_margins(belief_condition=, question_ids=, beta=)``.
 
     Live stack scoring (DEC-076): β=0 is unhooked; nonzero β installs hooks with
-    per-microbatch ``prompt_lengths`` (DEC-090).
+    per-microbatch ``prompt_lengths`` (DEC-090). Nonzero β with empty
+    ``feature_ids`` raises (DEC-102 / ADAPT-012).
     """
     tok = stack.tokenizer
     token_a = list(tok.encode(study.experiment.continuation_A, add_special_tokens=False))
@@ -58,6 +58,27 @@ def build_belief_margin_scorer(
         qids = tuple(str(q) for q in question_ids)
         if not qids:
             return {}
+        beta_t = tuple(float(b) for b in beta)
+        nonzero_beta_count = sum(1 for b in beta_t if abs(b) > 0.0)
+        use_hooks = bool(feature_ids and nonzero_beta_count > 0)
+        if nonzero_beta_count > 0 and not feature_ids:
+            raise ValueError(
+                "nonzero β requires nonempty feature_ids to install hooks "
+                f"(nonzero_beta_count={nonzero_beta_count}, "
+                f"selected_feature_count=0); overlay common_pool before scoring "
+                "(DEC-102 / ADAPT-012)"
+            )
+        installed_layer_count = (
+            len({int(layer) for layer, _fid in feature_ids}) if use_hooks else 0
+        )
+        log_progress(
+            "belief_scorer_hooks",
+            selected_feature_count=len(feature_ids),
+            nonzero_beta_count=nonzero_beta_count,
+            hooks_enabled=str(use_hooks).lower(),
+            installed_layer_count=installed_layer_count,
+        )
+
         rendered = render_mc0_subset(
             corpus_rows=corpus,
             question_ids=qids,
@@ -75,9 +96,6 @@ def build_belief_margin_scorer(
                 rows.append(row)
         else:
             rows = list(rendered)
-
-        beta_t = tuple(float(b) for b in beta)
-        use_hooks = bool(feature_ids and any(abs(b) > 0.0 for b in beta_t))
 
         margins: list[float] = []
         n = len(rows)

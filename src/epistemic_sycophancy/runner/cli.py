@@ -158,17 +158,20 @@ def dispatch_stage(
                 f"(got {freeze_status!r}; DEC-055 / DEC-042 / DEC-063)"
             )
         from epistemic_sycophancy.runner.adapters.eval_payload import build_eval_payload
+        from epistemic_sycophancy.runner.adapters.pool import ensure_selected_pool
         from epistemic_sycophancy.runner.full_study import run_full_study_dispatch
         from epistemic_sycophancy.runner.identity import resolve_stack
         from epistemic_sycophancy.optimization.checkpoint import load_checkpoint
+
+        study_for_eval = ensure_selected_pool(study)
 
         if eval_payload is None:
             from epistemic_sycophancy.runner.full_study import (
                 discover_best_betas_by_criterion,
             )
 
-            stack = resolve_stack(study, stack_loader=stack_loader)
-            opt_dir = Path(study.run.artifact_dir) / "optimize"
+            stack = resolve_stack(study_for_eval, stack_loader=stack_loader)
+            opt_dir = Path(study_for_eval.run.artifact_dir) / "optimize"
             betas_by_criterion = discover_best_betas_by_criterion(opt_dir)
             best_beta = betas_by_criterion.get("l_total")
             if best_beta is None:
@@ -178,6 +181,20 @@ def dispatch_stage(
                     json.loads(ckpt_path.read_text(encoding="utf-8"))
                 )
                 best_beta = tuple(float(x) for x in ckpt["beta"])
+            n_feat = len(study_for_eval.experiment.feature_ids)
+            n_scale = len(study_for_eval.experiment.feature_scales)
+            n_beta = len(best_beta)
+            if n_beta < 1:
+                raise ValueError(
+                    "full_study requires nonempty best β "
+                    f"(got length {n_beta})"
+                )
+            if n_feat != n_beta or n_scale != n_beta:
+                raise ValueError(
+                    "full_study feature/β length mismatch after pool overlay: "
+                    f"feature_ids={n_feat}, feature_scales={n_scale}, "
+                    f"best_beta={n_beta} (DEC-073)"
+                )
             val_ids = tuple(validation_question_ids or ())
             if not val_ids:
                 from epistemic_sycophancy.runner.adapters.resolve import (
@@ -185,7 +202,7 @@ def dispatch_stage(
                 )
 
                 _corpus, split_ids, _coverage = resolve_corpus_context(
-                    study,
+                    study_for_eval,
                     corpus_jsonl_paths=corpus_jsonl_paths,
                     split_manifest_path=split_manifest_path,
                     corpus_root=corpus_root,
@@ -202,7 +219,7 @@ def dispatch_stage(
                 )
 
                 corpus, split_ids, _coverage = resolve_corpus_context(
-                    study,
+                    study_for_eval,
                     corpus_jsonl_paths=corpus_jsonl_paths,
                     split_manifest_path=split_manifest_path,
                     corpus_root=corpus_root,
@@ -211,14 +228,14 @@ def dispatch_stage(
                 from epistemic_sycophancy.config.study import study_order_regime
 
                 margin_scorer = build_belief_margin_scorer(
-                    study,
+                    study_for_eval,
                     stack,
                     corpus=corpus,
                     split_question_ids=split_ids,
-                    order_regime=study_order_regime(study),
+                    order_regime=study_order_regime(study_for_eval),
                 )
             eval_payload = build_eval_payload(
-                study,
+                study_for_eval,
                 stack,
                 best_beta=best_beta,
                 betas_by_criterion=betas_by_criterion,
@@ -227,7 +244,7 @@ def dispatch_stage(
                 holdout_question_ids=holdout_question_ids or (),
             )
         fs = run_full_study_dispatch(
-            study=study,
+            study=study_for_eval,
             freeze_status=freeze_status,
             eval_payload=eval_payload,
             holdout_question_ids=holdout_question_ids or (),
@@ -237,9 +254,9 @@ def dispatch_stage(
             ok=True,
             message=(
                 f"completed full_study: order={fs['metrics'].get('order_regime')} "
-                f"study_fp={study_config_fingerprint(study)[:12]}…"
+                f"study_fp={study_config_fingerprint(study_for_eval)[:12]}…"
             ),
-            study=study,
+            study=study_for_eval,
             metrics=dict(fs["metrics"]),
             artifacts=dict(fs["artifacts"]),
         )
@@ -406,21 +423,12 @@ def dispatch_stage(
             build_grad_fn,
             build_objective_fn,
         )
-        from epistemic_sycophancy.runner.adapters.pool import (
-            load_common_pool_artifact,
-            study_with_selected_pool,
-        )
+        from epistemic_sycophancy.runner.adapters.pool import ensure_selected_pool
         from epistemic_sycophancy.runner.adapters.resolve import resolve_corpus_context
         from epistemic_sycophancy.runner.identity import resolve_stack
         from epistemic_sycophancy.runner.optimize import run_optimize_dispatch
 
-        study_for_opt = study
-        if study.experiment.coefficient_length < 1:
-            pool_path = (
-                Path(study.run.artifact_dir) / "feature_selection" / "common_pool.json"
-            )
-            pool = load_common_pool_artifact(pool_path)
-            study_for_opt = study_with_selected_pool(study, pool)
+        study_for_opt = ensure_selected_pool(study)
 
         if identity_passed is None:
             identity_passed = resolve_identity_passed(study_for_opt)
@@ -675,17 +683,19 @@ def dispatch_stage(
         )
 
     if stage == "freeze":
+        from epistemic_sycophancy.runner.adapters.pool import ensure_selected_pool
         from epistemic_sycophancy.runner.freeze_stage import run_freeze_dispatch
 
-        frozen = run_freeze_dispatch(study=study)
+        study_for_freeze = ensure_selected_pool(study)
+        frozen = run_freeze_dispatch(study=study_for_freeze)
         return _make_result(
             stage=stage,
             ok=True,
             message=(
                 f"completed freeze: freeze_status=sealed "
-                f"study_fp={fingerprint[:12]}…"
+                f"study_fp={study_config_fingerprint(study_for_freeze)[:12]}…"
             ),
-            study=study,
+            study=study_for_freeze,
             metrics=dict(frozen["metrics"]),
             artifacts=dict(frozen["artifacts"]),
         )
