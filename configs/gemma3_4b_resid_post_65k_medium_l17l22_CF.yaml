@@ -42,20 +42,20 @@ experiment:
   continuation_include_eos: false
   attribution_scope: last_prompt_token
   pool_eligibility_override: false
-  pool_quota_per_list: 8
+  pool_quota_per_list: 64
 run:
   artifact_dir: artifacts/gemma3_4b_resid_post_65k_medium_l17l22_CF-softplusObjective_and_fullOptSplit
   order_regime: CF
   feature_chunk_size: 1024
-  prompt_batch_size: 1
+  prompt_batch_size: 4
   optimizer:
     kind: projected_adam
-    adam_lr: 0.1
+    adam_lr: 0.01
     adam_beta1: 0.9
     adam_beta2: 0.999
     adam_eps: 1.0e-8
-    adam_microbatch_questions: 1
+    adam_microbatch_questions: 4
   optimize:
     budget_match_on: n_objective_evals
     max_steps: 120
-    patience: 10
+    patience: 15
