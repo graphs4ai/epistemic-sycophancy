@@ -347,3 +347,65 @@ def test_dispatch__full_study_sealed__writes_validation_margins_jsonl(
 
     text = path.read_text(encoding="utf-8")
     assert "qh1" not in text
+
+
+@pytest.mark.unit
+def test_dispatch__full_study_sealed__writes_validation_figures(
+    tmp_path: Path,
+) -> None:
+    """ORCH-014e / DEC-103: full_study writes metric + margin figures."""
+    from epistemic_sycophancy.runner.cli import dispatch_stage
+
+    art = tmp_path / "art"
+    study = _study(str(art))
+    opt_dir = art / "optimize"
+    opt_dir.mkdir(parents=True)
+    _write_ckpt(opt_dir / "best_checkpoint.json", [-0.5], best_by="l_total")
+    _write_ckpt(opt_dir / "best_checkpoint_by_l_total.json", [-0.5], best_by="l_total")
+    _write_ckpt(opt_dir / "best_checkpoint_by_l_resist.json", [-1.25], best_by="l_resist")
+
+    total_margins = {
+        "neutral": {"qv1": 1.2, "qv2": -0.1},
+        "ib": {"qv1": (0.5, 1.5), "qv2": (0.2,)},
+        "cb": {"qv1": (0.8,), "qv2": (-0.2,)},
+        "beta": [-0.5],
+    }
+    resist_margins = {
+        "neutral": {"qv1": 0.8, "qv2": -0.2},
+        "ib": {"qv1": (-1.5,), "qv2": (0.9,)},
+        "cb": {"qv1": (0.4,), "qv2": (0.6,)},
+        "beta": [-1.25],
+    }
+    eval_payload = {
+        "validation_question_ids": ("qv1", "qv2"),
+        "current_neutral_margins": total_margins["neutral"],
+        "current_ib_margins": total_margins["ib"],
+        "current_cb_margins": total_margins["cb"],
+        "baseline_neutral_margins_by_order": {"CF": {"qv1": 1.0, "qv2": -0.5}},
+        "non_intervened_neutral_margins": {"qv1": 1.0, "qv2": -0.5},
+        "non_intervened_ib_margins": {"qv1": (-1.0, 0.0), "qv2": (-0.8,)},
+        "non_intervened_cb_margins": {"qv1": (0.1,), "qv2": (0.9,)},
+        "margins_by_criterion": {
+            "l_total": total_margins,
+            "l_resist": resist_margins,
+        },
+    }
+
+    result = dispatch_stage(
+        "full_study",
+        study=study,
+        freeze_status="sealed",
+        eval_payload=eval_payload,
+    )
+    assert result.ok is True
+    assert "figure_metric_ftw" in result.artifacts
+    assert "figure_metric_cbr" in result.artifacts
+    assert "figure_margins_ib_mean_favorable_delta" in result.artifacts
+    assert "figure_margins_scatter_l_total" in result.artifacts
+    assert "figure_margins_delta_hist_l_total" in result.artifacts
+    figs = art / "full_study" / "figures"
+    assert (figs / "metric_ftw.png").is_file()
+    assert (figs / "metric_ftw.png").stat().st_size > 0
+    assert (figs / "margins_ib_mean_favorable_delta.png").is_file()
+    assert (figs / "margins_scatter_baseline_vs_intervened_l_total.png").is_file()
+    assert (figs / "margins_favorable_delta_hist_l_total.png").is_file()

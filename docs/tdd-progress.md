@@ -583,6 +583,15 @@ Regression: `pixi run --environment test pytest tests/unit/test_adapt_score_fn.p
 
 Regression: `pixi run --environment test pytest tests/unit/test_ensure_selected_pool.py tests/unit/test_belief_scorer_hook_gate.py tests/unit/test_belief_scorer_prompt_microbatch.py tests/unit/test_orch_freeze.py tests/unit/test_orch_full_study.py tests/unit/test_orch_dispatch_full_study_default.py tests/unit/test_orch_dispatch_optimize_default.py tests/unit/test_adapt_eval_payload.py tests/unit/test_phase_m_ship_gate.py -q` → `19 passed, 2 skipped`.
 
+## DEC-103 — full_study validation figures (2026-08-07)
+
+| Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
+|---|---|---|---|---|---|---|
+| ORCH-PLOT-003 | `test_full_study_plots__metric_bars__writes_png_and_skips_empty` (+ ordered labels) | green | `ModuleNotFoundError: ...full_study_plots` | `pixi run --environment test pytest tests/unit/test_full_study_plots.py -q` → passed | `logging/full_study_plots.py` | Acc_N/FTW/CBR/Selectivity/PRA bars |
+| ORCH-PLOT-004 | IB mean-Δ + l_total scatter/hist | green | `ImportError: cannot import name 'plot_ib_mean_favorable_delta'` | same module → `4 passed` | `logging/full_study_plots.py` | Continuous margin viz |
+| ORCH-014e | `test_dispatch__full_study_sealed__writes_validation_figures` | green | missing `figure_metric_ftw` artifact | full_study + plots + dispatch → `12 passed` | `runner/full_study.py` | Writes `full_study/figures/` |
+| DEC-103 | (policy freeze) | green | — | recorded in `docs/decisions.md` | `docs/decisions.md`, README, ship gate | Amends DEC-070/102 |
+
 ## Status definitions
 
 - `not_started`: no test written.

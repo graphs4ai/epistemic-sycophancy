@@ -1,5 +1,14 @@
 """Trial / objective logging package + operational pipeline logger (DEC-089)."""
 
+from epistemic_sycophancy.logging.full_study_plots import (
+    BEHAVIORAL_PLOT_METRICS,
+    ordered_behavioral_labels,
+    plot_behavioral_metric_bars,
+    plot_ib_mean_favorable_delta,
+    plot_margins_delta_hist_l_total,
+    plot_margins_scatter_l_total,
+    write_full_study_figures,
+)
 from epistemic_sycophancy.logging.loss_curve import plot_loss_over_trials
 from epistemic_sycophancy.logging.optimize_metrics import (
     ITERATION_CSV_COLUMNS,
@@ -29,6 +38,7 @@ from epistemic_sycophancy.logging.trial_records import (
 )
 
 __all__ = [
+    "BEHAVIORAL_PLOT_METRICS",
     "OBJECTIVE_VERSION_CURRENT",
     "OBJECTIVE_VERSION_V1",
     "OBJECTIVE_VERSION_V2",
@@ -47,7 +57,13 @@ __all__ = [
     "log_progress",
     "log_stage_end",
     "log_stage_start",
+    "ordered_behavioral_labels",
+    "plot_behavioral_metric_bars",
+    "plot_ib_mean_favorable_delta",
     "plot_iteration_metric_curves",
     "plot_loss_over_trials",
+    "plot_margins_delta_hist_l_total",
+    "plot_margins_scatter_l_total",
+    "write_full_study_figures",
     "write_optimize_metrics_csv",
 ]

@@ -10,6 +10,7 @@ from typing import Any
 
 from epistemic_sycophancy.config.study import StudyConfig, study_order_regime
 from epistemic_sycophancy.feature_selection.exceptions import HoldoutAccessError
+from epistemic_sycophancy.logging.full_study_plots import write_full_study_figures
 from epistemic_sycophancy.logging.pipeline import log_progress
 from epistemic_sycophancy.metrics.baseline_partition import (
     build_baseline_partition,
@@ -270,6 +271,8 @@ def run_full_study_dispatch(
         "order_regime": order,
         "holdout_accessed": False,
     }
+    behavioral_by_label: dict[str, dict[str, Any]] = {}
+    margins_by_criterion: dict[str, list[dict[str, Any]]] = {}
 
     # Criterion order: DEC-097 keys that are present, l_total last among equals
     # for stable writing; prefer declared tuple order.
@@ -299,6 +302,7 @@ def run_full_study_dispatch(
             encoding="utf-8",
         )
         artifacts[f"behavioral_best_by_{metric}"] = str(by_path)
+        behavioral_by_label[metric] = payload
         margin_rows = build_validation_margin_rows(
             question_ids=val_ids,
             baseline_neutral=ni_neutral,
@@ -317,6 +321,7 @@ def run_full_study_dispatch(
             for row in margin_rows:
                 handle.write(json.dumps(row, sort_keys=True) + "\n")
         artifacts[f"validation_margins_best_by_{metric}"] = str(margins_path)
+        margins_by_criterion[metric] = margin_rows
         metrics_out[f"{metric}_ftw"] = metrics.ftw
         metrics_out[f"{metric}_cbr"] = metrics.cbr
         metrics_out[f"{metric}_selectivity"] = metrics.selectivity
@@ -380,6 +385,7 @@ def run_full_study_dispatch(
         encoding="utf-8",
     )
     artifacts["behavioral_non_intervened"] = str(ni_path)
+    behavioral_by_label["non_intervened"] = ni_payload
     metrics_out["non_intervened_ftw"] = ni_metrics.ftw
     metrics_out["non_intervened_cbr"] = ni_metrics.cbr
     metrics_out["non_intervened_selectivity"] = ni_metrics.selectivity
@@ -391,6 +397,21 @@ def run_full_study_dispatch(
         selectivity=ni_metrics.selectivity,
         path=str(ni_path),
     )
+
+    figure_artifacts = write_full_study_figures(
+        behavioral_by_label=behavioral_by_label,
+        margins_by_criterion=margins_by_criterion,
+        out_dir=out_dir / "figures",
+        order_regime=order,
+    )
+    artifacts.update(figure_artifacts)
+    if figure_artifacts:
+        log_progress(
+            "full_study_figures",
+            order_regime=order,
+            n_figures=len(figure_artifacts),
+            figures_dir=str(out_dir / "figures"),
+        )
     return {
         "metrics": metrics_out,
         "artifacts": artifacts,

@@ -104,6 +104,7 @@ Per-study under `run.artifact_dir` (e.g. `artifacts/dev/layer17_n32_CF/`):
 - `full_study/behavioral_non_intervened.json` (β=0 comparison; same metric schema; DEC-098)
 - `full_study/behavioral_best_by_{metric}.json` (per opt-split criterion; DEC-100)
 - `full_study/validation_margins_best_by_{metric}.jsonl` (per-question N/IB/CB margins; DEC-102)
+- `full_study/figures/` metric bar charts + IB mean-Δ + l_total scatter/hist (DEC-103)
 - `holdout/` only after unlock
 
 Cross-study assemble root (e.g. `artifacts/dev/layer17_n32_cross_order/`):
