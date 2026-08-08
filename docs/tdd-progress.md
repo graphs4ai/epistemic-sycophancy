@@ -414,7 +414,7 @@ Phase M ship gate: YAML→CLI→optimize→freeze→full_study (no holdout) is w
 | Spec ID | Test | Status | Red evidence | Green evidence | Production files | Notes |
 |---|---|---|---|---|---|---|
 | ORCH-LOG-001 | `test_pipeline_logging__configure__…` + `test_cli__arg_parser__exposes_log_level_flag` | green | `ModuleNotFoundError: …pipeline` / unrecognized `--log-level` | `pixi run --environment test pytest tests/unit/test_pipeline_logging.py -q` → `7 passed` | `logging/pipeline.py`, `logging/__init__.py`, `runner/cli.py` | stderr handler; default INFO |
-| ORCH-LOG-002 | `test_cli__run_cli__emits_stage_start_and_end_with_elapsed` | green | (implemented with CLI wire; covered in suite) | same suite → passed | `runner/cli.py` | start/end + `elapsed_s` |
+| ORCH-LOG-002 | `test_cli__run_cli__emits_stage_start_and_end_with_elapsed` | green | `DegenerateBaselineError: |Q+|=2, |Q-|=0` (toy LM used batch index with `prompt_batch_size=1`) | `pixi run --environment test pytest tests/unit/test_pipeline_logging.py -q` → `7 passed` | `tests/unit/test_pipeline_logging.py` | start/end + `elapsed_s`; fixture `_row` counter matches sibling CLI toys |
 | ORCH-LOG-003 | `test_optimize__progress__logs_each_step_with_l_total` | green | `assert 0 == 2` (no progress lines) | same → passed | `runner/optimize.py` | Adam + CMA-ES `optimize_step` |
 | ORCH-LOG-004 | `test_fs_dispatch__progress__logs_component_and_skips` | green | no `fs_component` / skip lines | same → passed | `runner/fs_dispatch.py` | component + skip + pool_done |
 | ORCH-LOG-005 | `test_freeze_and_holdout__audit__emit_warning_events` | green | no `audit=freeze_sealed` / `holdout_unsealed` | same → passed | `runner/freeze_stage.py`, `runner/holdout_eval.py` | WARNING audit |
